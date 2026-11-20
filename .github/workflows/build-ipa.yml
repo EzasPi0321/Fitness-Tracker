@@ -70,7 +70,12 @@ jobs:
             dist/Payload/FitTrack.app
           (cd dist && zip -qry FitTrack.ipa Payload && rm -rf Payload)
           cp FitTrack/Resources/Assets.xcassets/AppIcon.appiconset/AppIcon.png dist/icon.png
-          if [ -f DesktopPreview/index.html ]; then cp DesktopPreview/index.html dist/FitTrack-Desktop.html; fi
+          # Desktop preview: add a document header so it opens straight from a download.
+          {
+            printf '<!doctype html>\n<html lang="en"><head><meta charset="utf-8">'
+            printf '<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">\n'
+            cat DesktopPreview/index.html
+          } > dist/FitTrack-Desktop.html
           VERSION=$(/usr/libexec/PlistBuddy -c "Print :CFBundleShortVersionString" \
             build/Build/Products/Release-iphoneos/FitTrack.app/Info.plist)
           echo "VERSION=$VERSION" >> "$GITHUB_ENV"
