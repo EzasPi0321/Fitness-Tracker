@@ -1,0 +1,109 @@
+# Builds an unsigned FitTrack.ipa on every push.
+# On pushes to main it also publishes a GitHub Release containing:
+#   FitTrack.ipa              – install with SideStore / AltStore (they sign it with your Apple ID)
+#   source.json               – SideStore/AltStore source so updates show up on your phone
+#   icon.png                  – app icon used by the source
+#   FitTrack-Desktop.html     – browser preview of the dashboards (no camera features)
+#
+# SideStore source URL (add once in SideStore → Sources → +):
+#   https://github.com/<owner>/<repo>/releases/latest/download/source.json
+name: Build iOS app
+
+on:
+  push:
+    branches: ["**"]
+    paths-ignore: ["**.md"]
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+concurrency:
+  group: build-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  build:
+    runs-on: macos-latest
+    timeout-minutes: 45
+    env:
+      BUILD_NUMBER: ${{ github.run_number }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Show Xcode version
+        run: xcodebuild -version
+
+      - name: Generate Xcode project
+        run: |
+          brew install xcodegen
+          xcodegen generate
+
+      - name: Build (unsigned, device)
+        run: |
+          set -o pipefail
+          xcodebuild build \
+            -project FitTrack.xcodeproj \
+            -scheme FitTrack \
+            -configuration Release \
+            -sdk iphoneos \
+            -destination 'generic/platform=iOS' \
+            -derivedDataPath build \
+            CURRENT_PROJECT_VERSION="$BUILD_NUMBER" \
+            CODE_SIGNING_ALLOWED=NO \
+            CODE_SIGNING_REQUIRED=NO \
+            CODE_SIGN_IDENTITY="" \
+            | tee build.log | grep -E "error:|warning: .*deprecated|\*\* BUILD" || true
+          test -d build/Build/Products/Release-iphoneos/FitTrack.app
+
+      - name: Show compiler errors
+        if: failure()
+        run: grep -n -B2 -A6 "error:" build.log | head -200 || true
+
+      - name: Package .ipa
+        run: |
+          mkdir -p dist/Payload
+          cp -R build/Build/Products/Release-iphoneos/FitTrack.app dist/Payload/
+          # Ad-hoc sign with the entitlements so SideStore/AltStore keep HealthKit
+          # when they re-sign the app with your Apple ID.
+          codesign --force --sign - --entitlements FitTrack/FitTrack.entitlements \
+            dist/Payload/FitTrack.app
+          (cd dist && zip -qry FitTrack.ipa Payload && rm -rf Payload)
+          cp FitTrack/Resources/Assets.xcassets/AppIcon.appiconset/AppIcon.png dist/icon.png
+          if [ -f DesktopPreview/index.html ]; then cp DesktopPreview/index.html dist/FitTrack-Desktop.html; fi
+          VERSION=$(/usr/libexec/PlistBuddy -c "Print :CFBundleShortVersionString" \
+            build/Build/Products/Release-iphoneos/FitTrack.app/Info.plist)
+          echo "VERSION=$VERSION" >> "$GITHUB_ENV"
+          echo "TAG=v$VERSION-build$BUILD_NUMBER" >> "$GITHUB_ENV"
+          ls -la dist
+
+      - name: Upload build artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: FitTrack-${{ env.VERSION }}-build${{ env.BUILD_NUMBER }}
+          path: dist/
+
+      - name: Write SideStore source
+        if: github.ref == 'refs/heads/main'
+        run: |
+          python3 .github/scripts/make_source.py \
+            --repo "${{ github.repository }}" \
+            --tag "$TAG" \
+            --version "$VERSION" \
+            --build "$BUILD_NUMBER" \
+            --ipa dist/FitTrack.ipa \
+            --notes "$(git log -1 --pretty=%s)" \
+            --out dist/source.json
+          cat dist/source.json
+
+      - name: Publish release
+        if: github.ref == 'refs/heads/main'
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          gh release create "$TAG" \
+            dist/FitTrack.ipa dist/source.json dist/icon.png dist/FitTrack-Desktop.html \
+            --title "FitTrack $VERSION (build $BUILD_NUMBER)" \
+            --notes "$(git log -1 --pretty=%B)" \
+            --target "$GITHUB_SHA" \
+            --latest
