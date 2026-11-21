@@ -1280,8 +1280,11 @@ class _GymYearCardState extends State<_GymYearCard> {
             ),
             const SizedBox(height: S.xs),
             Text(
-              '${y.daysTrained} days trained  ·  ${y.activeWeeks.length} active weeks  ·  '
-              'best run ${y.bestWeekStreak} ${y.bestWeekStreak == 1 ? 'week' : 'weeks'} in a row',
+              [
+                if (y.daysTrained != y.total) 'on ${y.daysTrained} days',
+                '${y.activeWeeks.length} active ${y.activeWeeks.length == 1 ? 'week' : 'weeks'}',
+                'best run ${y.bestWeekStreak} ${y.bestWeekStreak == 1 ? 'week' : 'weeks'}',
+              ].join('  ·  '),
               style: tt.bodySmall!.copyWith(fontFeatures: tabular),
             ),
             const SizedBox(height: S.xl),

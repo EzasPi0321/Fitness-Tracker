@@ -86,25 +86,40 @@ class GymCard extends StatelessWidget {
               ),
             ],
           ),
-          for (final s in sessions) ...[
-            const SizedBox(height: S.sm),
-            Row(
+          // The new row eases in, so the cards below slide down instead of jumping.
+          AnimatedSize(
+            duration: Motion.of(context, Motion.base),
+            // Already on screen and resizing: ease-in-out, no overshoot that would clip.
+            curve: Motion.standard,
+            alignment: Alignment.topCenter,
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.stretch,
               children: [
-                FIcon(Symbols.check, size: 18, color: t.fg, weight: FontWeight.w600),
-                const SizedBox(width: S.sm),
-                Expanded(
-                  child: Text(s.summary, style: tt.bodyMedium, maxLines: 1, overflow: TextOverflow.ellipsis),
-                ),
-                IconButton(
-                  constraints: const BoxConstraints.tightFor(width: 44, height: 44),
-                  padding: EdgeInsets.zero,
-                  tooltip: 'Edit ${s.type.label}',
-                  onPressed: () => showGymSheet(context, day: day, session: s),
-                  icon: FIcon(Symbols.edit, size: 20, color: t.muted, weight: FontWeight.w500),
-                ),
+                for (final s in sessions) ...[
+                  const SizedBox(height: S.sm),
+                  Row(
+                    children: [
+                      FIcon(Symbols.check, size: 18, color: t.fg, weight: FontWeight.w600),
+                      const SizedBox(width: S.sm),
+                      Expanded(
+                        child: Text(s.summary, style: tt.bodyMedium, maxLines: 1, overflow: TextOverflow.ellipsis),
+                      ),
+                      Transform.translate(
+                        offset: const Offset(12, 0),
+                        child: IconButton(
+                          constraints: const BoxConstraints.tightFor(width: 44, height: 44),
+                          padding: EdgeInsets.zero,
+                          tooltip: 'Edit ${s.type.label}',
+                          onPressed: () => showGymSheet(context, day: day, session: s),
+                          icon: FIcon(Symbols.edit, size: 20, color: t.muted, weight: FontWeight.w500),
+                        ),
+                      ),
+                    ],
+                  ),
+                ],
               ],
             ),
-          ],
+          ),
           const SizedBox(height: S.lg),
           // The five types are the choice; adding details is a quieter, secondary action.
           Row(
@@ -113,7 +128,8 @@ class GymCard extends StatelessWidget {
               TextButton(
                 style: TextButton.styleFrom(
                   minimumSize: const Size(44, 36),
-                  padding: const EdgeInsets.symmetric(horizontal: 8),
+                  padding: const EdgeInsets.only(left: 12),
+                  alignment: Alignment.centerRight,
                   foregroundColor: t.muted,
                   textStyle: tt.labelMedium,
                 ),
@@ -141,9 +157,13 @@ class GymCard extends StatelessWidget {
 }
 
 class _TypeButton extends StatelessWidget {
-  const _TypeButton({required this.type, required this.onTap});
+  const _TypeButton({required this.type, required this.onTap, this.selected = false, this.onTapOnly = true});
   final TrainingType type;
   final VoidCallback onTap;
+
+  /// In the sheet, one type is chosen; on the card every button is an action.
+  final bool selected;
+  final bool onTapOnly;
 
   @override
   Widget build(BuildContext context) {
@@ -151,19 +171,26 @@ class _TypeButton extends StatelessWidget {
     final tt = Theme.of(context).textTheme;
     return Squishy(
       onTap: onTap,
-      semanticLabel: 'Log ${type.label}',
-      child: Container(
-        height: 40,
-        padding: const EdgeInsets.symmetric(horizontal: 4),
+      semanticLabel: onTapOnly ? 'Log ${type.label}' : type.label,
+      child: AnimatedContainer(
+        duration: Motion.of(context, Motion.fast),
+        height: 44,
+        padding: const EdgeInsets.symmetric(horizontal: 2),
         alignment: Alignment.center,
         decoration: BoxDecoration(
-          color: t.raised,
+          color: selected ? t.inset : t.raised,
           borderRadius: BorderRadius.circular(S.radiusControl),
-          border: Border.all(color: t.border),
+          // Selected: a ring in the text colour, not a white fill, so Save stays the one
+          // bright slab on the sheet.
+          border: Border.all(color: selected ? t.fg.withValues(alpha: 0.9) : t.border, width: selected ? 1.5 : 1),
         ),
         child: FittedBox(
           fit: BoxFit.scaleDown,
-          child: Text(type.label, style: tt.labelLarge, maxLines: 1),
+          child: Text(
+            type.label,
+            style: tt.labelLarge!.copyWith(color: selected || onTapOnly ? t.fg : t.muted),
+            maxLines: 1,
+          ),
         ),
       ),
     );
@@ -239,27 +266,19 @@ class _GymSheetState extends State<_GymSheet> {
             const SizedBox(height: S.xs),
             Text(isToday ? 'Today' : DateFormat('EEEE d MMMM').format(widget.day), style: tt.bodyMedium),
             const SizedBox(height: S.lg),
-            Wrap(
-              spacing: S.sm,
-              runSpacing: S.sm,
+            Row(
               children: [
-                for (final type in TrainingType.values)
-                  Squishy(
-                    onTap: () => setState(() => _type = type),
-                    semanticLabel: type.label,
-                    child: AnimatedContainer(
-                      duration: Motion.of(context, Motion.fast),
-                      height: 40,
-                      padding: const EdgeInsets.symmetric(horizontal: 16),
-                      decoration: BoxDecoration(
-                        color: _type == type ? t.accent : t.raised,
-                        borderRadius: BorderRadius.circular(S.radiusControl),
-                        border: Border.all(color: _type == type ? t.accent : t.border),
-                      ),
-                      alignment: Alignment.center,
-                      child: Text(type.label, style: tt.labelLarge!.copyWith(color: _type == type ? t.onAccent : t.fg)),
+                for (final (i, type) in TrainingType.values.indexed) ...[
+                  if (i > 0) const SizedBox(width: 6),
+                  Expanded(
+                    child: _TypeButton(
+                      type: type,
+                      selected: _type == type,
+                      onTapOnly: false,
+                      onTap: () => setState(() => _type = type),
                     ),
                   ),
+                ],
               ],
             ),
             const SizedBox(height: S.sm),

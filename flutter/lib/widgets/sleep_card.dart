@@ -34,7 +34,7 @@ class SleepCard extends StatelessWidget {
     final time = DateFormat.jm();
 
     return FCard(
-      padding: const EdgeInsets.all(S.xl),
+      padding: EdgeInsets.fromLTRB(S.xl, S.xl, S.xl, night == null ? S.xl : S.xl - 12),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
@@ -102,12 +102,15 @@ class SleepCard extends StatelessWidget {
                     overflow: TextOverflow.ellipsis,
                   ),
                 ),
-                IconButton(
-                  constraints: const BoxConstraints.tightFor(width: 44, height: 44),
-                  padding: EdgeInsets.zero,
-                  tooltip: night.logged ? 'Edit sleep' : 'Log a different time',
-                  onPressed: () => showSleepSheet(context, day: day, night: night),
-                  icon: FIcon(Symbols.edit, size: 20, color: t.muted, weight: FontWeight.w500),
+                Transform.translate(
+                  offset: const Offset(12, 0),
+                  child: IconButton(
+                    constraints: const BoxConstraints.tightFor(width: 44, height: 44),
+                    padding: EdgeInsets.zero,
+                    tooltip: night.logged ? 'Edit sleep' : 'Log a different time',
+                    onPressed: () => showSleepSheet(context, day: day, night: night),
+                    icon: FIcon(Symbols.edit, size: 20, color: t.muted, weight: FontWeight.w500),
+                  ),
                 ),
               ],
             ),

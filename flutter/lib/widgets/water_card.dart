@@ -137,6 +137,10 @@ class WaterCard extends StatelessWidget {
               IconButton.filledTonal(
                 constraints: const BoxConstraints.tightFor(width: 44, height: 44),
                 padding: EdgeInsets.zero,
+                // Same shape as the amounts beside it: one radius family in the row.
+                style: IconButton.styleFrom(
+                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(S.inner(S.radiusCard, S.lg) + 6)),
+                ),
                 tooltip: 'Other amount',
                 onPressed: () => _custom(context, metric),
                 icon: FIcon(Symbols.edit, size: 20, weight: FontWeight.w500),
