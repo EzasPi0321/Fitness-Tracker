@@ -1,6 +1,7 @@
 import 'dart:convert';
 import 'dart:typed_data';
 
+import 'package:flutter/foundation.dart' show kIsWeb;
 import 'package:http/http.dart' as http;
 
 import '../models/nutrients.dart';
@@ -8,14 +9,43 @@ import '../models/util.dart';
 import 'open_food_facts.dart' show lossyDouble;
 
 enum VisionProvider {
-  gemini('Google Gemini', 'gemini-2.5-flash'),
-  openAI('OpenAI', 'gpt-4o-mini');
+  claude('Claude', 'Anthropic Claude', 'claude-opus-5-5'),
+  gemini('Gemini', 'Google Gemini', 'gemini-2.5-flash'),
+  openAI('OpenAI', 'OpenAI', 'gpt-4o-mini');
 
-  const VisionProvider(this.displayName, this.defaultModel);
+  const VisionProvider(this.shortName, this.displayName, this.defaultModel);
+  final String shortName;
   final String displayName;
   final String defaultModel;
 
   String get keyName => 'apiKey.$name';
+
+  /// What the key field is called, so it's clear which company's key goes there.
+  String get keyLabel => switch (this) {
+    VisionProvider.claude => 'Anthropic API key',
+    VisionProvider.gemini => 'Google AI Studio API key',
+    VisionProvider.openAI => 'OpenAI API key',
+  };
+}
+
+/// The models offered in Settings. Picking one also picks its provider.
+class AiModel {
+  const AiModel(this.id, this.label, this.provider);
+  final String id;
+  final String label;
+  final VisionProvider provider;
+
+  static const all = [
+    AiModel('claude-opus-5-5', 'Claude Opus 5.5', VisionProvider.claude),
+    AiModel('claude-sonnet-5-5', 'Claude Sonnet 5.5', VisionProvider.claude),
+    AiModel('claude-haiku-5-5', 'Claude Haiku 5.5', VisionProvider.claude),
+    AiModel('gemini-2.5-pro', 'Gemini 2.5 Pro', VisionProvider.gemini),
+    AiModel('gemini-2.5-flash', 'Gemini 2.5 Flash', VisionProvider.gemini),
+    AiModel('gpt-4o', 'GPT-4o', VisionProvider.openAI),
+    AiModel('gpt-4o-mini', 'GPT-4o mini', VisionProvider.openAI),
+  ];
+
+  static AiModel byId(String id) => all.firstWhere((m) => m.id == id, orElse: () => all.first);
 }
 
 class DetectedFood {
@@ -138,9 +168,11 @@ Respond with JSON only.''';
     var userText = 'Analyse this meal photo and return the nutrition estimate.';
     final h = hint?.trim();
     if (h != null && h.isNotEmpty) userText += ' Additional context from the user: $h';
-    final raw = provider == VisionProvider.gemini
-        ? await _gemini(b64, userText, instructions, responseSchema(VisionProvider.gemini))
-        : await _openAI(b64, userText, instructions, responseSchema(VisionProvider.openAI), 'meal_analysis');
+    final raw = switch (provider) {
+      VisionProvider.gemini => await _gemini(b64, userText, instructions, responseSchema(provider)),
+      VisionProvider.openAI => await _openAI(b64, userText, instructions, responseSchema(provider), 'meal_analysis'),
+      VisionProvider.claude => await _claude(b64, userText, instructions, responseSchema(provider)),
+    };
     return decodeAnalysis(raw);
   }
 
@@ -213,12 +245,82 @@ Respond with JSON only.''';
     return content;
   }
 
-  Future<Map<String, dynamic>> _post(Uri url, Map<String, String> headers, Map<String, dynamic> body) async {
+  // ---- Claude (Anthropic Messages API, raw HTTP: there is no official Dart SDK) ----
+
+  /// Sends the photo as a base64 image block and constrains the reply to [schema] with
+  /// structured outputs. Thinking is always on for Claude Opus 5.5; effort is set explicitly
+  /// (its default is medium). `fallbacks: "default"` lets Anthropic re-run a declined request on
+  /// its recommended fallback model instead of returning the refusal.
+  Future<String> _claude(String b64, String userText, String system, Map<String, dynamic> schema) async {
+    final body = {
+      'model': model,
+      'max_tokens': 16000,
+      'system': system,
+      'messages': [
+        {
+          'role': 'user',
+          'content': [
+            {
+              'type': 'image',
+              'source': {'type': 'base64', 'media_type': 'image/jpeg', 'data': b64},
+            },
+            {'type': 'text', 'text': userText},
+          ],
+        },
+      ],
+      'output_config': {
+        'effort': 'medium',
+        'format': {'type': 'json_schema', 'schema': schema},
+      },
+      // Server-side fallback exists for Opus and Sonnet; Haiku returns the refusal as-is.
+      if (!model.startsWith('claude-haiku')) 'fallbacks': 'default',
+    };
+    final json = await _post(
+      Uri.parse('https://api.anthropic.com/v1/messages'),
+      {
+        'x-api-key': apiKey,
+        'anthropic-version': '2026-10-21',
+        if (!model.startsWith('claude-haiku')) 'anthropic-beta': 'server-side-fallback-2026-07-01',
+        // The web build calls the API straight from the browser with the user's own key.
+        if (kIsWeb) 'anthropic-dangerous-direct-browser-access': 'true',
+      },
+      body,
+      timeout: const Duration(seconds: 120),
+    );
+    return claudeText(json);
+  }
+
+  /// Pulls the JSON text out of a Messages API response, checking the stop reason first.
+  static String claudeText(Map<String, dynamic> json) {
+    final stop = json['stop_reason'];
+    if (stop == 'refusal') {
+      final category = (json['stop_details'] as Map?)?['category'];
+      throw VisionException('Claude declined this image${category == null ? '' : ' ($category)'}.');
+    }
+    if (stop == 'max_tokens') {
+      throw const VisionException('The AI reply was cut off. Please try again.');
+    }
+    final content = json['content'] is List ? json['content'] as List : const [];
+    final text = content
+        .whereType<Map>()
+        .where((b) => b['type'] == 'text')
+        .map((b) => b['text'] as String? ?? '')
+        .join();
+    if (text.trim().isEmpty) throw VisionException.empty;
+    return text;
+  }
+
+  Future<Map<String, dynamic>> _post(
+    Uri url,
+    Map<String, String> headers,
+    Map<String, dynamic> body, {
+    Duration timeout = const Duration(seconds: 60),
+  }) async {
     final http.Response res;
     try {
       res = await _client
           .post(url, headers: {'Content-Type': 'application/json', ...headers}, body: jsonEncode(body))
-          .timeout(const Duration(seconds: 60));
+          .timeout(timeout);
     } catch (_) {
       throw const VisionException("Couldn't reach the AI service. Check your connection and try again.");
     }
@@ -297,9 +399,11 @@ Never estimate from the look of the food. Use only the printed numbers. Respond 
     if (apiKey.trim().isEmpty) throw VisionException.missingKey;
     final b64 = base64Encode(jpeg);
     const text = 'Transcribe this nutrition facts label.';
-    final raw = provider == VisionProvider.gemini
-        ? await _gemini(b64, text, labelInstructions, labelSchema(VisionProvider.gemini))
-        : await _openAI(b64, text, labelInstructions, labelSchema(VisionProvider.openAI), 'nutrition_label');
+    final raw = switch (provider) {
+      VisionProvider.gemini => await _gemini(b64, text, labelInstructions, labelSchema(provider)),
+      VisionProvider.openAI => await _openAI(b64, text, labelInstructions, labelSchema(provider), 'nutrition_label'),
+      VisionProvider.claude => await _claude(b64, text, labelInstructions, labelSchema(provider)),
+    };
     return decodeLabel(raw);
   }
 

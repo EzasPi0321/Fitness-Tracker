@@ -278,9 +278,9 @@ class _AISection extends StatefulWidget {
   State<_AISection> createState() => _AISectionState();
 }
 
+/// Two choices only: which model, and the API key for it.
 class _AISectionState extends State<_AISection> {
   final _key = TextEditingController();
-  late final _model = TextEditingController(text: AppScope.read(context).visionModel);
   bool _obscure = true;
   bool _saved = false;
 
@@ -293,13 +293,17 @@ class _AISectionState extends State<_AISection> {
   Future<void> _loadKey() async {
     final s = AppScope.read(context);
     final k = await s.keys.read(s.visionProvider.keyName);
-    if (mounted) setState(() => _key.text = k);
+    if (mounted) {
+      setState(() {
+        _key.text = k;
+        _saved = k.isNotEmpty;
+      });
+    }
   }
 
   @override
   void dispose() {
     _key.dispose();
-    _model.dispose();
     super.dispose();
   }
 
@@ -307,25 +311,22 @@ class _AISectionState extends State<_AISection> {
   Widget build(BuildContext context) {
     final state = AppScope.of(context);
     final t = FT.of(context);
+    final provider = state.visionProvider;
     return Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
         const SectionLabel('AI photo estimates'),
-        SegmentedButton<VisionProvider>(
-          segments: [for (final p in VisionProvider.values) ButtonSegment(value: p, label: Text(p.displayName))],
-          selected: {state.visionProvider},
-          showSelectedIcon: false,
-          onSelectionChanged: (s) {
-            state.setVisionProvider(s.first);
-            _model.text = s.first.defaultModel;
-            _loadKey();
+        DropdownButtonFormField<String>(
+          initialValue: AiModel.byId(state.visionModel).id,
+          decoration: const InputDecoration(labelText: 'Model'),
+          borderRadius: BorderRadius.circular(S.radiusControl),
+          dropdownColor: t.raised,
+          items: [for (final m in AiModel.all) DropdownMenuItem(value: m.id, child: Text(m.label))],
+          onChanged: (id) {
+            if (id == null) return;
+            state.setVisionModel(id);
+            _loadKey(); // each company's key is kept separately
           },
-        ),
-        const SizedBox(height: S.md),
-        TextField(
-          controller: _model,
-          decoration: InputDecoration(hintText: state.visionProvider.defaultModel, labelText: 'Model'),
-          onChanged: state.setVisionModel,
         ),
         const SizedBox(height: S.sm),
         TextField(
@@ -334,7 +335,7 @@ class _AISectionState extends State<_AISection> {
           autocorrect: false,
           enableSuggestions: false,
           decoration: InputDecoration(
-            labelText: 'API key',
+            labelText: provider.keyLabel,
             suffixIcon: Row(
               mainAxisSize: MainAxisSize.min,
               children: [
@@ -360,14 +361,14 @@ class _AISectionState extends State<_AISection> {
           onChanged: (v) async {
             // Postel: tolerate pasted whitespace and quotes around the key.
             final clean = v.trim().replaceAll(RegExp(r'''^["']|["']$'''), '');
-            await state.keys.write(state.visionProvider.keyName, clean);
+            await state.keys.write(provider.keyName, clean);
             if (mounted) setState(() => _saved = clean.isNotEmpty);
           },
         ),
         Padding(
           padding: const EdgeInsets.fromLTRB(6, S.sm, 6, 0),
           child: Text(
-            'Stored in this device\'s secure keystore, never in your log. Requests go straight from this device to ${state.visionProvider.displayName}.',
+            'Used for meal photos and nutrition labels. The key stays in this device\'s secure storage.',
             style: Theme.of(context).textTheme.bodySmall,
           ),
         ),

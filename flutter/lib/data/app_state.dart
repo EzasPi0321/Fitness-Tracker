@@ -47,8 +47,8 @@ class AppState extends ChangeNotifier {
 
   bool healthEnabled = false;
   bool addActiveEnergy = false;
-  VisionProvider visionProvider = VisionProvider.gemini;
-  String visionModel = VisionProvider.gemini.defaultModel;
+  VisionProvider visionProvider = VisionProvider.claude;
+  String visionModel = VisionProvider.claude.defaultModel;
 
   /// True while the log holds generated sample data.
   bool isSample = false;
@@ -260,14 +260,11 @@ class AppState extends ChangeNotifier {
     _changed();
   }
 
-  void setVisionProvider(VisionProvider p) {
-    visionProvider = p;
-    visionModel = p.defaultModel;
-    _changed();
-  }
-
-  void setVisionModel(String m) {
-    visionModel = m.trim().isEmpty ? visionProvider.defaultModel : m.trim();
+  /// Picking a model also picks its provider (and so which API key is used).
+  void setVisionModel(String id) {
+    final m = AiModel.byId(id);
+    visionModel = m.id;
+    visionProvider = m.provider;
     _changed();
   }
 
@@ -356,7 +353,9 @@ class AppState extends ChangeNotifier {
       (v) => v.name == s['provider'],
       orElse: () => VisionProvider.gemini,
     );
-    visionModel = (s['model'] as String?) ?? visionProvider.defaultModel;
+    final model = AiModel.byId((s['model'] as String?) ?? AiModel.all.first.id);
+    visionModel = model.id;
+    visionProvider = model.provider;
     isSample = (s['sample'] as bool?) ?? false;
     Energy.unit = EnergyUnit.values.firstWhere((u) => u.name == s['energy'], orElse: () => EnergyUnit.kcal);
     appearance = ThemeMode.values.firstWhere((m) => m.name == s['appearance'], orElse: () => ThemeMode.dark);

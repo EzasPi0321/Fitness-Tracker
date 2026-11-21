@@ -104,7 +104,10 @@ class _ShellState extends State<Shell> {
   Widget build(BuildContext context) {
     final t = FT.of(context);
     final wide = MediaQuery.sizeOf(context).width >= 840;
-    final pages = IndexedStack(index: _index, children: const [TodayScreen(), FoodLogScreen(), ProgressScreen(), SettingsScreen()]);
+    final pages = IndexedStack(
+      index: _index,
+      children: const [TodayScreen(), FoodLogScreen(), ProgressScreen(), SettingsScreen()],
+    );
 
     if (wide) {
       final extended = MediaQuery.sizeOf(context).width >= 1180;

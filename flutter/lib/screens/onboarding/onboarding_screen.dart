@@ -166,6 +166,8 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
       (a) => a.title,
       (a) => a.detail,
       (a) => setState(() => _draft.activity = a),
+      // TDEE for each level, from the body stats on the previous step.
+      trailing: (a) => Energy.format(NutritionCalculator.tdee(_bmr, a)),
     ),
     _Step.goal => _choices<WeightGoal>(
       'What\'s your goal?',
@@ -365,8 +367,9 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
     T selected,
     String Function(T) label,
     String Function(T) detail,
-    ValueChanged<T> onPick,
-  ) {
+    ValueChanged<T> onPick, {
+    String Function(T)? trailing,
+  }) {
     final t = FT.of(context);
     final tt = Theme.of(context).textTheme;
     return ListView(
@@ -399,6 +402,10 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
                       ],
                     ),
                   ),
+                  if (trailing != null) ...[
+                    Text(trailing(v), style: tt.titleSmall!.copyWith(fontFeatures: tabular)),
+                    const SizedBox(width: S.md),
+                  ],
                   BlurSwitcher(
                     child: FIcon(
                       v == selected ? Symbols.check_circle : Symbols.circle,
@@ -415,6 +422,77 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
           const SizedBox(height: S.sm),
         ],
       ],
+    );
+  }
+
+  double get _bmr =>
+      NutritionCalculator.bmr(sex: _draft.sex, weightKg: _draft.weightKg, heightCm: _draft.heightCm, age: _draft.age);
+
+  /// "Your TDEE by activity level": every level, yours highlighted.
+  Widget _tdeeTable(BuildContext context) {
+    final t = FT.of(context);
+    final tt = Theme.of(context).textTheme;
+    final bmr = _bmr;
+    return FCard(
+      padding: const EdgeInsets.symmetric(vertical: S.sm),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          Padding(
+            padding: const EdgeInsets.fromLTRB(S.lg, S.sm, S.lg, S.sm),
+            child: Text('TDEE by activity level', style: tt.titleMedium),
+          ),
+          for (final a in ActivityLevel.values)
+            Squishy(
+              onTap: () => setState(() => _draft.activity = a),
+              feel: PressFeel.subtle,
+              hitSlop: 0,
+              semanticLabel: '${a.title}, ${Energy.format(NutritionCalculator.tdee(bmr, a))} a day',
+              child: AnimatedContainer(
+                duration: Motion.of(context, Motion.fast),
+                margin: const EdgeInsets.symmetric(horizontal: S.sm, vertical: 2),
+                padding: const EdgeInsets.symmetric(horizontal: S.md, vertical: S.md),
+                decoration: BoxDecoration(
+                  color: a == _draft.activity ? t.inset : Colors.transparent,
+                  borderRadius: BorderRadius.circular(S.inner(S.radiusCard, S.sm)),
+                ),
+                child: Row(
+                  children: [
+                    Expanded(
+                      child: Text.rich(
+                        TextSpan(
+                          children: [
+                            TextSpan(
+                              text: a.title,
+                              style: tt.bodyLarge!.copyWith(
+                                fontWeight: a == _draft.activity ? FontWeight.w600 : FontWeight.w400,
+                              ),
+                            ),
+                            TextSpan(text: '  ${a.detail.toLowerCase()}', style: tt.bodySmall),
+                          ],
+                        ),
+                      ),
+                    ),
+                    Text(
+                      whole(Energy.toDisplay(NutritionCalculator.tdee(bmr, a))),
+                      style: tt.titleSmall!.copyWith(
+                        fontFeatures: tabular,
+                        fontWeight: a == _draft.activity ? FontWeight.w700 : FontWeight.w500,
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ),
+          Padding(
+            padding: const EdgeInsets.fromLTRB(S.lg, S.sm, S.lg, S.sm),
+            child: Text(
+              'Mifflin–St Jeor BMR (${Energy.format(bmr.floorToDouble())}) × activity factor. Tap a row to change your level.',
+              style: tt.bodySmall,
+            ),
+          ),
+        ],
+      ),
     );
   }
 
@@ -484,7 +562,17 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
           ),
         ),
         const SizedBox(height: S.md),
-        Text('Mifflin–St Jeor estimate. You can fine-tune any number later in Settings.', style: tt.bodySmall),
+        const SizedBox(height: S.lg),
+        _tdeeTable(context),
+        const SizedBox(height: S.md),
+        Text(
+          'Your daily goal is your TDEE ${_draft.goal == WeightGoal.maintain
+              ? ''
+              : _draft.goal == WeightGoal.lose
+              ? 'minus 500 '
+              : 'plus 300 '}kcal. You can fine-tune any number later in Settings.',
+          style: tt.bodySmall,
+        ),
       ],
     );
   }

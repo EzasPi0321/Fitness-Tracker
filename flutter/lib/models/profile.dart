@@ -9,11 +9,11 @@ enum BiologicalSex {
 }
 
 enum ActivityLevel {
-  sedentary('Sedentary', 'Desk job, little or no exercise', 1.2),
-  light('Lightly Active', 'Light exercise 1–3 days a week', 1.375),
-  moderate('Moderately Active', 'Moderate exercise 3–5 days a week', 1.55),
-  active('Very Active', 'Hard exercise 6–7 days a week', 1.725),
-  veryActive('Extremely Active', 'Physical job or twice-daily training', 1.9);
+  sedentary('Sedentary', 'Little or no exercise', 1.2),
+  light('Lightly active', 'Exercise 1 to 3 days a week', 1.375),
+  moderate('Moderately active', 'Exercise 3 to 5 days a week', 1.55),
+  active('Active', 'Exercise 6 to 7 days a week', 1.725),
+  veryActive('Very active', 'Hard exercise 6 to 7 days a week', 1.9);
 
   const ActivityLevel(this.title, this.detail, this.multiplier);
   final String title;
@@ -56,6 +56,10 @@ class NutritionCalculator {
     return sex == BiologicalSex.male ? base + 5 : base - 161;
   }
 
+  /// Total daily energy expenditure: Mifflin–St Jeor BMR, cut to whole kcal the way common TDEE
+  /// calculators do, times the activity factor, rounded.
+  static double tdee(double bmr, ActivityLevel activity) => _round(bmr.floorToDouble() * activity.multiplier);
+
   static EnergyPlan plan({
     required BiologicalSex sex,
     required int age,
@@ -65,7 +69,7 @@ class NutritionCalculator {
     required WeightGoal goal,
   }) {
     final resting = bmr(sex: sex, weightKg: weightKg, heightCm: heightCm, age: age);
-    final tdee = resting * activity.multiplier;
+    final tdee = NutritionCalculator.tdee(resting, activity);
     final minimum = sex == BiologicalSex.male ? 1500.0 : 1200.0;
     final calories = _round(_max(minimum, tdee + goal.calorieAdjustment) / 10) * 10;
 

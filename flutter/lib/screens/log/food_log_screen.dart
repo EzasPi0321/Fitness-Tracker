@@ -116,11 +116,8 @@ class _FoodLogScreenState extends State<FoodLogScreen> {
     for (final e in entries) {
       byHour.putIfAbsent(e.consumedAt.hour, () => []).add(e);
     }
-    var first = 6, last = 22;
-    if (byHour.isNotEmpty) {
-      first = [first, ...byHour.keys].reduce((a, b) => a < b ? a : b);
-      last = [last, ...byHour.keys].reduce((a, b) => a > b ? a : b);
-    }
+    // The whole day, midnight to 11 PM, so late-night and early-morning meals have a place.
+    const first = 0, last = 23;
     final searching = _search.text.trim().isNotEmpty || _searchFocus.hasFocus;
 
     return Scaffold(

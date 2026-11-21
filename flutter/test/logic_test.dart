@@ -361,4 +361,56 @@ void main() {
       expect(Energy.unit, EnergyUnit.kJ);
     });
   });
+
+  group('Claude provider', () {
+    test('text blocks are joined and thinking blocks ignored', () {
+      final text = AIVisionService.claudeText({
+        'stop_reason': 'end_turn',
+        'content': [
+          {'type': 'thinking', 'thinking': ''},
+          {'type': 'text', 'text': '{"items":[],'},
+          {'type': 'text', 'text': '"notes":""}'},
+        ],
+      });
+      expect(AIVisionService.decodeAnalysis(text).items, isEmpty);
+    });
+
+    test('a refusal becomes a readable error', () {
+      expect(
+        () => AIVisionService.claudeText({
+          'stop_reason': 'refusal',
+          'stop_details': {'type': 'refusal', 'category': 'cyber'},
+          'content': [],
+        }),
+        throwsA(isA<VisionException>().having((e) => e.message, 'message', contains('declined'))),
+      );
+    });
+
+    test('picking a model picks its provider and key', () async {
+      final s = AppState(store: MemoryStore(), health: UnsupportedHealthService());
+      await s.load();
+      expect(s.visionProvider, VisionProvider.claude);
+      s.setVisionModel('gpt-4o');
+      expect(s.visionProvider, VisionProvider.openAI);
+      expect(s.visionProvider.keyLabel, 'OpenAI API key');
+      expect(AiModel.byId('unknown').id, 'claude-opus-5-5');
+    });
+  });
+
+  test('TDEE matches a standard Mifflin–St Jeor calculator (male, 26, 182 lb, 6 ft 0 in)', () {
+    final bmr = NutritionCalculator.bmr(
+      sex: BiologicalSex.male,
+      weightKg: 182 / poundsPerKilogram,
+      heightCm: 72 * centimetersPerInch,
+      age: 26,
+    );
+    final expected = {
+      ActivityLevel.sedentary: 2212,
+      ActivityLevel.light: 2534,
+      ActivityLevel.moderate: 2857,
+      ActivityLevel.active: 3179,
+      ActivityLevel.veryActive: 3502,
+    };
+    expected.forEach((level, kcal) => expect(NutritionCalculator.tdee(bmr, level), kcal, reason: level.name));
+  });
 }
