@@ -32,6 +32,13 @@ abstract class HealthService {
   String get storeName;
 
   Future<bool> requestAuthorization();
+
+  /// Data types the user said yes to reading, by name ("Steps", "Weight"...). Null when the
+  /// platform won't say (Apple Health hides read permissions on purpose).
+  Future<Set<String>?> grantedReads();
+
+  /// Every type FitTrack asks to read, by name.
+  List<String> get readNames;
   Future<double> activeEnergy(DateTime day);
 
   /// Steps for the day, or null when they can't be read.
@@ -61,6 +68,10 @@ class UnsupportedHealthService implements HealthService {
   String get storeName => 'Health';
   @override
   Future<bool> requestAuthorization() async => false;
+  @override
+  Future<Set<String>?> grantedReads() async => null;
+  @override
+  List<String> get readNames => const [];
   @override
   Future<double> activeEnergy(DateTime day) async => 0;
   @override

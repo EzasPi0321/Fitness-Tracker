@@ -6,9 +6,12 @@ import '../../design/motion.dart';
 import '../../design/oklch.dart';
 import '../../design/tokens.dart';
 import '../../models/nutrients.dart';
+import '../../models/profile.dart';
 import '../../models/util.dart';
 import '../../services/ai_vision.dart';
 import '../../services/platform_caps.dart';
+import '../../services/updates.dart';
+import '../../widgets/update_banner.dart';
 import '../../widgets/common.dart';
 
 class SettingsScreen extends StatelessWidget {
@@ -34,8 +37,12 @@ class SettingsScreen extends StatelessWidget {
           const FRow(label: 'Product data', sub: 'Open Food Facts, ODbL licence'),
           FRow(
             label: 'Version',
-            trailing: Text('2.0', style: tt.bodyLarge!.copyWith(color: FT.of(context).muted)),
+            trailing: Text(
+              appBuild == 0 ? 'Development build' : '2.0.0 (build $appBuild)',
+              style: tt.bodyLarge!.copyWith(color: FT.of(context).muted),
+            ),
           ),
+          const _UpdateRow(),
         ],
       ),
     ];
@@ -101,6 +108,15 @@ class TargetsSection extends StatelessWidget {
     final macroKcal = tg.protein * 4 + tg.carbs * 4 + tg.fat * 9;
     final diff = macroKcal - tg.calories;
 
+    // Guidelines for adjusting: the recommended range for each macro at today's calorie goal.
+    final ranges = NutritionCalculator.ranges(tg.calories);
+    String rangeText(Macro m) {
+      final r = ranges[m]!;
+      final v = tg.of(m);
+      final where = v < r.low ? ' · below range' : (v > r.high ? ' · above range' : '');
+      return 'Range ${whole(r.low)}–${whole(r.high)} g$where';
+    }
+
     void set(Nutrients Function(Nutrients n, double v) f, double? v) {
       if (v == null || v < 0) return;
       state.updateProfile((p) => p.targets = f(p.targets, v.roundToDouble()));
@@ -139,6 +155,7 @@ class TargetsSection extends StatelessWidget {
               decoration: BoxDecoration(color: t.macro(m), shape: BoxShape.circle),
             ),
             label: m.title,
+            sub: rangeText(m),
             trailing: NumberInput(
               value: tg.of(m),
               unit: 'g',
@@ -301,7 +318,97 @@ class _HealthSection extends StatelessWidget {
             onChanged: state.healthEnabled ? state.setAddActiveEnergy : null,
           ),
         ),
+        if (state.healthEnabled) const _HealthStatus(),
       ],
+    );
+  }
+}
+
+/// What FitTrack can actually see right now: today's steps, and any data type that hasn't been
+/// allowed, with the exact place to fix it.
+class _HealthStatus extends StatefulWidget {
+  const _HealthStatus();
+
+  @override
+  State<_HealthStatus> createState() => _HealthStatusState();
+}
+
+class _HealthStatusState extends State<_HealthStatus> {
+  int? _steps;
+  bool _checking = true;
+
+  @override
+  void initState() {
+    super.initState();
+    _check();
+  }
+
+  Future<void> _check() async {
+    final state = AppScope.read(context);
+    setState(() => _checking = true);
+    await state.refreshHealthAccess();
+    final steps = await state.health.steps(DateTime.now());
+    state.refreshHealth();
+    if (mounted) {
+      setState(() {
+        _steps = steps;
+        _checking = false;
+      });
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final state = AppScope.of(context);
+    final t = FT.of(context);
+    final tt = Theme.of(context).textTheme;
+    final android = Theme.of(context).platform == TargetPlatform.android;
+    final missing = state.healthMissing;
+    final noSteps = !_checking && (_steps == null || _steps == 0);
+
+    return Padding(
+      padding: const EdgeInsets.fromLTRB(S.lg, S.md, S.sm, S.md),
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  _checking ? 'Checking…' : 'Steps today: ${_steps == null ? '—' : whole(_steps!.toDouble())}',
+                  style: tt.bodyLarge,
+                ),
+                if (missing.isNotEmpty) ...[
+                  const SizedBox(height: 4),
+                  StatusPill(text: 'Not allowed: ${missing.join(', ')}', color: t.warn, icon: Symbols.info),
+                  const SizedBox(height: 4),
+                  Text(
+                    android
+                        ? 'Allow them in Settings › Apps › Health Connect › App permissions › FitTrack.'
+                        : 'Allow them in Settings › Health › Data Access & Devices › FitTrack.',
+                    style: tt.bodySmall,
+                  ),
+                ],
+                if (noSteps && android) ...[
+                  const SizedBox(height: 4),
+                  Text(
+                    'No steps yet. In Samsung Health: Settings › Health Connect › App permissions › '
+                    'Samsung Health, and turn on Steps (and Exercise, Weight). Samsung Health copies '
+                    'new steps every so often, so give it a few minutes.',
+                    style: tt.bodySmall,
+                  ),
+                ],
+              ],
+            ),
+          ),
+          IconButton(
+            tooltip: 'Check again',
+            onPressed: _checking ? null : _check,
+            icon: FIcon(Symbols.refresh, color: t.fg),
+          ),
+        ],
+      ),
     );
   }
 }
@@ -403,7 +510,7 @@ class _AISectionState extends State<_AISection> {
         Padding(
           padding: const EdgeInsets.fromLTRB(6, S.sm, 6, 0),
           child: Text(
-            'Used for meal photos and nutrition labels. The key stays in this device\'s secure storage.',
+            'Needed for meal-photo estimates. Nutrition labels are read on your phone without a key; with one, the AI reads them instead. The key stays in this device\'s secure storage.',
             style: Theme.of(context).textTheme.bodySmall,
           ),
         ),
@@ -458,7 +565,9 @@ class _DataSectionState extends State<_DataSection> {
                   onTap: () => setState(() => _confirm = true),
                 ),
         ),
-        if (!state.isSample)
+        if (!AppState.demoAllowed)
+          const SizedBox.shrink()
+        else if (!state.isSample)
           FRow(
             leading: FIcon(Symbols.auto_awesome, color: t.muted),
             label: 'Load sample data',
@@ -473,6 +582,61 @@ class _DataSectionState extends State<_DataSection> {
             onTap: state.startFresh,
           ),
       ],
+    );
+  }
+}
+
+/// "Check for updates": asks GitHub for the latest release and offers it.
+class _UpdateRow extends StatefulWidget {
+  const _UpdateRow();
+
+  @override
+  State<_UpdateRow> createState() => _UpdateRowState();
+}
+
+class _UpdateRowState extends State<_UpdateRow> {
+  bool _checking = false;
+  String? _result;
+
+  Future<void> _check() async {
+    final state = AppScope.read(context);
+    setState(() {
+      _checking = true;
+      _result = null;
+    });
+    String result;
+    try {
+      final u = await state.checkForUpdates(manual: true);
+      result = u == null ? "You're up to date" : 'Version ${u.label} is ready';
+    } on UpdateCheckException catch (e) {
+      result = e.message;
+    }
+    if (mounted) {
+      setState(() {
+        _checking = false;
+        _result = result;
+      });
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final state = AppScope.of(context);
+    final update = state.availableUpdate;
+    final t = FT.of(context);
+    if (PlatformCaps.isWeb) {
+      return const FRow(label: 'Updates', sub: 'The web version is always the latest');
+    }
+    return FRow(
+      leading: FIcon(Symbols.system_update, color: t.fg),
+      label: update == null ? 'Check for updates' : 'Install version ${update.label}',
+      sub: _result ?? (update == null ? 'From the Releases page on GitHub' : update.notes),
+      onTap: _checking ? null : (update == null ? _check : () => openUpdate(context, update)),
+      trailing: _checking
+          ? const SizedBox.square(dimension: 20, child: CircularProgressIndicator(strokeWidth: 2.4))
+          : update == null
+          ? FIcon(Symbols.refresh, color: t.muted)
+          : FIcon(Symbols.download, color: t.fg, weight: FontWeight.w600),
     );
   }
 }

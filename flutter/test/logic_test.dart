@@ -10,32 +10,77 @@ import 'package:fittrack/models/profile.dart';
 import 'package:fittrack/models/util.dart';
 import 'package:fittrack/services/ai_vision.dart';
 import 'package:fittrack/services/health_service.dart';
+import 'package:fittrack/services/label_ocr.dart';
 import 'package:fittrack/services/open_food_facts.dart';
+import 'package:fittrack/services/updates.dart';
+import 'package:flutter/foundation.dart' show TargetPlatform;
 import 'package:flutter_test/flutter_test.dart';
 
 void main() {
   group('NutritionCalculator (same cases as the iOS tests)', () {
     test('Mifflin–St Jeor male', () {
-      expect(NutritionCalculator.bmr(sex: BiologicalSex.male, weightKg: 80, heightCm: 180, age: 30), closeTo(1780, 0.001));
+      expect(
+        NutritionCalculator.bmr(sex: BiologicalSex.male, weightKg: 80, heightCm: 180, age: 30),
+        closeTo(1780, 0.001),
+      );
     });
 
     test('Mifflin–St Jeor female', () {
-      expect(NutritionCalculator.bmr(sex: BiologicalSex.female, weightKg: 60, heightCm: 165, age: 25), closeTo(1345.25, 0.001));
+      expect(
+        NutritionCalculator.bmr(sex: BiologicalSex.female, weightKg: 60, heightCm: 165, age: 25),
+        closeTo(1345.25, 0.001),
+      );
     });
 
     test('plan macros add up to calories', () {
       final plan = NutritionCalculator.plan(
-          sex: BiologicalSex.male, age: 30, heightCm: 180, weightKg: 80, activity: ActivityLevel.moderate, goal: WeightGoal.lose);
+        sex: BiologicalSex.male,
+        age: 30,
+        heightCm: 180,
+        weightKg: 80,
+        activity: ActivityLevel.moderate,
+        goal: WeightGoal.lose,
+      );
       expect(plan.tdee, closeTo(1780 * 1.55, 0.01));
       expect(plan.targets.calories, 2260);
-      expect(plan.targets.protein, 160);
+      // Balanced: 25 % protein, 30 % fat, carbs fill the rest.
+      expect(plan.targets.protein, 141); // 2260 × 0.25 / 4
+      expect(plan.targets.fat, 75); // 2260 × 0.30 / 9
       final macroKcal = plan.targets.protein * 4 + plan.targets.carbs * 4 + plan.targets.fat * 9;
       expect(macroKcal, closeTo(plan.targets.calories, 15));
     });
 
+    test('diet styles change the split and ranges follow calories', () {
+      final high = NutritionCalculator.plan(
+        sex: BiologicalSex.male,
+        age: 26,
+        heightCm: 194,
+        weightKg: 84,
+        activity: ActivityLevel.moderate,
+        goal: WeightGoal.maintain,
+        diet: DietStyle.highProtein,
+      );
+      final cal = high.targets.calories;
+      expect(high.targets.protein, (cal * 0.35 / 4).roundToDouble());
+      final r = NutritionCalculator.ranges(2000);
+      expect(r[Macro.protein]!.low, 50);
+      expect(r[Macro.protein]!.high, 175);
+      expect(r[Macro.carbs]!.low, 225);
+      expect(r[Macro.carbs]!.high, 325);
+      expect(r[Macro.fat]!.low, 44);
+      expect(r[Macro.fat]!.high, 78);
+      expect(r[Macro.fat]!.contains(60), isTrue);
+    });
+
     test('plan respects the calorie floor', () {
       final plan = NutritionCalculator.plan(
-          sex: BiologicalSex.female, age: 80, heightCm: 150, weightKg: 42, activity: ActivityLevel.sedentary, goal: WeightGoal.lose);
+        sex: BiologicalSex.female,
+        age: 80,
+        heightCm: 150,
+        weightKg: 42,
+        activity: ActivityLevel.sedentary,
+        goal: WeightGoal.lose,
+      );
       expect(plan.targets.calories, greaterThanOrEqualTo(1200));
       expect(plan.targets.carbs, greaterThanOrEqualTo(0));
     });
@@ -60,13 +105,18 @@ void main() {
 
     test('falls back to kilojoules', () {
       final p = OpenFoodFactsService.parseProduct(
-          '12345678', jsonDecode('{"status":1,"product":{"product_name":"Oats","nutriments":{"energy_100g":1500}}}'))!;
+        '12345678',
+        jsonDecode('{"status":1,"product":{"product_name":"Oats","nutriments":{"energy_100g":1500}}}'),
+      )!;
       expect(p.per100g!.calories, closeTo(1500 / 4.184, 0.01));
       expect(p.perServing, isNull);
     });
 
     test('not found', () {
-      expect(OpenFoodFactsService.parseProduct('1', jsonDecode('{"status":0,"status_verbose":"product not found"}')), isNull);
+      expect(
+        OpenFoodFactsService.parseProduct('1', jsonDecode('{"status":0,"status_verbose":"product not found"}')),
+        isNull,
+      );
     });
   });
 
@@ -174,7 +224,8 @@ void main() {
       expect(stops, hasLength(5));
       // The middle stays saturated instead of going grey.
       final mid = stops[2];
-      final spread = [mid.r, mid.g, mid.b].reduce((a, b) => a > b ? a : b) - [mid.r, mid.g, mid.b].reduce((a, b) => a < b ? a : b);
+      final spread =
+          [mid.r, mid.g, mid.b].reduce((a, b) => a > b ? a : b) - [mid.r, mid.g, mid.b].reduce((a, b) => a < b ? a : b);
       expect(spread, greaterThan(0.15));
     });
   });
@@ -262,14 +313,14 @@ void main() {
 
   group('Verified / unverified', () {
     Map<String, dynamic> product(List<String> states, {List<String> errors = const [], num kcal = 539}) => {
-          'status': 1,
-          'product': {
-            'product_name': 'Spread',
-            'states_tags': states,
-            'data_quality_errors_tags': errors,
-            'nutriments': {'energy-kcal_100g': kcal, 'proteins_100g': 6.3, 'carbohydrates_100g': 57.5, 'fat_100g': 30.9},
-          },
-        };
+      'status': 1,
+      'product': {
+        'product_name': 'Spread',
+        'states_tags': states,
+        'data_quality_errors_tags': errors,
+        'nutriments': {'energy-kcal_100g': kcal, 'proteins_100g': 6.3, 'carbohydrates_100g': 57.5, 'fat_100g': 30.9},
+      },
+    };
 
     test('complete, clean and consistent is verified', () {
       final p = OpenFoodFactsService.parseProduct('1', product(['en:nutrition-facts-completed']))!;
@@ -284,7 +335,9 @@ void main() {
 
     test('flagged nutrition problems are unverified', () {
       final p = OpenFoodFactsService.parseProduct(
-          '1', product(['en:nutrition-facts-completed'], errors: ['en:nutrition-value-over-105-carbohydrates']))!;
+        '1',
+        product(['en:nutrition-facts-completed'], errors: ['en:nutrition-value-over-105-carbohydrates']),
+      )!;
       expect(p.trust!.verified, isFalse);
     });
 
@@ -315,8 +368,9 @@ void main() {
   group('Nutrition label reading', () {
     test('a kJ-only label is converted to kcal and remembers the printed unit', () {
       final r = AIVisionService.decodeLabel(
-          '{"product_name":"Oat bar","brand":"","serving_size":"1 bar (40 g)","serving_grams":40,"basis":"serving",'
-          '"energy":836.8,"energy_unit":"kJ","protein_g":4,"carbs_g":28,"fat_g":7,"readable":true}');
+        '{"product_name":"Oat bar","brand":"","serving_size":"1 bar (40 g)","serving_grams":40,"basis":"serving",'
+        '"energy":836.8,"energy_unit":"kJ","protein_g":4,"carbs_g":28,"fat_g":7,"readable":true}',
+      );
       expect(r.perServing.calories, closeTo(200, 0.01));
       expect(r.printedUnit, EnergyUnit.kJ);
       expect(r.servingGrams, 40);
@@ -324,8 +378,9 @@ void main() {
 
     test('per-100 g labels are turned into per-serving values', () {
       final r = AIVisionService.decodeLabel(
-          '{"product_name":"","brand":"","serving_size":"30 g","serving_grams":30,"basis":"100g",'
-          '"energy":400,"energy_unit":"kcal","protein_g":10,"carbs_g":60,"fat_g":12,"readable":true}');
+        '{"product_name":"","brand":"","serving_size":"30 g","serving_grams":30,"basis":"100g",'
+        '"energy":400,"energy_unit":"kcal","protein_g":10,"carbs_g":60,"fat_g":12,"readable":true}',
+      );
       expect(r.perServing.calories, closeTo(120, 0.01));
       expect(r.perServing.carbs, closeTo(18, 0.01));
     });
@@ -417,14 +472,16 @@ void main() {
   test('changing the profile goal recalculates targets', () async {
     final s = AppState(store: MemoryStore(), health: UnsupportedHealthService());
     await s.load();
-    s.completeOnboarding(UserProfile(
-      sex: BiologicalSex.male,
-      birthDate: DateTime(DateTime.now().year - 30, 1, 1),
-      heightCm: 180,
-      weightKg: 80,
-      activity: ActivityLevel.moderate,
-      goal: WeightGoal.maintain,
-    ));
+    s.completeOnboarding(
+      UserProfile(
+        sex: BiologicalSex.male,
+        birthDate: DateTime(DateTime.now().year - 30, 1, 1),
+        heightCm: 180,
+        weightKg: 80,
+        activity: ActivityLevel.moderate,
+        goal: WeightGoal.maintain,
+      ),
+    );
     s.updateProfileAndPlan((p) => p.goal = WeightGoal.maintain);
     final maintain = s.targets.calories;
     s.updateProfileAndPlan((p) => p.goal = WeightGoal.lose);
@@ -504,4 +561,262 @@ void main() {
     s.setStepGoal(0); // ignored
     expect(s.stepGoal, 8000);
   });
+
+  group('Updates', () {
+    final release = {
+      'tag_name': 'v2.0.0-build12',
+      'html_url': 'https://github.com/EzasPi0321/Fitness-Tracker/releases/tag/v2.0.0-build12',
+      'body': 'Add water tracking\n\nMore notes',
+      'assets': [
+        {'name': 'FitTrack.apk', 'browser_download_url': 'https://example.test/FitTrack.apk'},
+        {'name': 'FitTrack-Windows.zip', 'browser_download_url': 'https://example.test/FitTrack-Windows.zip'},
+      ],
+    };
+
+    test('a newer build is offered with the right file per platform', () {
+      final android = UpdateService.parseRelease(
+        release,
+        currentBuild: 7,
+        platform: TargetPlatform.android,
+        web: false,
+      )!;
+      expect(android.build, 12);
+      expect(android.version, '2.0.0');
+      expect(android.downloadUrl, endsWith('FitTrack.apk'));
+      expect(android.notes, 'Add water tracking');
+      final windows = UpdateService.parseRelease(
+        release,
+        currentBuild: 7,
+        platform: TargetPlatform.windows,
+        web: false,
+      )!;
+      expect(windows.downloadUrl, endsWith('FitTrack-Windows.zip'));
+      final ios = UpdateService.parseRelease(release, currentBuild: 7, platform: TargetPlatform.iOS, web: false)!;
+      expect(ios.downloadUrl, isNull); // opens the release page instead
+    });
+
+    test('the same or an older build is not offered', () {
+      expect(
+        UpdateService.parseRelease(release, currentBuild: 12, platform: TargetPlatform.android, web: false),
+        isNull,
+      );
+      expect(
+        UpdateService.parseRelease(
+          {'tag_name': 'nightly'},
+          currentBuild: 1,
+          platform: TargetPlatform.android,
+          web: false,
+        ),
+        isNull,
+      );
+    });
+
+    test('a dismissed update hides the banner until a newer one arrives', () async {
+      final s = AppState(store: MemoryStore(), health: UnsupportedHealthService(), updates: _FakeUpdates(12));
+      await s.load();
+      await s.checkForUpdates(manual: true);
+      expect(s.showUpdateBanner, isTrue);
+      s.dismissUpdate();
+      expect(s.showUpdateBanner, isFalse);
+      (s.updates as _FakeUpdates).build = 13;
+      await s.checkForUpdates(manual: true);
+      expect(s.showUpdateBanner, isTrue);
+    });
+  });
+  group('On-device label reading', () {
+    test('US panel, values on the same line', () {
+      final r = LabelOcr.parse('''
+Nutrition Facts
+8 servings per container
+Serving size 2 tbsp (32g)
+Amount per serving
+Calories 190
+% Daily Value*
+Total Fat 16g 21%
+Saturated Fat 3g 15%
+Trans Fat 0g
+Sodium 140mg 6%
+Total Carbohydrate 8g 3%
+Dietary Fiber 2g 7%
+Total Sugars 3g
+Protein 7g
+''')!;
+      expect(r.perServing.calories, 190);
+      expect(r.perServing.fat, 16);
+      expect(r.perServing.carbs, 8);
+      expect(r.perServing.protein, 7);
+      expect(r.servingGrams, 32);
+      expect(r.readable, isTrue);
+    });
+
+    test('EU panel per 100 g with kJ and kcal, values split onto the next line', () {
+      final r = LabelOcr.parse('''
+Nutrition information per 100g
+Energy
+2252 kJ / 539 kcal
+Fat
+30,9 g
+of which saturates
+10,6 g
+Carbohydrate
+57,5 g
+of which sugars
+56,3 g
+Protein
+6,3 g
+''')!;
+      expect(r.perServing.calories, 539);
+      expect(r.perServing.fat, closeTo(30.9, 1e-9));
+      expect(r.perServing.carbs, closeTo(57.5, 1e-9));
+      expect(r.perServing.protein, closeTo(6.3, 1e-9));
+      expect(r.servingGrams, 100);
+      expect(r.servingDescription, '100 g');
+    });
+
+    test('a kJ-only label is converted', () {
+      final r = LabelOcr.parse('Energy 836.8 kJ\nProtein 4 g\nFat 7 g\nCarbohydrate 28 g')!;
+      expect(r.perServing.calories, closeTo(200, 0.01));
+      expect(r.printedUnit, EnergyUnit.kJ);
+    });
+
+    test('Australian panel read row by row (kJ with Cal, "Fat, total", two columns)', () {
+      final r = LabelOcr.parse('''
+NUTRITION INFORMATION
+Servings per package: 8
+Serving size: 30 g
+Avg. Quantity per Serving Avg. Quantity per 100 g
+Energy 540 kJ (129 Cal) 1800 kJ (430 Cal)
+Protein 3.2 g 10.7 g
+Fat, total 2.1 g 7.0 g
+- saturated 0.4 g 1.3 g
+Carbohydrate 19.8 g 66.0 g
+- sugars 4.5 g 15.0 g
+Dietary Fibre 2.9 g 9.7 g
+Sodium 95 mg 317 mg
+''')!;
+      expect(r.perServing.calories, 129); // the per-serving column, not per 100 g
+      expect(r.perServing.protein, closeTo(3.2, 1e-9));
+      expect(r.perServing.fat, closeTo(2.1, 1e-9));
+      expect(r.perServing.carbs, closeTo(19.8, 1e-9));
+      expect(r.servingGrams, 30);
+      expect(r.readable, isTrue);
+    });
+
+    test('Australian panel read column by column (names first, then values)', () {
+      final r = LabelOcr.parse('''
+NUTRITION INFORMATION
+Servings per package: 5
+Serving size: 40 g
+Energy
+Protein
+Fat, total
+- saturated
+Carbohydrate
+- sugars
+Sodium
+Avg. Quantity per Serving
+628 kJ
+4.1 g
+5.6 g
+1.0 g
+21.2 g
+6.3 g
+120 mg
+Avg. Quantity per 100 g
+1570 kJ
+10.3 g
+14.0 g
+2.5 g
+53.0 g
+15.8 g
+300 mg
+''')!;
+      expect(r.perServing.calories, closeTo(628 / 4.184, 0.01));
+      expect(r.printedUnit, EnergyUnit.kJ);
+      expect(r.perServing.protein, closeTo(4.1, 1e-9));
+      expect(r.perServing.fat, closeTo(5.6, 1e-9)); // not the "- saturated" 1.0 g
+      expect(r.perServing.carbs, closeTo(21.2, 1e-9)); // not the "- sugars" 6.3 g
+      expect(r.servingGrams, 40);
+    });
+
+    test('Australian kJ-only panel with no Cal figure', () {
+      final r = LabelOcr.parse('''
+Serving size: 250 mL
+Energy 420kJ 168kJ
+Protein 8.5g 3.4g
+Fat, total 9.8g 3.9g
+Carbohydrate 12.0g 4.8g
+''')!;
+      expect(r.perServing.calories, closeTo(420 / 4.184, 0.01));
+      expect(r.perServing.fat, closeTo(9.8, 1e-9));
+    });
+
+    test('text that is not a nutrition panel gives nothing', () {
+      expect(LabelOcr.parse('Ingredients: oats, honey, almonds'), isNull);
+    });
+  });
+
+  test('connecting with only some health permissions still syncs, and says what is missing', () async {
+    final s = AppState(store: MemoryStore(), health: _PartialHealth());
+    await s.load();
+    s.completeOnboarding(UserProfile());
+    final before = s.healthRefresh.value;
+    await s.setHealthEnabled(true);
+    expect(s.healthEnabled, isTrue);
+    expect(s.healthError, isNull);
+    expect(s.healthMissing, ['Water']);
+    expect(s.healthRefresh.value, greaterThan(before)); // screens re-read steps
+  });
+
+  test('the live app removes old sample data but keeps what the user logged', () async {
+    // An older version saved sample data; the user also logged one real meal.
+    final store = MemoryStore();
+    final old = AppState(store: store, health: UnsupportedHealthService());
+    await old.load();
+    old.loadSampleData();
+    await old.logEntries([
+      FoodEntry(
+        id: 'mine',
+        name: 'My lunch',
+        meal: MealType.lunch,
+        source: EntrySource.manual,
+        consumedAt: DateTime.now(),
+        quantity: 1,
+        unit: 'serving',
+        nutrients: const Nutrients(calories: 500),
+      ),
+    ]);
+    await old.flush();
+
+    final s = AppState(store: store, health: UnsupportedHealthService());
+    await s.load(); // not the web preview, so sample data isn't allowed
+    expect(AppState.demoAllowed, isFalse);
+    expect(s.isSample, isFalse);
+    expect(s.profile, isNull); // back to setup
+    expect(s.entries.map((e) => e.id), ['mine']);
+    expect(s.weights, isEmpty);
+    expect(s.water, isEmpty);
+    expect(s.customFoods, isEmpty);
+  });
+}
+
+class _PartialHealth extends UnsupportedHealthService {
+  @override
+  bool get isSupported => true;
+  @override
+  List<String> get readNames => const ['Steps', 'Weight', 'Water'];
+  @override
+  Future<bool> requestAuthorization() async => true;
+  @override
+  Future<Set<String>?> grantedReads() async => {'Steps', 'Weight'};
+  @override
+  Future<int?> steps(DateTime day) async => 4210;
+}
+
+class _FakeUpdates extends UpdateService {
+  _FakeUpdates(this.build);
+  int build;
+  @override
+  Future<AppUpdate?> check({int currentBuild = appBuild}) async =>
+      AppUpdate(version: '2.0.0', build: build, notes: 'notes', downloadUrl: null, pageUrl: 'https://example.test');
 }

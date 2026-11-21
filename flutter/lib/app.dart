@@ -30,6 +30,8 @@ class _FitTrackAppState extends State<FitTrackApp> with WidgetsBindingObserver {
   @override
   void didChangeAppLifecycleState(AppLifecycleState s) {
     if (s == AppLifecycleState.paused || s == AppLifecycleState.detached) widget.state.flush();
+    // Samsung Health copies steps into Health Connect every so often: read again on return.
+    if (s == AppLifecycleState.resumed) widget.state.refreshHealth();
   }
 
   @override

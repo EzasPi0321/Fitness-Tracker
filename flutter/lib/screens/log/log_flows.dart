@@ -8,6 +8,7 @@ import '../../design/tokens.dart';
 import '../../models/food.dart';
 import '../../models/util.dart';
 import '../../services/ai_vision.dart';
+import '../../services/label_ocr.dart';
 import '../../services/open_food_facts.dart';
 import '../../services/platform_caps.dart';
 import '../../widgets/common.dart';
@@ -220,7 +221,7 @@ Future<void> _offerLabelPhoto(
           ),
           const SizedBox(height: S.sm),
           Text(
-            'Photograph the nutrition label and FitTrack will read the numbers for you to check. '
+            'Photograph the nutrition label and FitTrack will read the numbers for you to check (no API key needed on a phone). '
             "It's saved under barcode $code, so the next scan finds it.",
             style: tt.bodyMedium!.copyWith(color: t.muted),
           ),
@@ -275,29 +276,45 @@ Future<LabelReading?> readLabelPhoto(BuildContext context, ImageSource source) a
     return null;
   }
   if (file == null || !context.mounted) return null;
-  final key = await state.keys.read(state.visionProvider.keyName);
+  final key = (await state.keys.read(state.visionProvider.keyName)).trim();
   if (!context.mounted) return null;
-  if (key.trim().isEmpty) {
+  final onDevice = LabelOcr.isAvailable;
+  if (key.isEmpty && !onDevice) {
+    // Desktop has no on-device reader, so it needs an AI key.
     showToast(context, VisionException.missingKey.message);
     return null;
   }
   showDialog<void>(
     context: context,
     barrierDismissible: false,
-    builder: (_) => const Center(child: _BusyCard('Reading the label…')),
+    builder: (_) => Center(child: _BusyCard(key.isEmpty ? 'Reading the label on your phone…' : 'Reading the label…')),
   );
   LabelReading? reading;
   String? error;
-  try {
-    final jpeg = await prepareMealPhoto(await file.readAsBytes());
-    if (jpeg == null) throw const VisionException("That file couldn't be read as a photo.");
-    reading = await AIVisionService(
-      provider: state.visionProvider,
-      apiKey: key,
-      model: state.visionModel,
-    ).readNutritionLabel(jpeg);
-  } on VisionException catch (e) {
-    error = e.message;
+  // With a key the AI reads it (better with glare and curved packs); without one, or if the AI
+  // fails, the phone reads it itself. No key and no network needed for that path.
+  if (key.isNotEmpty) {
+    try {
+      final jpeg = await prepareMealPhoto(await file.readAsBytes());
+      if (jpeg == null) throw const VisionException("That file couldn't be read as a photo.");
+      reading = await AIVisionService(
+        provider: state.visionProvider,
+        apiKey: key,
+        model: state.visionModel,
+      ).readNutritionLabel(jpeg);
+    } on VisionException catch (e) {
+      error = e.message;
+    }
+  }
+  if (reading == null && onDevice) {
+    try {
+      reading = await LabelOcr.read(file.path);
+      error = null;
+    } on VisionException catch (e) {
+      error ??= e.message;
+    } catch (_) {
+      error ??= "The label couldn't be read on this phone. Type the numbers instead.";
+    }
   }
   if (!context.mounted) return null;
   Navigator.of(context, rootNavigator: true).pop();

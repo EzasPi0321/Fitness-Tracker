@@ -13,6 +13,7 @@ import '../../services/platform_caps.dart';
 import '../../widgets/common.dart';
 import '../../widgets/rings.dart';
 import '../../widgets/steps_card.dart';
+import '../../widgets/update_banner.dart';
 import '../../widgets/water_card.dart';
 import '../log/log_flows.dart';
 import 'add_menu.dart';
@@ -31,11 +32,32 @@ class _TodayScreenState extends State<TodayScreen> {
   List<WorkoutSummary> _workouts = const [];
   int? _steps;
   final _collapsed = <MealType>{};
+  String? _loadedKey;
+  ValueNotifier<int>? _refresh;
 
   @override
   void didChangeDependencies() {
     super.didChangeDependencies();
-    _loadHealth();
+    final state = AppScope.read(context);
+    if (_refresh != state.healthRefresh) {
+      _refresh?.removeListener(_forceLoad);
+      _refresh = state.healthRefresh..addListener(_forceLoad);
+    }
+    // Rebuilds happen on every change (adding water, logging food); only re-read health data
+    // when the day or the connection changed.
+    final key = '${_day.millisecondsSinceEpoch}-${state.healthEnabled}-${state.isSample}';
+    if (key != _loadedKey) {
+      _loadedKey = key;
+      _loadHealth();
+    }
+  }
+
+  void _forceLoad() => _loadHealth();
+
+  @override
+  void dispose() {
+    _refresh?.removeListener(_forceLoad);
+    super.dispose();
   }
 
   Future<void> _loadHealth() async {
@@ -137,106 +159,112 @@ class _TodayScreenState extends State<TodayScreen> {
     return Scaffold(
       body: Stack(
         children: [
-          CustomScrollView(
-            slivers: [
-              SliverSafeArea(
-                bottom: false,
-                sliver: SliverPadding(
-                  padding: EdgeInsets.fromLTRB(_gutter(width), S.lg, _gutter(width), 0),
-                  sliver: SliverToBoxAdapter(
-                    child: Center(
-                      child: ConstrainedBox(
-                        constraints: const BoxConstraints(maxWidth: 1100),
-                        child: Column(
-                          crossAxisAlignment: CrossAxisAlignment.stretch,
-                          children: [
-                            if (state.isSample) const _SampleBanner(),
-                            Row(
-                              children: [
-                                Expanded(
-                                  child: BlurSwitcher(
-                                    child: Align(
-                                      key: ValueKey(_day),
-                                      alignment: Alignment.centerLeft,
-                                      child: Column(
-                                        crossAxisAlignment: CrossAxisAlignment.start,
-                                        children: [
-                                          if (isToday)
-                                            Text(
-                                              greeting(DateTime.now(), state.profile?.firstName ?? ''),
-                                              style: tt.titleMedium!.copyWith(color: t.muted),
-                                            ),
-                                          Text(dayTitle(_day), style: tt.headlineMedium),
-                                        ],
+          RefreshIndicator(
+            // Pull down to read steps and workouts again.
+            onRefresh: _loadHealth,
+            child: CustomScrollView(
+              physics: const AlwaysScrollableScrollPhysics(),
+              slivers: [
+                SliverSafeArea(
+                  bottom: false,
+                  sliver: SliverPadding(
+                    padding: EdgeInsets.fromLTRB(_gutter(width), S.lg, _gutter(width), 0),
+                    sliver: SliverToBoxAdapter(
+                      child: Center(
+                        child: ConstrainedBox(
+                          constraints: const BoxConstraints(maxWidth: 1100),
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.stretch,
+                            children: [
+                              const UpdateBanner(),
+                              if (state.isSample) const _SampleBanner(),
+                              Row(
+                                children: [
+                                  Expanded(
+                                    child: BlurSwitcher(
+                                      child: Align(
+                                        key: ValueKey(_day),
+                                        alignment: Alignment.centerLeft,
+                                        child: Column(
+                                          crossAxisAlignment: CrossAxisAlignment.start,
+                                          children: [
+                                            if (isToday)
+                                              Text(
+                                                greeting(DateTime.now(), state.profile?.firstName ?? ''),
+                                                style: tt.titleMedium!.copyWith(color: t.muted),
+                                              ),
+                                            Text(dayTitle(_day), style: tt.headlineMedium),
+                                          ],
+                                        ),
                                       ),
                                     ),
                                   ),
-                                ),
-                                AnimatedOpacity(
-                                  opacity: isToday ? 0 : 1,
-                                  duration: Motion.of(context, Motion.fast),
-                                  child: IgnorePointer(
-                                    ignoring: isToday,
-                                    child: TextButton.icon(
-                                      onPressed: () => _select(DateTime.now()),
-                                      icon: const FIcon(Symbols.history, size: 18, weight: FontWeight.w600),
-                                      label: const Text('Back to today'),
+                                  AnimatedOpacity(
+                                    opacity: isToday ? 0 : 1,
+                                    duration: Motion.of(context, Motion.fast),
+                                    child: IgnorePointer(
+                                      ignoring: isToday,
+                                      child: TextButton.icon(
+                                        onPressed: () => _select(DateTime.now()),
+                                        icon: const FIcon(Symbols.history, size: 18, weight: FontWeight.w600),
+                                        label: const Text('Back to today'),
+                                      ),
                                     ),
                                   ),
-                                ),
-                              ],
-                            ),
-                            const SizedBox(height: S.md),
-                            DayCarousel(selected: _day, onSelect: _select),
-                            const SizedBox(height: S.lg),
-                            if (wide)
-                              Row(
-                                crossAxisAlignment: CrossAxisAlignment.start,
-                                children: [
-                                  SizedBox(
-                                    width: 380,
-                                    child: Column(
-                                      children: [
-                                        Rise(child: summary),
-                                        const SizedBox(height: S.lg),
-                                        Rise(
-                                          delay: const Duration(milliseconds: 40),
-                                          child: WaterCard(day: _day),
-                                        ),
-                                        if (showSteps) ...[
-                                          const SizedBox(height: S.lg),
-                                          Rise(delay: const Duration(milliseconds: 60), child: stepsCard),
-                                        ],
-                                      ],
-                                    ),
-                                  ),
-                                  const SizedBox(width: S.xl),
-                                  Expanded(child: meals),
                                 ],
-                              )
-                            else ...[
-                              Rise(child: summary),
-                              const SizedBox(height: S.lg),
-                              Rise(
-                                delay: const Duration(milliseconds: 40),
-                                child: WaterCard(day: _day),
                               ),
-                              if (showSteps) ...[
+                              const SizedBox(height: S.md),
+                              DayCarousel(selected: _day, onSelect: _select),
+                              const SizedBox(height: S.lg),
+                              if (wide)
+                                Row(
+                                  crossAxisAlignment: CrossAxisAlignment.start,
+                                  children: [
+                                    SizedBox(
+                                      width: 380,
+                                      child: Column(
+                                        children: [
+                                          Rise(child: summary),
+                                          const SizedBox(height: S.lg),
+                                          Rise(
+                                            delay: const Duration(milliseconds: 40),
+                                            child: WaterCard(day: _day),
+                                          ),
+                                          if (showSteps) ...[
+                                            const SizedBox(height: S.lg),
+                                            Rise(delay: const Duration(milliseconds: 60), child: stepsCard),
+                                          ],
+                                        ],
+                                      ),
+                                    ),
+                                    const SizedBox(width: S.xl),
+                                    Expanded(child: meals),
+                                  ],
+                                )
+                              else ...[
+                                Rise(child: summary),
                                 const SizedBox(height: S.lg),
-                                Rise(delay: const Duration(milliseconds: 60), child: stepsCard),
+                                Rise(
+                                  delay: const Duration(milliseconds: 40),
+                                  child: WaterCard(day: _day),
+                                ),
+                                if (showSteps) ...[
+                                  const SizedBox(height: S.lg),
+                                  Rise(delay: const Duration(milliseconds: 60), child: stepsCard),
+                                ],
+                                const SizedBox(height: S.xl),
+                                meals,
                               ],
-                              const SizedBox(height: S.xl),
-                              meals,
+                              const SizedBox(height: 120), // room so the add button never covers a row
                             ],
-                            const SizedBox(height: 120), // room so the add button never covers a row
-                          ],
+                          ),
                         ),
                       ),
                     ),
                   ),
                 ),
-              ),
-            ],
+              ],
+            ),
           ),
           AddMenu(day: _day),
         ],
@@ -395,7 +423,7 @@ class _SummaryCard extends StatelessWidget {
                 budget: budget,
                 pulse: pulse,
                 size: narrow ? 150 : 176,
-                stroke: narrow ? 16 : 18,
+                stroke: narrow ? 11 : 12,
               ),
               const SizedBox(width: S.xl),
               Expanded(child: stats),

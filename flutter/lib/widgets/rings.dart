@@ -7,8 +7,8 @@ import '../design/oklch.dart';
 import '../design/tokens.dart';
 import '../models/util.dart';
 
-/// The hero of the dashboard: a calorie ring drawn as a lit tube (solid drawing), filled
-/// along an OKLCH gradient. It eases to new values with a slight overshoot, and when food is
+/// The hero of the dashboard: a slim calorie ring on a flat track, filled along a subtle
+/// OKLCH gradient. It eases to new values with a slight overshoot, and when food is
 /// logged it swells and its tip flares, then settles (exaggerated feedback + follow-through).
 class CalorieRing extends StatefulWidget {
   const CalorieRing({
@@ -88,7 +88,7 @@ class _CalorieRingState extends State<CalorieRing> with SingleTickerProviderStat
                   ? Curves.easeOut.transform(v / 0.3)
                   : 1 - Curves.easeInOut.transform((v - 0.3) / 0.7);
               return CustomPaint(
-                painter: _RingPainter(progress: p, stroke: widget.stroke * (1 + 0.16 * swell), flare: swell, t: t),
+                painter: _RingPainter(progress: p, stroke: widget.stroke * (1 + 0.1 * swell), flare: swell, t: t),
                 child: Center(
                   child: Transform.scale(
                     scale: 1 + 0.05 * swell,
@@ -134,18 +134,15 @@ class _RingPainter extends CustomPainter {
     final rect = Rect.fromCircle(center: c, radius: r);
     const start = -math.pi / 2;
 
-    // Recessed track: darker at the outer edge, lighter inside, so it reads as a groove.
-    final track = Paint()
-      ..style = PaintingStyle.stroke
-      ..strokeWidth = stroke
-      ..shader = RadialGradient(
-        colors: [
-          t.calories.withValues(alpha: t.dark ? 0.16 : 0.12),
-          t.calories.withValues(alpha: t.dark ? 0.26 : 0.22),
-        ],
-        stops: [(r - stroke / 2) / (r + stroke / 2), 1],
-      ).createShader(Rect.fromCircle(center: c, radius: r + stroke / 2));
-    canvas.drawCircle(c, r, track);
+    // Flat, quiet track: the fill carries the colour.
+    canvas.drawCircle(
+      c,
+      r,
+      Paint()
+        ..style = PaintingStyle.stroke
+        ..strokeWidth = stroke
+        ..color = t.inset,
+    );
 
     final lap1 = progress.clamp(0.0, 1.0);
     if (lap1 > 0.001) {
@@ -154,9 +151,9 @@ class _RingPainter extends CustomPainter {
         startAngle: 0,
         endAngle: math.pi * 2,
         transform: const GradientRotation(start),
-        colors: oklchStops([o.withL(o.l + 0.08).withC(o.c * 0.8), o, o.withL(o.l - 0.06).withH(o.h - 18)], steps: 24),
+        colors: oklchStops([o.withL(o.l + 0.04).withC(o.c * 0.85), o, o.withL(o.l - 0.03).withH(o.h - 8)], steps: 24),
       );
-      final startColor = o.withL(o.l + 0.08).withC(o.c * 0.8).toColor();
+      final startColor = o.withL(o.l + 0.04).withC(o.c * 0.85).toColor();
       _arc(canvas, rect, start, lap1 * math.pi * 2, Paint()..shader = sweep.createShader(rect), r, c);
       // The sweep gradient wraps at 12 o'clock, so the rounded start cap would pick up the end
       // colour. Repaint the cap in the start colour.
@@ -189,21 +186,7 @@ class _RingPainter extends CustomPainter {
       ..strokeCap = StrokeCap.round;
     canvas.drawArc(rect, start, sweep, false, body);
 
-    // Specular highlight along the inner edge and shade along the outer edge give the tube volume.
-    final hi = Paint()
-      ..style = PaintingStyle.stroke
-      ..strokeWidth = stroke * 0.22
-      ..strokeCap = StrokeCap.round
-      ..color = Colors.white.withValues(alpha: t.dark ? 0.18 : 0.32);
-    canvas.drawArc(Rect.fromCircle(center: c, radius: r - stroke * 0.22), start, sweep, false, hi);
-    final lo = Paint()
-      ..style = PaintingStyle.stroke
-      ..strokeWidth = stroke * 0.18
-      ..strokeCap = StrokeCap.round
-      ..color = Colors.black.withValues(alpha: t.dark ? 0.22 : 0.10);
-    canvas.drawArc(Rect.fromCircle(center: c, radius: r + stroke * 0.3), start, sweep, false, lo);
-
-    // Tip: a lit cap, flaring briefly when food is logged.
+    // The tip glows briefly when food is logged.
     final a = start + sweep;
     final tip = Offset(c.dx + r * math.cos(a), c.dy + r * math.sin(a));
     if (flare > 0.01) {
@@ -215,15 +198,6 @@ class _RingPainter extends CustomPainter {
           ..maskFilter = MaskFilter.blur(BlurStyle.normal, stroke * 0.6),
       );
     }
-    canvas.drawCircle(
-      tip,
-      stroke * 0.5,
-      Paint()
-        ..shader = RadialGradient(
-          center: const Alignment(-0.35, -0.35),
-          colors: [Colors.white.withValues(alpha: 0.55), Colors.white.withValues(alpha: 0)],
-        ).createShader(Rect.fromCircle(center: tip, radius: stroke * 0.5)),
-    );
   }
 
   @override
@@ -287,7 +261,7 @@ class _GaugePainter extends CustomPainter {
 
   @override
   void paint(Canvas canvas, Size size) {
-    const stroke = 7.0;
+    const stroke = 5.0;
     final c = size.center(Offset.zero);
     final r = (size.shortestSide - stroke) / 2;
     final rect = Rect.fromCircle(center: c, radius: r);
@@ -300,17 +274,6 @@ class _GaugePainter extends CustomPainter {
     canvas.drawArc(rect, start, total, false, base..color = t.inset);
     if (frac > 0.001) {
       canvas.drawArc(rect, start, total * frac, false, base..color = color);
-      canvas.drawArc(
-        Rect.fromCircle(center: c, radius: r - stroke * 0.2),
-        start,
-        total * frac,
-        false,
-        Paint()
-          ..style = PaintingStyle.stroke
-          ..strokeWidth = stroke * 0.25
-          ..strokeCap = StrokeCap.round
-          ..color = Colors.white.withValues(alpha: t.dark ? 0.15 : 0.3),
-      );
     }
   }
 
@@ -341,14 +304,14 @@ class _MiniPainter extends CustomPainter {
 
   @override
   void paint(Canvas canvas, Size size) {
-    const stroke = 4.0;
+    const stroke = 3.0;
     final c = size.center(Offset.zero);
     final r = (size.shortestSide - stroke) / 2;
     final paint = Paint()
       ..style = PaintingStyle.stroke
       ..strokeWidth = stroke
       ..strokeCap = StrokeCap.round;
-    canvas.drawCircle(c, r, paint..color = t.calories.withValues(alpha: 0.18));
+    canvas.drawCircle(c, r, paint..color = t.inset);
     if (p > 0.001) {
       canvas.drawArc(
         Rect.fromCircle(center: c, radius: r),

@@ -108,9 +108,9 @@ class ProfileSection extends StatelessWidget {
               key: ValueKey(p.goal),
               alignment: Alignment.centerLeft,
               child: Text(switch (p.goal) {
-                WeightGoal.lose => 'Cut: TDEE − 500 kcal, about 0.5 kg (1 lb) a week. Protein 2.0 g per kg.',
-                WeightGoal.maintain => 'Maintain: eat your TDEE. Protein 1.6 g per kg.',
-                WeightGoal.gain => 'Gain: TDEE + 300 kcal, a lean surplus. Protein 1.8 g per kg.',
+                WeightGoal.lose => 'Cut: TDEE − 500 kcal, about 0.5 kg (1 lb) a week.',
+                WeightGoal.maintain => 'Maintain: eat your TDEE.',
+                WeightGoal.gain => 'Gain: TDEE + 300 kcal, a lean surplus.',
               }, style: tt.bodySmall),
             ),
           ),
@@ -192,6 +192,44 @@ class ProfileSection extends StatelessWidget {
                 ],
                 onChanged: (a) {
                   if (a != null) update((p) => p.activity = a);
+                },
+              ),
+            ),
+            Padding(
+              padding: const EdgeInsets.fromLTRB(S.lg, 0, S.lg, S.md),
+              child: DropdownButtonFormField<DietStyle>(
+                initialValue: p.diet,
+                isExpanded: true,
+                decoration: const InputDecoration(labelText: 'Macro split'),
+                borderRadius: BorderRadius.circular(S.radiusControl),
+                dropdownColor: t.raised,
+                selectedItemBuilder: (_) => [
+                  for (final d in DietStyle.values)
+                    Align(
+                      alignment: Alignment.centerLeft,
+                      child: Text(d.title, overflow: TextOverflow.ellipsis),
+                    ),
+                ],
+                items: [
+                  for (final d in DietStyle.values)
+                    DropdownMenuItem(
+                      value: d,
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          Text(d.title, overflow: TextOverflow.ellipsis),
+                          Text(
+                            d.detail,
+                            overflow: TextOverflow.ellipsis,
+                            style: tt.labelSmall!.copyWith(color: t.muted, fontFeatures: tabular),
+                          ),
+                        ],
+                      ),
+                    ),
+                ],
+                onChanged: (d) {
+                  if (d != null) update((p) => p.diet = d);
                 },
               ),
             ),

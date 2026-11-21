@@ -36,6 +36,19 @@ class _MobileHealthService implements HealthService {
     _configured = true;
   }
 
+  static const _names = {
+    hc.HealthDataType.STEPS: 'Steps',
+    hc.HealthDataType.ACTIVE_ENERGY_BURNED: 'Active calories',
+    hc.HealthDataType.WORKOUT: 'Exercise',
+    hc.HealthDataType.WEIGHT: 'Weight',
+    hc.HealthDataType.HEIGHT: 'Height',
+    hc.HealthDataType.NUTRITION: 'Nutrition',
+    hc.HealthDataType.WATER: 'Water',
+  };
+
+  @override
+  List<String> get readNames => [for (final t in _read) _names[t]!];
+
   @override
   Future<bool> requestAuthorization() async {
     await _ensure();
@@ -53,7 +66,31 @@ class _MobileHealthService implements HealthService {
               : hc.HealthDataAccess.READ,
         )
         .toList();
-    return _health.requestAuthorization(_read, permissions: permissions);
+    bool all;
+    try {
+      all = await _health.requestAuthorization(_read, permissions: permissions);
+    } catch (_) {
+      all = false;
+    }
+    // Apple Health never says what was allowed; once the sheet has been shown, carry on.
+    if (Platform.isIOS) return true;
+    if (all) return true;
+    // Health Connect: allowing only some types is fine. Use whatever was granted.
+    final granted = await grantedReads();
+    return granted != null && granted.isNotEmpty;
+  }
+
+  @override
+  Future<Set<String>?> grantedReads() async {
+    if (!Platform.isAndroid) return null;
+    await _ensure();
+    final granted = <String>{};
+    for (final t in _read) {
+      try {
+        if (await _health.hasPermissions([t], permissions: [hc.HealthDataAccess.READ]) == true) granted.add(_names[t]!);
+      } catch (_) {}
+    }
+    return granted;
   }
 
   Future<List<hc.HealthDataPoint>> _points(hc.HealthDataType type, DateTime from, DateTime to) async {
@@ -76,11 +113,15 @@ class _MobileHealthService implements HealthService {
     await _ensure();
     final start = startOfDay(day);
     final end = sameDay(day, DateTime.now()) ? DateTime.now() : addDays(start, 1);
+    int? total;
     try {
-      return await _health.getTotalStepsInInterval(start, end);
-    } catch (_) {
-      return null;
-    }
+      total = await _health.getTotalStepsInInterval(start, end);
+    } catch (_) {}
+    if (total != null && total > 0) return total;
+    // Fallback: add up the individual step records (some sources only show up this way).
+    final points = await _points(hc.HealthDataType.STEPS, start, end);
+    if (points.isEmpty) return total;
+    return points.fold<double>(0, (a, p) => a + _numeric(p)).round();
   }
 
   @override
