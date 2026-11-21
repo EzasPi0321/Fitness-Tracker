@@ -423,7 +423,7 @@ class _SummaryCard extends StatelessWidget {
                 budget: budget,
                 pulse: pulse,
                 size: narrow ? 150 : 176,
-                stroke: narrow ? 16 : 18,
+                stroke: narrow ? 11 : 12,
               ),
               const SizedBox(width: S.xl),
               Expanded(child: stats),

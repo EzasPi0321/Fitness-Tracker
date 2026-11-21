@@ -180,6 +180,16 @@ class _CardTitle extends StatelessWidget {
   }
 }
 
+/// Compact axis label: 2,500 → "2.5k".
+String _compact(double v) {
+  if (v.abs() < 1000) return whole(v);
+  final k = v / 1000;
+  return '${k == k.roundToDouble() ? k.toStringAsFixed(0) : k.toStringAsFixed(1)}k';
+}
+
+/// Grid lines: hairline, dashed and quiet, so data carries the weight.
+FlLine _gridLine(FT t) => FlLine(color: t.border.withValues(alpha: 0.6), strokeWidth: 0.8, dashArray: const [2, 4]);
+
 class _CalorieCard extends StatelessWidget {
   const _CalorieCard({required this.days, required this.logged, required this.target, required this.range});
   final List<_Day> days;
@@ -187,9 +197,13 @@ class _CalorieCard extends StatelessWidget {
   final double target;
   final TrendRange range;
 
+  static const _chartH = 220.0;
+  static const _bottomH = 26.0;
+  static const _goalGutter = 54.0;
+
   double _step(double max) {
     for (final s in [250.0, 500.0, 1000.0, 2000.0, 2500.0, 5000.0]) {
-      if (max / s <= 5) return s;
+      if (max / s <= 4) return s;
     }
     return 10000;
   }
@@ -204,16 +218,13 @@ class _CalorieCard extends StatelessWidget {
     final maxCal = days.fold<double>(0, (a, d) => math.max(a, d.n.calories));
     // The chart is drawn in the user's energy unit so its axis lands on round numbers.
     final k = Energy.toDisplay(1);
-    final rawMax = math.max(target * 1.25, maxCal * 1.08) * k;
+    final rawMax = math.max(target * 1.2, maxCal * 1.06) * k;
     final step = _step(rawMax);
     final maxY = (rawMax / step).ceil() * step;
-    final barW = switch (range) {
-      TrendRange.week => 22.0,
-      TrendRange.month => 9.0,
-      TrendRange.quarter => 3.0,
-    };
-    final o = t.caloriesO;
-    final overO = Oklch(o.l - 0.02, 0.19, 28);
+    // Bars are neutral; colour is saved for meaning: the goal line, and days over it.
+    final barColor = t.fg.withValues(alpha: t.dark ? 0.86 : 0.78);
+    final goalColor = t.calories;
+    final today = startOfDay(DateTime.now());
 
     return FCard(
       padding: const EdgeInsets.all(S.xl),
@@ -224,145 +235,226 @@ class _CalorieCard extends StatelessWidget {
             'Calorie intake',
             logged.isEmpty ? 'No meals logged in this period' : 'Average ${Energy.format(avg)} a day',
           ),
-          const SizedBox(height: S.xl),
-          SizedBox(
-            height: 230,
-            child: BarChart(
-              duration: Motion.of(context, Motion.slow),
-              curve: Motion.standard,
-              BarChartData(
-                maxY: maxY,
-                minY: 0,
-                alignment: BarChartAlignment.spaceAround,
-                gridData: FlGridData(
-                  drawVerticalLine: false,
-                  horizontalInterval: step,
-                  getDrawingHorizontalLine: (_) => FlLine(color: t.border, strokeWidth: 1),
+          const SizedBox(height: S.md),
+          Wrap(
+            spacing: S.lg,
+            runSpacing: S.xs,
+            children: [
+              _LegendItem(
+                swatch: _DashSwatch(color: goalColor),
+                label: 'Goal ${Energy.format(target)}',
+              ),
+              _LegendItem(
+                swatch: _BarSwatch(color: barColor),
+                label: 'Eaten',
+              ),
+              if (over > 0)
+                _LegendItem(
+                  swatch: _BarSwatch(color: t.over),
+                  label: 'Over goal',
                 ),
-                borderData: FlBorderData(show: false),
-                titlesData: FlTitlesData(
-                  topTitles: const AxisTitles(),
-                  rightTitles: const AxisTitles(),
-                  leftTitles: AxisTitles(
-                    sideTitles: SideTitles(
-                      showTitles: true,
-                      reservedSize: 44,
-                      interval: step,
-                      getTitlesWidget: (v, meta) => SideTitleWidget(
-                        meta: meta,
-                        child: Text(whole(v), style: tt.bodySmall!.copyWith(fontFeatures: tabular)),
+            ],
+          ),
+          const SizedBox(height: S.lg),
+          SizedBox(
+            height: _chartH,
+            child: LayoutBuilder(
+              builder: (context, c) {
+                final plotH = _chartH - _bottomH;
+                // Bars take about a third of their slot: slim, but sized to the screen.
+                final slot = (c.maxWidth - 36 - _goalGutter) / days.length;
+                final barW = (slot * 0.36).clamp(2.0, 24.0);
+                final radius = math.min(barW / 2, 4.0);
+                final goalY = (plotH * (1 - (target * k / maxY))).clamp(0.0, plotH);
+                return Stack(
+                  clipBehavior: Clip.none,
+                  children: [
+                    Positioned.fill(
+                      child: BarChart(
+                        duration: Motion.of(context, Motion.slow),
+                        curve: Motion.standard,
+                        BarChartData(
+                          maxY: maxY,
+                          minY: 0,
+                          alignment: BarChartAlignment.spaceAround,
+                          gridData: FlGridData(
+                            drawVerticalLine: false,
+                            horizontalInterval: step,
+                            getDrawingHorizontalLine: (_) => _gridLine(t),
+                          ),
+                          borderData: FlBorderData(
+                            show: true,
+                            border: Border(bottom: BorderSide(color: t.border)),
+                          ),
+                          titlesData: FlTitlesData(
+                            topTitles: const AxisTitles(),
+                            // Empty gutter on the right: the goal tag lives there, clear of the bars.
+                            rightTitles: AxisTitles(
+                              sideTitles: SideTitles(
+                                showTitles: true,
+                                reservedSize: _goalGutter,
+                                getTitlesWidget: (_, _) => const SizedBox.shrink(),
+                              ),
+                            ),
+                            leftTitles: AxisTitles(
+                              sideTitles: SideTitles(
+                                showTitles: true,
+                                reservedSize: 36,
+                                interval: step,
+                                getTitlesWidget: (v, meta) => SideTitleWidget(
+                                  meta: meta,
+                                  child: Text(
+                                    _compact(v),
+                                    style: tt.labelSmall!.copyWith(color: t.muted, fontFeatures: tabular),
+                                  ),
+                                ),
+                              ),
+                            ),
+                            bottomTitles: AxisTitles(
+                              sideTitles: SideTitles(
+                                showTitles: true,
+                                reservedSize: _bottomH,
+                                getTitlesWidget: (v, meta) {
+                                  final i = v.toInt();
+                                  final every = switch (range) {
+                                    TrendRange.week => 1,
+                                    TrendRange.month => 7,
+                                    TrendRange.quarter => 15,
+                                  };
+                                  if (i < 0 || i >= days.length || (days.length - 1 - i) % every != 0) {
+                                    return const SizedBox.shrink();
+                                  }
+                                  final d = days[i].date;
+                                  final isToday = d == today;
+                                  final label = range == TrendRange.week
+                                      ? (isToday ? 'Today' : DateFormat('EEE').format(d))
+                                      : DateFormat('d MMM').format(d);
+                                  return SideTitleWidget(
+                                    meta: meta,
+                                    child: Text(
+                                      label,
+                                      style: tt.labelSmall!.copyWith(
+                                        color: isToday ? t.fg : t.muted,
+                                        fontWeight: isToday ? FontWeight.w600 : null,
+                                      ),
+                                    ),
+                                  );
+                                },
+                              ),
+                            ),
+                          ),
+                          extraLinesData: ExtraLinesData(
+                            extraLinesOnTop: true,
+                            horizontalLines: [
+                              HorizontalLine(
+                                y: target * k,
+                                color: goalColor,
+                                strokeWidth: 1.5,
+                                dashArray: const [6, 4],
+                              ),
+                            ],
+                          ),
+                          barTouchData: BarTouchData(
+                            touchTooltipData: BarTouchTooltipData(
+                              getTooltipColor: (_) => t.raised,
+                              tooltipBorder: BorderSide(color: t.border),
+                              tooltipBorderRadius: BorderRadius.circular(12),
+                              tooltipPadding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+                              fitInsideHorizontally: true,
+                              fitInsideVertically: true,
+                              getTooltipItem: (group, _, rod, _) {
+                                final d = days[group.x];
+                                final pct = target > 0 ? (d.n.calories / target * 100).round() : 0;
+                                return BarTooltipItem(
+                                  '${DateFormat('EEE d MMM').format(d.date)}\n',
+                                  tt.labelSmall!.copyWith(color: t.muted),
+                                  textAlign: TextAlign.left,
+                                  children: [
+                                    TextSpan(
+                                      text: '${Energy.format(d.n.calories)}  ',
+                                      style: tt.titleSmall!.copyWith(fontFeatures: tabular),
+                                    ),
+                                    TextSpan(
+                                      text: '$pct%\n',
+                                      style: tt.labelSmall!.copyWith(
+                                        color: d.n.calories > target * 1.1 ? t.over : t.muted,
+                                        fontFeatures: tabular,
+                                      ),
+                                    ),
+                                    TextSpan(
+                                      text: 'P ${whole(d.n.protein)}  C ${whole(d.n.carbs)}  F ${whole(d.n.fat)}',
+                                      style: tt.labelSmall!.copyWith(color: t.muted, fontFeatures: tabular),
+                                    ),
+                                  ],
+                                );
+                              },
+                            ),
+                          ),
+                          barGroups: [
+                            for (final (i, d) in days.indexed)
+                              BarChartGroupData(
+                                x: i,
+                                barRods: [
+                                  BarChartRodData(
+                                    toY: d.n.calories * k,
+                                    width: barW,
+                                    borderRadius: BorderRadius.vertical(top: Radius.circular(radius)),
+                                    color: d.n.calories > target * 1.1 ? t.over : barColor,
+                                    backDrawRodData: BackgroundBarChartRodData(
+                                      show: range != TrendRange.quarter,
+                                      toY: maxY,
+                                      color: t.fg.withValues(alpha: 0.025),
+                                    ),
+                                  ),
+                                ],
+                              ),
+                          ],
+                        ),
                       ),
                     ),
-                  ),
-                  bottomTitles: AxisTitles(
-                    sideTitles: SideTitles(
-                      showTitles: true,
-                      reservedSize: 26,
-                      getTitlesWidget: (v, meta) {
-                        final i = v.toInt();
-                        final every = switch (range) {
-                          TrendRange.week => 1,
-                          TrendRange.month => 7,
-                          TrendRange.quarter => 15,
-                        };
-                        if (i < 0 || i >= days.length || (days.length - 1 - i) % every != 0)
-                          return const SizedBox.shrink();
-                        final d = days[i].date;
-                        final label = range == TrendRange.week
-                            ? DateFormat('EEE').format(d)
-                            : DateFormat('M/d').format(d);
-                        return SideTitleWidget(
-                          meta: meta,
-                          child: Text(label, style: tt.bodySmall),
-                        );
-                      },
-                    ),
-                  ),
-                ),
-                extraLinesData: ExtraLinesData(
-                  horizontalLines: [
-                    HorizontalLine(
-                      y: target * k,
-                      color: t.muted,
-                      strokeWidth: 1.2,
-                      dashArray: const [5, 4],
-                      label: HorizontalLineLabel(
-                        show: true,
-                        alignment: Alignment.topRight,
-                        style: tt.labelMedium,
-                        labelResolver: (_) => 'Goal ${Energy.format(target)}',
+                    // Goal tag, in its own gutter so it never sits on a bar.
+                    Positioned(
+                      right: 0,
+                      width: _goalGutter - 6,
+                      top: goalY - 11,
+                      height: 22,
+                      child: IgnorePointer(
+                        child: Container(
+                          alignment: Alignment.center,
+                          decoration: BoxDecoration(color: goalColor, borderRadius: BorderRadius.circular(6)),
+                          child: FittedBox(
+                            fit: BoxFit.scaleDown,
+                            child: Padding(
+                              padding: const EdgeInsets.symmetric(horizontal: 5),
+                              child: Text(
+                                whole(target * k),
+                                style: tt.labelSmall!.copyWith(
+                                  color: t.dark ? Colors.black : Colors.white,
+                                  fontWeight: FontWeight.w700,
+                                  fontFeatures: tabular,
+                                ),
+                              ),
+                            ),
+                          ),
+                        ),
                       ),
                     ),
                   ],
-                ),
-                barTouchData: BarTouchData(
-                  touchTooltipData: BarTouchTooltipData(
-                    getTooltipColor: (_) => t.raised,
-                    tooltipBorder: BorderSide(color: t.border),
-                    tooltipBorderRadius: BorderRadius.circular(12),
-                    tooltipPadding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
-                    fitInsideHorizontally: true,
-                    fitInsideVertically: true,
-                    getTooltipItem: (group, _, rod, _) {
-                      final d = days[group.x];
-                      return BarTooltipItem(
-                        '${DateFormat('EEE, MMM d').format(d.date)}\n',
-                        tt.bodySmall!,
-                        textAlign: TextAlign.left,
-                        children: [
-                          TextSpan(
-                            text: '${Energy.format(d.n.calories)}\n',
-                            style: tt.titleSmall!.copyWith(fontFeatures: tabular),
-                          ),
-                          TextSpan(
-                            text: 'P ${whole(d.n.protein)}  C ${whole(d.n.carbs)}  F ${whole(d.n.fat)}',
-                            style: tt.bodySmall!.copyWith(fontFeatures: tabular),
-                          ),
-                        ],
-                      );
-                    },
-                  ),
-                ),
-                barGroups: [
-                  for (final (i, d) in days.indexed)
-                    BarChartGroupData(
-                      x: i,
-                      barRods: [
-                        BarChartRodData(
-                          toY: d.n.calories * k,
-                          width: barW,
-                          borderRadius: BorderRadius.vertical(
-                            top: Radius.circular(range == TrendRange.quarter ? 1.5 : 6),
-                          ),
-                          gradient: oklchLinearGradient(
-                            d.n.calories > target * 1.1
-                                ? [overO.withL(overO.l + 0.06), overO]
-                                : [o.withL(o.l + 0.07).withC(o.c * 0.85), o],
-                            begin: Alignment.topCenter,
-                            end: Alignment.bottomCenter,
-                          ),
-                        ),
-                      ],
-                    ),
-                ],
-              ),
+                );
+              },
             ),
           ),
           const SizedBox(height: S.xl),
-          Wrap(
-            spacing: S.xl,
-            runSpacing: S.md,
+          Divider(height: 1, color: t.border),
+          const SizedBox(height: S.lg),
+          Row(
             children: [
-              _Tile('Days logged', '${logged.length}/${range.days}'),
-              _Tile(
-                'Within ±10% of goal',
-                '$onTarget',
-                pill: onTarget > 0 ? StatusPill(text: 'on target', color: t.good) : null,
+              Expanded(child: _Tile('Days logged', '${logged.length}', suffix: '/${range.days}')),
+              Expanded(
+                child: _Tile('On target', '$onTarget', suffix: onTarget == 1 ? ' day' : ' days', valueColor: onTarget > 0 ? t.good : null),
               ),
-              _Tile(
-                'Over goal',
-                '$over',
-                pill: over > 0 ? StatusPill(text: '>110%', color: t.over) : null,
+              Expanded(
+                child: _Tile('Over goal', '$over', suffix: over == 1 ? ' day' : ' days', valueColor: over > 0 ? t.over : null),
               ),
             ],
           ),
@@ -372,31 +464,87 @@ class _CalorieCard extends StatelessWidget {
   }
 }
 
-class _Tile extends StatelessWidget {
-  const _Tile(this.label, this.value, {this.pill});
+class _LegendItem extends StatelessWidget {
+  const _LegendItem({required this.swatch, required this.label});
+  final Widget swatch;
   final String label;
-  final String value;
-  final Widget? pill;
 
   @override
   Widget build(BuildContext context) {
+    return Row(
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        swatch,
+        const SizedBox(width: 6),
+        Text(label, style: Theme.of(context).textTheme.labelSmall!.copyWith(color: FT.of(context).muted)),
+      ],
+    );
+  }
+}
+
+class _BarSwatch extends StatelessWidget {
+  const _BarSwatch({required this.color});
+  final Color color;
+  @override
+  Widget build(BuildContext context) => Container(
+    width: 8,
+    height: 8,
+    decoration: BoxDecoration(color: color, borderRadius: BorderRadius.circular(2)),
+  );
+}
+
+class _DashSwatch extends StatelessWidget {
+  const _DashSwatch({required this.color});
+  final Color color;
+  @override
+  Widget build(BuildContext context) => Row(
+    mainAxisSize: MainAxisSize.min,
+    children: [
+      for (var i = 0; i < 2; i++) ...[
+        if (i > 0) const SizedBox(width: 2),
+        Container(
+          width: 5,
+          height: 2,
+          decoration: BoxDecoration(color: color, borderRadius: BorderRadius.circular(1)),
+        ),
+      ],
+    ],
+  );
+}
+
+class _Tile extends StatelessWidget {
+  const _Tile(this.label, this.value, {this.suffix, this.valueColor});
+  final String label;
+  final String value;
+  final String? suffix;
+  final Color? valueColor;
+
+  @override
+  Widget build(BuildContext context) {
+    final t = FT.of(context);
     final tt = Theme.of(context).textTheme;
-    return ConstrainedBox(
-      constraints: const BoxConstraints(minWidth: 130),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Text(label, style: tt.bodySmall),
-          const SizedBox(height: 2),
-          Row(
-            mainAxisSize: MainAxisSize.min,
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Text(label.toUpperCase(), style: tt.labelSmall!.copyWith(color: t.muted, letterSpacing: 0.6)),
+        const SizedBox(height: 4),
+        Text.rich(
+          TextSpan(
             children: [
-              Text(value, style: tt.titleLarge!.copyWith(fontFeatures: tabular)),
-              if (pill != null) ...[const SizedBox(width: S.sm), pill!],
+              TextSpan(
+                text: value,
+                style: tt.titleLarge!.copyWith(color: valueColor ?? t.fg, fontFeatures: tabular),
+              ),
+              if (suffix != null)
+                TextSpan(
+                  text: suffix,
+                  style: tt.bodySmall!.copyWith(color: t.muted, fontFeatures: tabular),
+                ),
             ],
           ),
-        ],
-      ),
+          maxLines: 1,
+        ),
+      ],
     );
   }
 }
@@ -409,75 +557,126 @@ class _MacroCard extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final t = FT.of(context);
-    final tt = Theme.of(context).textTheme;
     final avg = logged.isEmpty ? Nutrients.zero : Nutrients.sum(logged.map((d) => d.n)) * (1 / logged.length);
-    final axis = Macro.values.expand((m) => [avg.of(m), targets.of(m)]).fold<double>(1, math.max) * 1.12;
 
     return FCard(
       padding: const EdgeInsets.all(S.xl),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          const _CardTitle('Average macros', 'Per logged day; the tick marks your target'),
+          const _CardTitle('Average macros', 'Per logged day, against your target'),
           const SizedBox(height: S.xl),
-          for (final m in Macro.values) ...[
-            Row(
-              children: [
-                SizedBox(width: 64, child: Text(m.title, style: tt.bodyMedium)),
-                Expanded(
-                  child: LayoutBuilder(
-                    builder: (context, c) {
-                      final w = c.maxWidth;
-                      return SizedBox(
-                        height: 22,
-                        child: Stack(
-                          clipBehavior: Clip.none,
-                          children: [
-                            Positioned.fill(
-                              child: DecoratedBox(
-                                decoration: BoxDecoration(color: t.inset, borderRadius: BorderRadius.circular(7)),
-                              ),
-                            ),
-                            TweenAnimationBuilder<double>(
-                              tween: Tween(end: (avg.of(m) / axis).clamp(0, 1)),
-                              duration: Motion.of(context, Motion.slow),
-                              curve: Motion.settle,
-                              builder: (context, f, _) => Container(
-                                width: w * f,
-                                decoration: BoxDecoration(color: t.macro(m), borderRadius: BorderRadius.circular(7)),
-                              ),
-                            ),
-                            Positioned(
-                              left: (w * targets.of(m) / axis - 1.5).clamp(0, w - 3),
-                              top: -4,
-                              bottom: -4,
-                              child: Container(
-                                width: 3,
-                                decoration: BoxDecoration(
-                                  color: t.fg.withValues(alpha: 0.7),
-                                  borderRadius: BorderRadius.circular(2),
-                                ),
-                              ),
-                            ),
-                          ],
-                        ),
-                      );
-                    },
-                  ),
-                ),
-                const SizedBox(width: S.md),
-                SizedBox(
-                  width: 92,
-                  child: Text(
-                    '${whole(avg.of(m))} / ${whole(targets.of(m))} g',
-                    textAlign: TextAlign.right,
-                    style: tt.bodySmall!.copyWith(fontFeatures: tabular),
-                  ),
-                ),
-              ],
-            ),
-            const SizedBox(height: S.lg),
+          for (final (i, m) in Macro.values.indexed) ...[
+            if (i > 0) const SizedBox(height: S.lg + 2),
+            _MacroRow(label: m.title, color: t.macro(m), value: avg.of(m), target: targets.of(m)),
           ],
+        ],
+      ),
+    );
+  }
+}
+
+/// One macro: name and numbers on top, a slim track below with the target marked.
+/// The track runs to 125% of target so overshoot stays visible.
+class _MacroRow extends StatelessWidget {
+  const _MacroRow({required this.label, required this.color, required this.value, required this.target});
+  final String label;
+  final Color color;
+  final double value;
+  final double target;
+
+  @override
+  Widget build(BuildContext context) {
+    final t = FT.of(context);
+    final tt = Theme.of(context).textTheme;
+    const span = 1.25;
+    final frac = target > 0 ? (value / (target * span)).clamp(0.0, 1.0) : 0.0;
+    final tick = 1 / span;
+    final pct = target > 0 ? (value / target * 100).round() : 0;
+    final over = target > 0 && value > target * 1.1;
+
+    return Semantics(
+      label: label,
+      value: '${whole(value)} of ${whole(target)} grams',
+      excludeSemantics: true,
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: [
+              Container(
+                width: 8,
+                height: 8,
+                decoration: BoxDecoration(color: color, borderRadius: BorderRadius.circular(2)),
+              ),
+              const SizedBox(width: 8),
+              Expanded(child: Text(label, style: tt.bodyMedium)),
+              Text.rich(
+                TextSpan(
+                  children: [
+                    TextSpan(
+                      text: whole(value),
+                      style: tt.titleSmall!.copyWith(fontFeatures: tabular),
+                    ),
+                    TextSpan(
+                      text: ' / ${whole(target)} g',
+                      style: tt.bodySmall!.copyWith(color: t.muted, fontFeatures: tabular),
+                    ),
+                  ],
+                ),
+              ),
+              SizedBox(
+                width: 48,
+                child: Text(
+                  '$pct%',
+                  textAlign: TextAlign.right,
+                  style: tt.labelSmall!.copyWith(color: over ? t.over : t.muted, fontFeatures: tabular),
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 8),
+          LayoutBuilder(
+            builder: (context, c) {
+              final w = c.maxWidth;
+              return SizedBox(
+                height: 14,
+                child: Stack(
+                  alignment: Alignment.centerLeft,
+                  children: [
+                    Container(
+                      height: 6,
+                      decoration: BoxDecoration(color: t.inset, borderRadius: BorderRadius.circular(3)),
+                    ),
+                    TweenAnimationBuilder<double>(
+                      tween: Tween(end: frac),
+                      duration: Motion.of(context, Motion.slow),
+                      curve: Motion.settle,
+                      builder: (context, f, _) => Container(
+                        width: w * f,
+                        height: 6,
+                        decoration: BoxDecoration(color: over ? t.over : color, borderRadius: BorderRadius.circular(3)),
+                      ),
+                    ),
+                    // Target: a thin full-height tick with a gap cut around it, so it reads on any fill.
+                    Positioned(
+                      left: (w * tick - 2.5).clamp(0, w - 5),
+                      top: 0,
+                      bottom: 0,
+                      child: Container(
+                        width: 5,
+                        decoration: BoxDecoration(
+                          color: t.fg,
+                          borderRadius: BorderRadius.circular(2.5),
+                          border: Border.all(color: t.surface, width: 1.5),
+                        ),
+                      ),
+                    ),
+                  ],
+                ),
+              );
+            },
+          ),
         ],
       ),
     );
@@ -537,7 +736,7 @@ class _WeightCard extends StatelessWidget {
             gridData: FlGridData(
               drawVerticalLine: false,
               horizontalInterval: interval,
-              getDrawingHorizontalLine: (_) => FlLine(color: t.border, strokeWidth: 1),
+              getDrawingHorizontalLine: (_) => _gridLine(t),
             ),
             borderData: FlBorderData(show: false),
             titlesData: FlTitlesData(
@@ -552,8 +751,8 @@ class _WeightCard extends StatelessWidget {
                     meta: meta,
                     fitInside: SideTitleFitInsideData.fromTitleMeta(meta),
                     child: Text(
-                      DateFormat('MMM d').format(start.add(Duration(minutes: (v * 1440).round()))),
-                      style: tt.bodySmall,
+                      DateFormat('d MMM').format(start.add(Duration(minutes: (v * 1440).round()))),
+                      style: tt.labelSmall!.copyWith(color: t.muted),
                     ),
                   ),
                 ),
@@ -565,7 +764,10 @@ class _WeightCard extends StatelessWidget {
                   interval: interval,
                   getTitlesWidget: (v, meta) => SideTitleWidget(
                     meta: meta,
-                    child: Text(v.toStringAsFixed(0), style: tt.bodySmall!.copyWith(fontFeatures: tabular)),
+                    child: Text(
+                      v.toStringAsFixed(0),
+                      style: tt.labelSmall!.copyWith(color: t.muted, fontFeatures: tabular),
+                    ),
                   ),
                 ),
               ),
@@ -598,23 +800,22 @@ class _WeightCard extends StatelessWidget {
                 isCurved: true, // moves along curves, not straight segments
                 curveSmoothness: 0.3,
                 preventCurveOverShooting: true,
-                barWidth: 2.6,
+                barWidth: 2,
+                isStrokeCapRound: true,
                 color: wo.toColor(),
                 belowBarData: BarAreaData(
                   show: true,
                   gradient: LinearGradient(
                     begin: Alignment.topCenter,
                     end: Alignment.bottomCenter,
-                    colors: oklchStops([wo.withAlpha(0.28), wo.withAlpha(0)], steps: 6),
+                    colors: oklchStops([wo.withAlpha(0.16), wo.withAlpha(0)], steps: 6),
                   ),
                 ),
+                // Only the latest weigh-in gets a dot: the line carries the rest.
                 dotData: FlDotData(
-                  getDotPainter: (spot, _, _, i) => FlDotCirclePainter(
-                    radius: i == spots.length - 1 ? 5 : (spots.length > 30 ? 1.8 : 2.8),
-                    color: wo.toColor(),
-                    strokeWidth: i == spots.length - 1 ? 2.5 : 0,
-                    strokeColor: t.surface,
-                  ),
+                  checkToShowDot: (spot, bar) => spot == bar.spots.last,
+                  getDotPainter: (spot, _, _, i) =>
+                      FlDotCirclePainter(radius: 4.5, color: wo.toColor(), strokeWidth: 2.5, strokeColor: t.surface),
                 ),
               ),
             ],
