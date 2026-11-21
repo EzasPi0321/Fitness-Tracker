@@ -56,7 +56,7 @@ class UpdateService {
           )
           .timeout(const Duration(seconds: 12));
     } catch (_) {
-      throw const UpdateCheckException("Couldn't reach GitHub. Check your connection and try again.");
+      throw const UpdateCheckException("Couldn’t reach GitHub. Check your connection and try again.");
     }
     if (res.statusCode == 404) return null; // nothing published yet
     if (res.statusCode != 200) throw UpdateCheckException('GitHub returned an error (${res.statusCode}).');
@@ -64,7 +64,7 @@ class UpdateService {
     try {
       json = jsonDecode(utf8.decode(res.bodyBytes));
     } catch (_) {
-      throw const UpdateCheckException("The release information couldn't be read.");
+      throw const UpdateCheckException("The release information couldn’t be read.");
     }
     return parseRelease(json, currentBuild: currentBuild, platform: defaultTargetPlatform, web: kIsWeb);
   }

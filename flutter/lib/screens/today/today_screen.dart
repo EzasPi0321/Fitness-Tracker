@@ -297,7 +297,7 @@ class _SampleBanner extends StatelessWidget {
           children: [
             FIcon(Symbols.info, size: 18, color: t.warn, weight: FontWeight.w500),
             const SizedBox(width: S.sm),
-            Expanded(child: Text('You\'re looking at sample data.$note', style: tt.bodyMedium)),
+            Expanded(child: Text('You’re looking at sample data.$note', style: tt.bodyMedium)),
             TextButton(onPressed: () => AppScope.read(context).startFresh(), child: const Text('Start my plan')),
           ],
         ),

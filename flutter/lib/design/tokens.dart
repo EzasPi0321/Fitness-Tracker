@@ -174,7 +174,8 @@ ThemeData buildTheme(FT t) {
       .copyWith(
         primary: t.accent,
         onPrimary: t.onAccent,
-        secondaryContainer: t.inset,
+        // Tonal buttons one step below input fields: a field is always the brightest slab.
+        secondaryContainer: t.raised,
         onSecondaryContainer: t.fg,
         surface: t.surface,
         onSurface: t.fg,

@@ -66,7 +66,7 @@ class _ManualEntryScreenState extends State<ManualEntryScreen> {
     if (_label == null) return _picked?.trust;
     if (!_label.readable) return const NutritionTrust.unverified('The label photo was hard to read');
     if (!NutritionTrust.caloriesMatchMacros(_perServing)) {
-      return const NutritionTrust.unverified("Calories don't match the protein, carbs and fat");
+      return const NutritionTrust.unverified("Calories don’t match the protein, carbs and fat");
     }
     return const NutritionTrust.verified('Read from the label you photographed and checked');
   }

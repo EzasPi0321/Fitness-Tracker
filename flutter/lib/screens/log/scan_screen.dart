@@ -94,7 +94,7 @@ class _ScanScreenState extends State<ScanScreen> {
                 child: Text(
                   error.errorCode == MobileScannerErrorCode.permissionDenied
                       ? 'Camera access is off. Allow it in Settings, or tap "Type it".'
-                      : 'The camera isn\'t available. Tap "Type it" to enter the barcode.',
+                      : 'The camera isn’t available. Tap "Type it" to enter the barcode.',
                   textAlign: TextAlign.center,
                   style: const TextStyle(color: Colors.white),
                 ),

@@ -13,7 +13,7 @@ import 'common.dart';
 Future<void> openUpdate(BuildContext context, AppUpdate update) async {
   final url = Uri.parse(update.downloadUrl ?? update.pageUrl);
   final ok = await launchUrl(url, mode: LaunchMode.externalApplication);
-  if (!ok && context.mounted) showToast(context, "Couldn't open the download. Visit the Releases page on GitHub.");
+  if (!ok && context.mounted) showToast(context, "Couldn’t open the download. Visit the Releases page on GitHub.");
 }
 
 /// "New version available" at the top of Today, with Update and dismiss.
@@ -31,6 +31,7 @@ class UpdateBanner extends StatelessWidget {
     return Padding(
       padding: const EdgeInsets.only(bottom: S.lg),
       child: Rise(
+        always: true,
         child: Container(
           padding: const EdgeInsets.fromLTRB(S.lg, S.md, S.sm, S.md),
           decoration: BoxDecoration(

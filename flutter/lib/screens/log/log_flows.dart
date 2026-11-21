@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:image_picker/image_picker.dart';
@@ -118,21 +120,7 @@ class _LookupIndicator extends StatelessWidget {
   const _LookupIndicator();
 
   @override
-  Widget build(BuildContext context) {
-    final t = FT.of(context);
-    return Container(
-      padding: const EdgeInsets.all(S.xl),
-      decoration: BoxDecoration(color: t.raised, borderRadius: BorderRadius.circular(S.radiusCard)),
-      child: Column(
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          const CircularProgressIndicator(),
-          const SizedBox(height: S.lg),
-          Text('Looking up product…', style: Theme.of(context).textTheme.bodyMedium),
-        ],
-      ),
-    );
-  }
+  Widget build(BuildContext context) => const _BusyCard('Looking up product…');
 }
 
 class _BarcodeDialog extends StatefulWidget {
@@ -222,7 +210,7 @@ Future<void> _offerLabelPhoto(
           const SizedBox(height: S.sm),
           Text(
             'Photograph the nutrition label and FitTrack will read the numbers for you to check (no API key needed on a phone). '
-            "It's saved under barcode $code, so the next scan finds it.",
+            "It’s saved under barcode $code, so the next scan finds it.",
             style: tt.bodyMedium!.copyWith(color: t.muted),
           ),
           const SizedBox(height: S.xl),
@@ -272,7 +260,7 @@ Future<LabelReading?> readLabelPhoto(BuildContext context, ImageSource source) a
   try {
     file = await ImagePicker().pickImage(source: source);
   } catch (_) {
-    if (context.mounted) showToast(context, "Couldn't open the ${source == ImageSource.camera ? 'camera' : 'photo'}.");
+    if (context.mounted) showToast(context, "Couldn’t open the ${source == ImageSource.camera ? 'camera' : 'photo'}.");
     return null;
   }
   if (file == null || !context.mounted) return null;
@@ -296,7 +284,7 @@ Future<LabelReading?> readLabelPhoto(BuildContext context, ImageSource source) a
   if (key.isNotEmpty) {
     try {
       final jpeg = await prepareMealPhoto(await file.readAsBytes());
-      if (jpeg == null) throw const VisionException("That file couldn't be read as a photo.");
+      if (jpeg == null) throw const VisionException("That file couldn’t be read as a photo.");
       reading = await AIVisionService(
         provider: state.visionProvider,
         apiKey: key,
@@ -313,7 +301,7 @@ Future<LabelReading?> readLabelPhoto(BuildContext context, ImageSource source) a
     } on VisionException catch (e) {
       error ??= e.message;
     } catch (_) {
-      error ??= "The label couldn't be read on this phone. Type the numbers instead.";
+      error ??= "The label couldn’t be read on this phone. Type the numbers instead.";
     }
   }
   if (!context.mounted) return null;
@@ -322,23 +310,61 @@ Future<LabelReading?> readLabelPhoto(BuildContext context, ImageSource source) a
   return reading;
 }
 
-class _BusyCard extends StatelessWidget {
+/// A short wait. Shows nothing for the first 400 ms, so a quick lookup never flashes a card
+/// (Doherty threshold), then fades in with a calm line instead of a spinner.
+class _BusyCard extends StatefulWidget {
   const _BusyCard(this.text);
   final String text;
 
   @override
+  State<_BusyCard> createState() => _BusyCardState();
+}
+
+class _BusyCardState extends State<_BusyCard> {
+  bool _shown = false;
+  late final _timer = Timer(const Duration(milliseconds: 400), () {
+    if (mounted) setState(() => _shown = true);
+  });
+
+  @override
+  void initState() {
+    super.initState();
+    _timer;
+  }
+
+  @override
+  void dispose() {
+    _timer.cancel();
+    super.dispose();
+  }
+
+  @override
   Widget build(BuildContext context) {
     final t = FT.of(context);
-    return Container(
-      padding: const EdgeInsets.all(S.xl),
-      decoration: BoxDecoration(color: t.raised, borderRadius: BorderRadius.circular(S.radiusCard)),
-      child: Column(
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          const CircularProgressIndicator(),
-          const SizedBox(height: S.lg),
-          Text(text, style: Theme.of(context).textTheme.bodyMedium),
-        ],
+    return AnimatedOpacity(
+      opacity: _shown ? 1 : 0,
+      duration: Motion.of(context, Motion.base),
+      curve: Motion.enter,
+      child: Container(
+        width: 240,
+        padding: const EdgeInsets.all(S.xl),
+        decoration: BoxDecoration(
+          color: t.raised,
+          borderRadius: BorderRadius.circular(S.radiusCard),
+          border: Border.all(color: t.border),
+        ),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Text(widget.text, style: Theme.of(context).textTheme.bodyMedium),
+            const SizedBox(height: S.md),
+            ClipRRect(
+              borderRadius: BorderRadius.circular(1),
+              child: LinearProgressIndicator(minHeight: 2, color: t.fg, backgroundColor: t.inset),
+            ),
+          ],
+        ),
       ),
     );
   }

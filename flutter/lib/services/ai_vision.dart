@@ -155,7 +155,7 @@ class VisionException implements Exception {
   final String message;
   static const missingKey = VisionException('Add an API key in Settings › AI Photo Estimates.');
   static const empty = VisionException('The AI service returned no result. Please try again.');
-  static const invalidJson = VisionException("The AI response wasn't in the expected format. Please try again.");
+  static const invalidJson = VisionException("The AI response wasn’t in the expected format. Please try again.");
   @override
   String toString() => message;
 }
@@ -243,7 +243,7 @@ Respond with JSON only.''';
 
   /// Errors Opus would hit too (no connection, bad key, rate limit): don't pay for a second try.
   static bool _isConnection(VisionException e) =>
-      e.message.startsWith("Couldn't reach") || RegExp(r'failed \((401|403|429)\)').hasMatch(e.message);
+      e.message.startsWith("Couldn’t reach") || RegExp(r'failed \((401|403|429)\)').hasMatch(e.message);
 
   Future<String> _gemini(String b64, String userText, String system, Map<String, dynamic> schema) async {
     final body = {
@@ -391,7 +391,7 @@ Respond with JSON only.''';
           .post(url, headers: {'Content-Type': 'application/json', ...headers}, body: jsonEncode(body))
           .timeout(timeout);
     } catch (_) {
-      throw const VisionException("Couldn't reach the AI service. Check your connection and try again.");
+      throw const VisionException("Couldn’t reach the AI service. Check your connection and try again.");
     }
     Map<String, dynamic>? json;
     try {
@@ -514,7 +514,7 @@ Never estimate from the look of the food. Use only the printed numbers. Respond 
     final grams = lossyDouble(json['serving_grams']) ?? 0;
     final per100 = str('basis') == '100g';
     if (n.calories <= 0 && n.protein <= 0 && n.carbs <= 0 && n.fat <= 0) {
-      throw const VisionException("Couldn't read any numbers from that label. Try a sharper, closer photo.");
+      throw const VisionException("Couldn’t read any numbers from that label. Try a sharper, closer photo.");
     }
     // Hand back per-serving values; convert from per-100 g when the serving weight is known.
     final perServing = per100 && grams > 0 ? n * (grams / 100) : n;

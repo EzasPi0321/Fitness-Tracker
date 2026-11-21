@@ -3,6 +3,7 @@ import 'package:flutter/material.dart';
 import 'package:material_symbols_icons/symbols.dart';
 
 import 'data/app_state.dart';
+import 'design/motion.dart';
 import 'design/tokens.dart';
 import 'screens/log/food_log_screen.dart';
 import 'screens/onboarding/onboarding_screen.dart';
@@ -31,7 +32,11 @@ class _FitTrackAppState extends State<FitTrackApp> with WidgetsBindingObserver {
   void didChangeAppLifecycleState(AppLifecycleState s) {
     if (s == AppLifecycleState.paused || s == AppLifecycleState.detached) widget.state.flush();
     // Samsung Health copies steps into Health Connect every so often: read again on return.
-    if (s == AppLifecycleState.resumed) widget.state.refreshHealth();
+    if (s == AppLifecycleState.resumed) {
+      widget.state.refreshHealth();
+      // Coming back to the app is when a new release should appear, not only at launch.
+      widget.state.checkForUpdates();
+    }
   }
 
   @override
@@ -108,9 +113,11 @@ class _ShellState extends State<Shell> {
   Widget build(BuildContext context) {
     final t = FT.of(context);
     final wide = MediaQuery.sizeOf(context).width >= 840;
-    final pages = IndexedStack(
-      index: _index,
-      children: const [TodayScreen(), FoodLogScreen(), ProgressScreen(), ProfileScreen(), SettingsScreen()],
+    final pages = NoEntrance(
+      child: IndexedStack(
+        index: _index,
+        children: const [TodayScreen(), FoodLogScreen(), ProgressScreen(), ProfileScreen(), SettingsScreen()],
+      ),
     );
 
     if (wide) {
