@@ -95,6 +95,7 @@ class NutritionCalculator {
 
 class UserProfile {
   UserProfile({
+    this.name = '',
     this.sex = BiologicalSex.female,
     DateTime? birthDate,
     this.heightCm = 170,
@@ -105,6 +106,8 @@ class UserProfile {
     this.targets = const Nutrients(calories: 2000, protein: 140, carbs: 220, fat: 65),
   }) : birthDate = birthDate ?? DateTime(DateTime.now().year - 30, 1, 1);
 
+  /// What to call the user. Optional; empty means no name.
+  String name;
   BiologicalSex sex;
   DateTime birthDate;
   double heightCm;
@@ -113,6 +116,16 @@ class UserProfile {
   WeightGoal goal;
   bool usesMetric;
   Nutrients targets;
+
+  /// First word of the name, for greetings ("Good morning, Daniel").
+  String get firstName => name.trim().split(RegExp(r'\s+')).first;
+
+  /// Up to two initials for the avatar.
+  String get initials {
+    final parts = name.trim().split(RegExp(r'\s+')).where((p) => p.isNotEmpty).toList();
+    if (parts.isEmpty) return '';
+    return (parts.first[0] + (parts.length > 1 ? parts.last[0] : '')).toUpperCase();
+  }
 
   int get age {
     final now = DateTime.now();
@@ -134,6 +147,7 @@ class UserProfile {
       age >= 13 && age <= 110 && heightCm >= 100 && heightCm <= 250 && weightKg >= 30 && weightKg <= 350;
 
   UserProfile copy() => UserProfile(
+    name: name,
     sex: sex,
     birthDate: birthDate,
     heightCm: heightCm,
@@ -145,6 +159,7 @@ class UserProfile {
   );
 
   Map<String, dynamic> toJson() => {
+    'name': name,
     'sex': sex.name,
     'birth': birthDate.millisecondsSinceEpoch,
     'height': heightCm,
@@ -156,6 +171,7 @@ class UserProfile {
   };
 
   factory UserProfile.fromJson(Map<String, dynamic> j) => UserProfile(
+    name: (j['name'] as String?) ?? '',
     sex: BiologicalSex.values.firstWhere((v) => v.name == j['sex'], orElse: () => BiologicalSex.female),
     birthDate: DateTime.fromMillisecondsSinceEpoch(((j['birth'] as num?) ?? 631152000000).toInt()),
     heightCm: ((j['height'] as num?) ?? 170).toDouble(),

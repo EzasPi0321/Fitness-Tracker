@@ -147,7 +147,17 @@ class _TodayScreenState extends State<TodayScreen> {
                                     child: Align(
                                       key: ValueKey(_day),
                                       alignment: Alignment.centerLeft,
-                                      child: Text(dayTitle(_day), style: tt.headlineMedium),
+                                      child: Column(
+                                        crossAxisAlignment: CrossAxisAlignment.start,
+                                        children: [
+                                          if (isToday)
+                                            Text(
+                                              greeting(DateTime.now(), state.profile?.firstName ?? ''),
+                                              style: tt.titleMedium!.copyWith(color: t.muted),
+                                            ),
+                                          Text(dayTitle(_day), style: tt.headlineMedium),
+                                        ],
+                                      ),
                                     ),
                                   ),
                                 ),

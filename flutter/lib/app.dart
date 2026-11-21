@@ -6,6 +6,7 @@ import 'data/app_state.dart';
 import 'design/tokens.dart';
 import 'screens/log/food_log_screen.dart';
 import 'screens/onboarding/onboarding_screen.dart';
+import 'screens/profile/profile_screen.dart';
 import 'screens/progress/progress_screen.dart';
 import 'screens/settings/settings_screen.dart';
 import 'screens/today/today_screen.dart';
@@ -84,10 +85,11 @@ const _dests = [
   _Dest('Today', Symbols.donut_large),
   _Dest('Food log', Symbols.restaurant_menu),
   _Dest('Progress', Symbols.monitoring),
+  _Dest('Profile', Symbols.person),
   _Dest('Settings', Symbols.settings),
 ];
 
-/// Four top-level places (Hick's law). Phones get the bottom bar people already know;
+/// Five top-level places (Hick's law: still a glance). Phones get the bottom bar people already know;
 /// wide windows get a side rail (Jakob's law). Tabs are switched constantly, so they don't
 /// animate (frequency of use).
 class Shell extends StatefulWidget {
@@ -106,7 +108,7 @@ class _ShellState extends State<Shell> {
     final wide = MediaQuery.sizeOf(context).width >= 840;
     final pages = IndexedStack(
       index: _index,
-      children: const [TodayScreen(), FoodLogScreen(), ProgressScreen(), SettingsScreen()],
+      children: const [TodayScreen(), FoodLogScreen(), ProgressScreen(), ProfileScreen(), SettingsScreen()],
     );
 
     if (wide) {

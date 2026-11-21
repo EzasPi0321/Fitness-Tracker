@@ -27,6 +27,13 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
   late _Step _step = widget.existing == null ? _Step.welcome : _Step.body;
   bool _forward = true;
   int? _age;
+  late final _nameCtl = TextEditingController(text: _draft.name);
+
+  @override
+  void dispose() {
+    _nameCtl.dispose();
+    super.dispose();
+  }
 
   @override
   void initState() {
@@ -68,12 +75,21 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
           ..activity = _draft.activity
           ..goal = _draft.goal
           ..usesMetric = _draft.usesMetric
+          ..name = _draft.name
           ..targets = _draft.targets;
       });
       Navigator.pop(context);
       showToast(context, 'New targets saved');
     } else {
+      final messenger = ScaffoldMessenger.of(context);
       state.completeOnboarding(_draft);
+      messenger.showSnackBar(
+        SnackBar(
+          content: Text(
+            _draft.name.isEmpty ? 'Welcome to FitTrack' : 'Welcome, ${_draft.firstName}. Your plan is ready.',
+          ),
+        ),
+      );
     }
   }
 
@@ -293,6 +309,13 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
         Text(
           'Used only to estimate how much energy you burn.',
           style: tt.bodyMedium!.copyWith(color: FT.of(context).muted),
+        ),
+        const SizedBox(height: S.xl),
+        TextField(
+          controller: _nameCtl,
+          textCapitalization: TextCapitalization.words,
+          decoration: const InputDecoration(labelText: 'Your name (optional)', hintText: 'What should we call you?'),
+          onChanged: (v) => _draft.name = v.trim(),
         ),
         const SizedBox(height: S.xl),
         SegmentedButton<BiologicalSex>(

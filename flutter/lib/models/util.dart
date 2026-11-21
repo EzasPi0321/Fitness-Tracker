@@ -76,6 +76,19 @@ DateTime logTimestamp(DateTime day) {
   return DateTime(day.year, day.month, day.day, 12);
 }
 
+/// "Good morning, Daniel" / "Good evening" when there's no name.
+String greeting(DateTime now, String name) {
+  final h = now.hour;
+  final part = h < 5
+      ? 'Good evening'
+      : h < 12
+      ? 'Good morning'
+      : h < 17
+      ? 'Good afternoon'
+      : 'Good evening';
+  return name.trim().isEmpty ? part : '$part, ${name.trim()}';
+}
+
 String dayTitle(DateTime day) {
   final today = startOfDay(DateTime.now());
   if (sameDay(day, today)) return 'Today';

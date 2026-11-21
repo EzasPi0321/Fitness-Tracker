@@ -50,6 +50,7 @@ void main() {
 
     expect(find.textContaining('sample data'), findsOneWidget);
     expect(find.text('kcal left'), findsOneWidget);
+    expect(find.textContaining(', Alex'), findsOneWidget); // greeting uses the profile name
     // Water: one tap adds a glass.
     await tester.ensureVisible(find.text('250 ml'));
     await tester.pumpAndSettle();
@@ -66,13 +67,17 @@ void main() {
     await tester.pumpAndSettle();
     expect(find.textContaining('/30'), findsOneWidget);
 
-    await tester.tap(find.text('Settings').last);
+    await tester.tap(find.text('Profile').last);
     await tester.pumpAndSettle();
-    expect(find.text('PROFILE'), findsOneWidget);
+    expect(find.text('Alex'), findsWidgets); // the sample profile's name
+    expect(find.text('AL'), findsNothing);
+    expect(find.text('A'), findsOneWidget); // initials avatar
     expect(find.text('Cut'), findsOneWidget);
     await tester.tap(find.text('Cut'));
     await tester.pumpAndSettle();
     expect(s.profile!.goal.name, 'lose');
+    await tester.tap(find.text('Settings').last);
+    await tester.pumpAndSettle();
     await tester.scrollUntilVisible(find.text('Phone only'), 300, scrollable: find.byType(Scrollable).last);
     expect(find.text('Phone only'), findsOneWidget);
   }, variant: desktop);

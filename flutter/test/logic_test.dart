@@ -466,4 +466,15 @@ void main() {
       expect(Volume.format(8 * mlPerFluidOunce, metric: false), '8 fl oz');
     });
   });
+
+  test('greeting and initials come from the profile name', () {
+    expect(greeting(DateTime(2026, 1, 1, 8), 'Daniel'), 'Good morning, Daniel');
+    expect(greeting(DateTime(2026, 1, 1, 14), ''), 'Good afternoon');
+    expect(greeting(DateTime(2026, 1, 1, 21), ' Sam '), 'Good evening, Sam');
+    expect(UserProfile(name: 'Daniel Xie').initials, 'DX');
+    expect(UserProfile(name: 'Daniel Xie').firstName, 'Daniel');
+    expect(UserProfile().initials, '');
+    final back = UserProfile.fromJson(UserProfile(name: 'Kai').toJson());
+    expect(back.name, 'Kai');
+  });
 }

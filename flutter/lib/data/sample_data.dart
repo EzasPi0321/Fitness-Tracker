@@ -106,6 +106,7 @@ class SampleData {
     }
 
     final profile = UserProfile(
+      name: 'Alex',
       sex: BiologicalSex.female,
       birthDate: DateTime(today.year - 30, 1, 1),
       heightCm: 170,

@@ -10,7 +10,6 @@ import '../../models/util.dart';
 import '../../services/ai_vision.dart';
 import '../../services/platform_caps.dart';
 import '../../widgets/common.dart';
-import 'profile_section.dart';
 
 class SettingsScreen extends StatelessWidget {
   const SettingsScreen({super.key});
@@ -23,15 +22,7 @@ class SettingsScreen extends StatelessWidget {
     final gutter = width >= 840 ? S.xxl : S.lg;
     final twoCol = width >= 1000;
 
-    final left = [
-      const ProfileSection(),
-      const SizedBox(height: S.xl),
-      const _TargetsSection(),
-      const SizedBox(height: S.xl),
-      const _UnitsSection(),
-      const SizedBox(height: S.xl),
-      const _DataSection(),
-    ];
+    final left = [const _UnitsSection(), const SizedBox(height: S.xl), const _DataSection()];
     final right = [
       const _HealthSection(),
       const SizedBox(height: S.xl),
@@ -99,8 +90,8 @@ class SettingsScreen extends StatelessWidget {
   }
 }
 
-class _TargetsSection extends StatelessWidget {
-  const _TargetsSection();
+class TargetsSection extends StatelessWidget {
+  const TargetsSection({super.key});
 
   @override
   Widget build(BuildContext context) {
