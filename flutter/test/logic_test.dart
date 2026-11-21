@@ -743,6 +743,37 @@ Carbohydrate 12.0g 4.8g
     expect(s.healthMissing, ['Water']);
     expect(s.healthRefresh.value, greaterThan(before)); // screens re-read steps
   });
+
+  test('the live app removes old sample data but keeps what the user logged', () async {
+    // An older version saved sample data; the user also logged one real meal.
+    final store = MemoryStore();
+    final old = AppState(store: store, health: UnsupportedHealthService());
+    await old.load();
+    old.loadSampleData();
+    await old.logEntries([
+      FoodEntry(
+        id: 'mine',
+        name: 'My lunch',
+        meal: MealType.lunch,
+        source: EntrySource.manual,
+        consumedAt: DateTime.now(),
+        quantity: 1,
+        unit: 'serving',
+        nutrients: const Nutrients(calories: 500),
+      ),
+    ]);
+    await old.flush();
+
+    final s = AppState(store: store, health: UnsupportedHealthService());
+    await s.load(); // not the web preview, so sample data isn't allowed
+    expect(AppState.demoAllowed, isFalse);
+    expect(s.isSample, isFalse);
+    expect(s.profile, isNull); // back to setup
+    expect(s.entries.map((e) => e.id), ['mine']);
+    expect(s.weights, isEmpty);
+    expect(s.water, isEmpty);
+    expect(s.customFoods, isEmpty);
+  });
 }
 
 class _PartialHealth extends UnsupportedHealthService {

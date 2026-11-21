@@ -554,7 +554,9 @@ class _DataSectionState extends State<_DataSection> {
                   onTap: () => setState(() => _confirm = true),
                 ),
         ),
-        if (!state.isSample)
+        if (!AppState.demoAllowed)
+          const SizedBox.shrink()
+        else if (!state.isSample)
           FRow(
             leading: FIcon(Symbols.auto_awesome, color: t.muted),
             label: 'Load sample data',

@@ -242,14 +242,16 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
             ),
           ),
         ),
-        const SizedBox(height: S.sm),
-        Rise(
-          delay: const Duration(milliseconds: 160),
-          child: OutlinedButton(
-            onPressed: () => AppScope.read(context).loadSampleData(),
-            child: const Text('Look around with sample data'),
+        if (AppState.demoAllowed) ...[
+          const SizedBox(height: S.sm),
+          Rise(
+            delay: const Duration(milliseconds: 160),
+            child: OutlinedButton(
+              onPressed: () => AppScope.read(context).loadSampleData(),
+              child: const Text('Look around with sample data'),
+            ),
           ),
-        ),
+        ],
       ],
     );
   }

@@ -114,6 +114,9 @@ class AppState extends ChangeNotifier {
         // A damaged document shouldn't brick the app; start clean.
       }
     }
+    // The live apps (phone, Windows) never carry example data; only the web preview does.
+    // An install that picked up sample data from an older version gets it removed here.
+    if (isSample && !demoAllowed) _removeSampleData();
     if (profile == null && seedSampleIfEmpty) loadSampleData(save: false);
     if (isSample && sampleSteps.isEmpty) sampleSteps.addAll(SampleData.generate().steps);
     loaded = true;
@@ -400,6 +403,23 @@ class AppState extends ChangeNotifier {
   bool get _syncHealth => healthEnabled && health.isSupported;
 
   // ---- Sample data ----
+
+  /// Sample data is for the web preview only.
+  static bool get demoAllowed => kIsWeb;
+
+  /// Drops the generated examples (their ids start with "sample-") but keeps anything the
+  /// user logged themselves, then sends them to onboarding to set up their own plan.
+  void _removeSampleData() {
+    bool generated(String id) => id.startsWith('sample-');
+    entries.removeWhere((e) => generated(e.id));
+    weights.removeWhere((w) => generated(w.id));
+    water.removeWhere((w) => generated(w.id));
+    customFoods.removeWhere((f) => generated(f.id));
+    sampleSteps.clear();
+    profile = null;
+    isSample = false;
+    _changed();
+  }
 
   void loadSampleData({bool save = true}) {
     final s = SampleData.generate();
