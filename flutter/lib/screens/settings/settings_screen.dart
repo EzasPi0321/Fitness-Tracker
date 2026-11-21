@@ -409,7 +409,7 @@ class _AISectionState extends State<_AISection> {
         Padding(
           padding: const EdgeInsets.fromLTRB(6, S.sm, 6, 0),
           child: Text(
-            'Used for meal photos and nutrition labels. The key stays in this device\'s secure storage.',
+            'Needed for meal-photo estimates. Nutrition labels are read on your phone without a key; with one, the AI reads them instead. The key stays in this device\'s secure storage.',
             style: Theme.of(context).textTheme.bodySmall,
           ),
         ),
