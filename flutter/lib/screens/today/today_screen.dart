@@ -4,6 +4,7 @@ import 'package:material_symbols_icons/symbols.dart';
 
 import '../../data/app_state.dart';
 import '../../design/motion.dart';
+import '../../design/smooth_scroll.dart';
 import '../../design/tokens.dart';
 import '../../models/food.dart';
 import '../../models/nutrients.dart';
@@ -33,6 +34,7 @@ class TodayScreen extends StatefulWidget {
 
 class _TodayScreenState extends State<TodayScreen> {
   DateTime _day = startOfDay(DateTime.now());
+  final _scroll = SmoothScrollController();
   double _active = 0;
   List<WorkoutSummary> _workouts = const [];
   int? _steps;
@@ -63,6 +65,7 @@ class _TodayScreenState extends State<TodayScreen> {
   @override
   void dispose() {
     _refresh?.removeListener(_forceLoad);
+    _scroll.dispose();
     super.dispose();
   }
 
@@ -174,6 +177,7 @@ class _TodayScreenState extends State<TodayScreen> {
             // Pull down to read steps and workouts again.
             onRefresh: _loadHealth,
             child: CustomScrollView(
+              controller: _scroll,
               physics: const AlwaysScrollableScrollPhysics(),
               slivers: [
                 SliverSafeArea(

@@ -8,6 +8,7 @@ import 'package:material_symbols_icons/symbols.dart';
 import '../../data/app_state.dart';
 import '../../design/motion.dart';
 import '../../design/oklch.dart';
+import '../../design/smooth_scroll.dart';
 import '../../design/tokens.dart';
 import '../../models/gym.dart';
 import '../../models/nutrients.dart';
@@ -43,6 +44,14 @@ class ProgressScreen extends StatefulWidget {
 
 class _ProgressScreenState extends State<ProgressScreen> {
   TrendRange _range = TrendRange.week;
+  final _scroll = SmoothScrollController();
+
+  @override
+  void dispose() {
+    _scroll.dispose();
+    super.dispose();
+  }
+
   List<WeightSample> _healthWeights = const [];
   List<SleepNight> _healthSleep = const [];
 
@@ -107,6 +116,7 @@ class _ProgressScreenState extends State<ProgressScreen> {
       body: SafeArea(
         bottom: false,
         child: ListView(
+          controller: _scroll,
           padding: EdgeInsets.fromLTRB(gutter, S.lg, gutter, S.xxl),
           children: [
             Center(
@@ -295,138 +305,140 @@ class _CalorieCard extends StatelessWidget {
                   clipBehavior: Clip.none,
                   children: [
                     Positioned.fill(
-                      child: BarChart(
-                        duration: Motion.of(context, Motion.slow),
-                        curve: Motion.standard,
-                        BarChartData(
-                          maxY: maxY,
-                          minY: 0,
-                          alignment: BarChartAlignment.spaceAround,
-                          gridData: FlGridData(
-                            drawVerticalLine: false,
-                            horizontalInterval: step,
-                            getDrawingHorizontalLine: (_) => _gridLine(t),
-                          ),
-                          borderData: FlBorderData(
-                            show: true,
-                            border: Border(bottom: BorderSide(color: t.border)),
-                          ),
-                          titlesData: FlTitlesData(
-                            topTitles: const AxisTitles(),
-                            // Empty gutter on the right: the goal tag lives there, clear of the bars.
-                            rightTitles: AxisTitles(
-                              sideTitles: SideTitles(
-                                showTitles: true,
-                                reservedSize: _goalGutter,
-                                getTitlesWidget: (_, _) => const SizedBox.shrink(),
-                              ),
+                      child: RepaintBoundary(
+                        child: BarChart(
+                          duration: Motion.of(context, Motion.slow),
+                          curve: Motion.standard,
+                          BarChartData(
+                            maxY: maxY,
+                            minY: 0,
+                            alignment: BarChartAlignment.spaceAround,
+                            gridData: FlGridData(
+                              drawVerticalLine: false,
+                              horizontalInterval: step,
+                              getDrawingHorizontalLine: (_) => _gridLine(t),
                             ),
-                            leftTitles: AxisTitles(
-                              sideTitles: SideTitles(
-                                showTitles: true,
-                                reservedSize: 36,
-                                interval: step,
-                                getTitlesWidget: (v, meta) => SideTitleWidget(
-                                  meta: meta,
-                                  child: Text(
-                                    _compact(v),
-                                    style: tt.labelSmall!.copyWith(color: t.muted, fontFeatures: tabular),
+                            borderData: FlBorderData(
+                              show: true,
+                              border: Border(bottom: BorderSide(color: t.border)),
+                            ),
+                            titlesData: FlTitlesData(
+                              topTitles: const AxisTitles(),
+                              // Empty gutter on the right: the goal tag lives there, clear of the bars.
+                              rightTitles: AxisTitles(
+                                sideTitles: SideTitles(
+                                  showTitles: true,
+                                  reservedSize: _goalGutter,
+                                  getTitlesWidget: (_, _) => const SizedBox.shrink(),
+                                ),
+                              ),
+                              leftTitles: AxisTitles(
+                                sideTitles: SideTitles(
+                                  showTitles: true,
+                                  reservedSize: 36,
+                                  interval: step,
+                                  getTitlesWidget: (v, meta) => SideTitleWidget(
+                                    meta: meta,
+                                    child: Text(
+                                      _compact(v),
+                                      style: tt.labelSmall!.copyWith(color: t.muted, fontFeatures: tabular),
+                                    ),
                                   ),
                                 ),
                               ),
-                            ),
-                            bottomTitles: AxisTitles(
-                              sideTitles: SideTitles(
-                                showTitles: true,
-                                reservedSize: _bottomH,
-                                getTitlesWidget: (v, meta) {
-                                  final i = v.toInt();
-                                  final every = switch (range) {
-                                    TrendRange.week => 1,
-                                    TrendRange.month => 7,
-                                    TrendRange.quarter => 15,
-                                  };
-                                  if (i < 0 || i >= days.length || (days.length - 1 - i) % every != 0) {
-                                    return const SizedBox.shrink();
-                                  }
-                                  final d = days[i].date;
-                                  final isToday = d == today;
-                                  final label = range == TrendRange.week
-                                      ? (isToday ? 'Today' : DateFormat('EEE').format(d))
-                                      : DateFormat('d MMM').format(d);
-                                  return SideTitleWidget(
-                                    meta: meta,
-                                    child: Text(
-                                      label,
-                                      style: tt.labelSmall!.copyWith(
-                                        color: isToday ? t.fg : t.muted,
-                                        fontWeight: isToday ? FontWeight.w600 : null,
+                              bottomTitles: AxisTitles(
+                                sideTitles: SideTitles(
+                                  showTitles: true,
+                                  reservedSize: _bottomH,
+                                  getTitlesWidget: (v, meta) {
+                                    final i = v.toInt();
+                                    final every = switch (range) {
+                                      TrendRange.week => 1,
+                                      TrendRange.month => 7,
+                                      TrendRange.quarter => 15,
+                                    };
+                                    if (i < 0 || i >= days.length || (days.length - 1 - i) % every != 0) {
+                                      return const SizedBox.shrink();
+                                    }
+                                    final d = days[i].date;
+                                    final isToday = d == today;
+                                    final label = range == TrendRange.week
+                                        ? (isToday ? 'Today' : DateFormat('EEE').format(d))
+                                        : DateFormat('d MMM').format(d);
+                                    return SideTitleWidget(
+                                      meta: meta,
+                                      child: Text(
+                                        label,
+                                        style: tt.labelSmall!.copyWith(
+                                          color: isToday ? t.fg : t.muted,
+                                          fontWeight: isToday ? FontWeight.w600 : null,
+                                        ),
                                       ),
-                                    ),
+                                    );
+                                  },
+                                ),
+                              ),
+                            ),
+                            extraLinesData: ExtraLinesData(
+                              extraLinesOnTop: true,
+                              horizontalLines: [HorizontalLine(y: target * k, color: goalColor, strokeWidth: 1.5)],
+                            ),
+                            barTouchData: BarTouchData(
+                              touchTooltipData: BarTouchTooltipData(
+                                getTooltipColor: (_) => t.raised,
+                                tooltipBorder: BorderSide(color: t.border),
+                                tooltipBorderRadius: BorderRadius.circular(12),
+                                tooltipPadding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+                                fitInsideHorizontally: true,
+                                fitInsideVertically: true,
+                                getTooltipItem: (group, _, rod, _) {
+                                  final d = days[group.x];
+                                  final pct = target > 0 ? (d.n.calories / target * 100).round() : 0;
+                                  return BarTooltipItem(
+                                    '${DateFormat('EEE d MMM').format(d.date)}\n',
+                                    tt.labelSmall!.copyWith(color: t.muted),
+                                    textAlign: TextAlign.left,
+                                    children: [
+                                      TextSpan(
+                                        text: '${Energy.format(d.n.calories)}  ',
+                                        style: tt.titleSmall!.copyWith(fontFeatures: tabular),
+                                      ),
+                                      TextSpan(
+                                        text: '$pct%\n',
+                                        style: tt.labelSmall!.copyWith(
+                                          color: d.n.calories > target * 1.1 ? t.over : t.muted,
+                                          fontFeatures: tabular,
+                                        ),
+                                      ),
+                                      TextSpan(
+                                        text: 'P ${whole(d.n.protein)}  C ${whole(d.n.carbs)}  F ${whole(d.n.fat)}',
+                                        style: tt.labelSmall!.copyWith(color: t.muted, fontFeatures: tabular),
+                                      ),
+                                    ],
                                   );
                                 },
                               ),
                             ),
-                          ),
-                          extraLinesData: ExtraLinesData(
-                            extraLinesOnTop: true,
-                            horizontalLines: [HorizontalLine(y: target * k, color: goalColor, strokeWidth: 1.5)],
-                          ),
-                          barTouchData: BarTouchData(
-                            touchTooltipData: BarTouchTooltipData(
-                              getTooltipColor: (_) => t.raised,
-                              tooltipBorder: BorderSide(color: t.border),
-                              tooltipBorderRadius: BorderRadius.circular(12),
-                              tooltipPadding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
-                              fitInsideHorizontally: true,
-                              fitInsideVertically: true,
-                              getTooltipItem: (group, _, rod, _) {
-                                final d = days[group.x];
-                                final pct = target > 0 ? (d.n.calories / target * 100).round() : 0;
-                                return BarTooltipItem(
-                                  '${DateFormat('EEE d MMM').format(d.date)}\n',
-                                  tt.labelSmall!.copyWith(color: t.muted),
-                                  textAlign: TextAlign.left,
-                                  children: [
-                                    TextSpan(
-                                      text: '${Energy.format(d.n.calories)}  ',
-                                      style: tt.titleSmall!.copyWith(fontFeatures: tabular),
-                                    ),
-                                    TextSpan(
-                                      text: '$pct%\n',
-                                      style: tt.labelSmall!.copyWith(
-                                        color: d.n.calories > target * 1.1 ? t.over : t.muted,
-                                        fontFeatures: tabular,
+                            barGroups: [
+                              for (final (i, d) in days.indexed)
+                                BarChartGroupData(
+                                  x: i,
+                                  barRods: [
+                                    BarChartRodData(
+                                      toY: d.n.calories * k,
+                                      width: barW,
+                                      borderRadius: BorderRadius.vertical(top: Radius.circular(radius)),
+                                      color: d.n.calories > target * 1.1 ? t.over : barColor,
+                                      backDrawRodData: BackgroundBarChartRodData(
+                                        show: range != TrendRange.quarter,
+                                        toY: maxY,
+                                        color: t.fg.withValues(alpha: 0.025),
                                       ),
                                     ),
-                                    TextSpan(
-                                      text: 'P ${whole(d.n.protein)}  C ${whole(d.n.carbs)}  F ${whole(d.n.fat)}',
-                                      style: tt.labelSmall!.copyWith(color: t.muted, fontFeatures: tabular),
-                                    ),
                                   ],
-                                );
-                              },
-                            ),
+                                ),
+                            ],
                           ),
-                          barGroups: [
-                            for (final (i, d) in days.indexed)
-                              BarChartGroupData(
-                                x: i,
-                                barRods: [
-                                  BarChartRodData(
-                                    toY: d.n.calories * k,
-                                    width: barW,
-                                    borderRadius: BorderRadius.vertical(top: Radius.circular(radius)),
-                                    color: d.n.calories > target * 1.1 ? t.over : barColor,
-                                    backDrawRodData: BackgroundBarChartRodData(
-                                      show: range != TrendRange.quarter,
-                                      toY: maxY,
-                                      color: t.fg.withValues(alpha: 0.025),
-                                    ),
-                                  ),
-                                ],
-                              ),
-                          ],
                         ),
                       ),
                     ),
@@ -745,100 +757,102 @@ class _WeightCard extends StatelessWidget {
       final wo = t.bodyO;
       body = SizedBox(
         height: 200,
-        child: LineChart(
-          duration: Motion.of(context, Motion.slow),
-          curve: Motion.standard,
-          LineChartData(
-            minX: 0,
-            maxX: x(now),
-            minY: lo,
-            maxY: hi,
-            gridData: FlGridData(
-              drawVerticalLine: false,
-              horizontalInterval: interval,
-              getDrawingHorizontalLine: (_) => _gridLine(t),
-            ),
-            borderData: FlBorderData(show: false),
-            titlesData: FlTitlesData(
-              topTitles: const AxisTitles(),
-              rightTitles: const AxisTitles(),
-              bottomTitles: AxisTitles(
-                sideTitles: SideTitles(
-                  showTitles: true,
-                  reservedSize: 24,
-                  interval: math.max(1, x(now) / 3),
-                  getTitlesWidget: (v, meta) => SideTitleWidget(
-                    meta: meta,
-                    fitInside: SideTitleFitInsideData.fromTitleMeta(meta),
-                    child: Text(
-                      DateFormat('d MMM').format(start.add(Duration(minutes: (v * 1440).round()))),
-                      style: tt.labelSmall!.copyWith(color: t.muted),
+        child: RepaintBoundary(
+          child: LineChart(
+            duration: Motion.of(context, Motion.slow),
+            curve: Motion.standard,
+            LineChartData(
+              minX: 0,
+              maxX: x(now),
+              minY: lo,
+              maxY: hi,
+              gridData: FlGridData(
+                drawVerticalLine: false,
+                horizontalInterval: interval,
+                getDrawingHorizontalLine: (_) => _gridLine(t),
+              ),
+              borderData: FlBorderData(show: false),
+              titlesData: FlTitlesData(
+                topTitles: const AxisTitles(),
+                rightTitles: const AxisTitles(),
+                bottomTitles: AxisTitles(
+                  sideTitles: SideTitles(
+                    showTitles: true,
+                    reservedSize: 24,
+                    interval: math.max(1, x(now) / 3),
+                    getTitlesWidget: (v, meta) => SideTitleWidget(
+                      meta: meta,
+                      fitInside: SideTitleFitInsideData.fromTitleMeta(meta),
+                      child: Text(
+                        DateFormat('d MMM').format(start.add(Duration(minutes: (v * 1440).round()))),
+                        style: tt.labelSmall!.copyWith(color: t.muted),
+                      ),
+                    ),
+                  ),
+                ),
+                leftTitles: AxisTitles(
+                  sideTitles: SideTitles(
+                    showTitles: true,
+                    reservedSize: 36,
+                    interval: interval,
+                    getTitlesWidget: (v, meta) => SideTitleWidget(
+                      meta: meta,
+                      child: Text(
+                        v.toStringAsFixed(0),
+                        style: tt.labelSmall!.copyWith(color: t.muted, fontFeatures: tabular),
+                      ),
                     ),
                   ),
                 ),
               ),
-              leftTitles: AxisTitles(
-                sideTitles: SideTitles(
-                  showTitles: true,
-                  reservedSize: 36,
-                  interval: interval,
-                  getTitlesWidget: (v, meta) => SideTitleWidget(
-                    meta: meta,
-                    child: Text(
-                      v.toStringAsFixed(0),
-                      style: tt.labelSmall!.copyWith(color: t.muted, fontFeatures: tabular),
+              lineTouchData: LineTouchData(
+                touchTooltipData: LineTouchTooltipData(
+                  getTooltipColor: (_) => t.raised,
+                  tooltipBorder: BorderSide(color: t.border),
+                  tooltipBorderRadius: BorderRadius.circular(12),
+                  fitInsideHorizontally: true,
+                  fitInsideVertically: true,
+                  getTooltipItems: (spots) => [
+                    for (final s in spots)
+                      LineTooltipItem(
+                        '${oneDecimal(s.y)} $unit\n',
+                        tt.titleSmall!.copyWith(fontFeatures: tabular),
+                        children: [
+                          TextSpan(
+                            text: DateFormat('EEE, MMM d').format(start.add(Duration(minutes: (s.x * 1440).round()))),
+                            style: tt.bodySmall,
+                          ),
+                        ],
+                      ),
+                  ],
+                ),
+              ),
+              lineBarsData: [
+                LineChartBarData(
+                  spots: spots,
+                  isCurved: true, // moves along curves, not straight segments
+                  curveSmoothness: 0.3,
+                  preventCurveOverShooting: true,
+                  barWidth: 2,
+                  isStrokeCapRound: true,
+                  color: wo.toColor(),
+                  belowBarData: BarAreaData(
+                    show: true,
+                    gradient: LinearGradient(
+                      begin: Alignment.topCenter,
+                      end: Alignment.bottomCenter,
+                      colors: oklchStops([wo.withAlpha(0.16), wo.withAlpha(0)], steps: 6),
                     ),
                   ),
-                ),
-              ),
-            ),
-            lineTouchData: LineTouchData(
-              touchTooltipData: LineTouchTooltipData(
-                getTooltipColor: (_) => t.raised,
-                tooltipBorder: BorderSide(color: t.border),
-                tooltipBorderRadius: BorderRadius.circular(12),
-                fitInsideHorizontally: true,
-                fitInsideVertically: true,
-                getTooltipItems: (spots) => [
-                  for (final s in spots)
-                    LineTooltipItem(
-                      '${oneDecimal(s.y)} $unit\n',
-                      tt.titleSmall!.copyWith(fontFeatures: tabular),
-                      children: [
-                        TextSpan(
-                          text: DateFormat('EEE, MMM d').format(start.add(Duration(minutes: (s.x * 1440).round()))),
-                          style: tt.bodySmall,
-                        ),
-                      ],
-                    ),
-                ],
-              ),
-            ),
-            lineBarsData: [
-              LineChartBarData(
-                spots: spots,
-                isCurved: true, // moves along curves, not straight segments
-                curveSmoothness: 0.3,
-                preventCurveOverShooting: true,
-                barWidth: 2,
-                isStrokeCapRound: true,
-                color: wo.toColor(),
-                belowBarData: BarAreaData(
-                  show: true,
-                  gradient: LinearGradient(
-                    begin: Alignment.topCenter,
-                    end: Alignment.bottomCenter,
-                    colors: oklchStops([wo.withAlpha(0.16), wo.withAlpha(0)], steps: 6),
+                  // Only the latest weigh-in gets a dot: the line carries the rest.
+                  dotData: FlDotData(
+                    checkToShowDot: (spot, bar) => spot == bar.spots.last,
+                    getDotPainter: (spot, _, _, i) =>
+                        FlDotCirclePainter(radius: 4.5, color: wo.toColor(), strokeWidth: 2.5, strokeColor: t.surface),
                   ),
                 ),
-                // Only the latest weigh-in gets a dot: the line carries the rest.
-                dotData: FlDotData(
-                  checkToShowDot: (spot, bar) => spot == bar.spots.last,
-                  getDotPainter: (spot, _, _, i) =>
-                      FlDotCirclePainter(radius: 4.5, color: wo.toColor(), strokeWidth: 2.5, strokeColor: t.surface),
-                ),
-              ),
-            ],
+              ],
+            ),
           ),
         ),
       );
@@ -1018,131 +1032,133 @@ class _SleepTrendCard extends StatelessWidget {
                   clipBehavior: Clip.none,
                   children: [
                     Positioned.fill(
-                      child: BarChart(
-                        duration: Motion.of(context, Motion.slow),
-                        curve: Motion.standard,
-                        BarChartData(
-                          maxY: maxH,
-                          minY: 0,
-                          alignment: BarChartAlignment.spaceAround,
-                          gridData: FlGridData(
-                            drawVerticalLine: false,
-                            horizontalInterval: 2,
-                            getDrawingHorizontalLine: (_) => _gridLine(t),
-                          ),
-                          borderData: FlBorderData(
-                            show: true,
-                            border: Border(bottom: BorderSide(color: t.border)),
-                          ),
-                          titlesData: FlTitlesData(
-                            topTitles: const AxisTitles(),
-                            rightTitles: AxisTitles(
-                              sideTitles: SideTitles(
-                                showTitles: true,
-                                reservedSize: _goalGutter,
-                                getTitlesWidget: (_, _) => const SizedBox.shrink(),
-                              ),
+                      child: RepaintBoundary(
+                        child: BarChart(
+                          duration: Motion.of(context, Motion.slow),
+                          curve: Motion.standard,
+                          BarChartData(
+                            maxY: maxH,
+                            minY: 0,
+                            alignment: BarChartAlignment.spaceAround,
+                            gridData: FlGridData(
+                              drawVerticalLine: false,
+                              horizontalInterval: 2,
+                              getDrawingHorizontalLine: (_) => _gridLine(t),
                             ),
-                            leftTitles: AxisTitles(
-                              sideTitles: SideTitles(
-                                showTitles: true,
-                                reservedSize: 36,
-                                interval: 2,
-                                getTitlesWidget: (v, meta) => SideTitleWidget(
-                                  meta: meta,
-                                  child: Text(
-                                    '${v.round()} h',
-                                    style: tt.labelSmall!.copyWith(color: t.muted, fontFeatures: tabular),
+                            borderData: FlBorderData(
+                              show: true,
+                              border: Border(bottom: BorderSide(color: t.border)),
+                            ),
+                            titlesData: FlTitlesData(
+                              topTitles: const AxisTitles(),
+                              rightTitles: AxisTitles(
+                                sideTitles: SideTitles(
+                                  showTitles: true,
+                                  reservedSize: _goalGutter,
+                                  getTitlesWidget: (_, _) => const SizedBox.shrink(),
+                                ),
+                              ),
+                              leftTitles: AxisTitles(
+                                sideTitles: SideTitles(
+                                  showTitles: true,
+                                  reservedSize: 36,
+                                  interval: 2,
+                                  getTitlesWidget: (v, meta) => SideTitleWidget(
+                                    meta: meta,
+                                    child: Text(
+                                      '${v.round()} h',
+                                      style: tt.labelSmall!.copyWith(color: t.muted, fontFeatures: tabular),
+                                    ),
                                   ),
                                 ),
                               ),
-                            ),
-                            bottomTitles: AxisTitles(
-                              sideTitles: SideTitles(
-                                showTitles: true,
-                                reservedSize: _bottomH,
-                                getTitlesWidget: (v, meta) {
-                                  final i = v.toInt();
-                                  final every = switch (range) {
-                                    TrendRange.week => 1,
-                                    TrendRange.month => 7,
-                                    TrendRange.quarter => 15,
-                                  };
-                                  if (i < 0 || i >= days.length || (days.length - 1 - i) % every != 0) {
-                                    return const SizedBox.shrink();
-                                  }
-                                  final d = days[i];
-                                  final isToday = d == today;
-                                  final label = range == TrendRange.week
-                                      ? (isToday ? 'Today' : DateFormat('EEE').format(d))
-                                      : DateFormat('d MMM').format(d);
-                                  return SideTitleWidget(
-                                    meta: meta,
-                                    child: Text(
-                                      label,
-                                      style: tt.labelSmall!.copyWith(
-                                        color: isToday ? t.fg : t.muted,
-                                        fontWeight: isToday ? FontWeight.w600 : null,
+                              bottomTitles: AxisTitles(
+                                sideTitles: SideTitles(
+                                  showTitles: true,
+                                  reservedSize: _bottomH,
+                                  getTitlesWidget: (v, meta) {
+                                    final i = v.toInt();
+                                    final every = switch (range) {
+                                      TrendRange.week => 1,
+                                      TrendRange.month => 7,
+                                      TrendRange.quarter => 15,
+                                    };
+                                    if (i < 0 || i >= days.length || (days.length - 1 - i) % every != 0) {
+                                      return const SizedBox.shrink();
+                                    }
+                                    final d = days[i];
+                                    final isToday = d == today;
+                                    final label = range == TrendRange.week
+                                        ? (isToday ? 'Today' : DateFormat('EEE').format(d))
+                                        : DateFormat('d MMM').format(d);
+                                    return SideTitleWidget(
+                                      meta: meta,
+                                      child: Text(
+                                        label,
+                                        style: tt.labelSmall!.copyWith(
+                                          color: isToday ? t.fg : t.muted,
+                                          fontWeight: isToday ? FontWeight.w600 : null,
+                                        ),
                                       ),
-                                    ),
+                                    );
+                                  },
+                                ),
+                              ),
+                            ),
+                            extraLinesData: ExtraLinesData(
+                              extraLinesOnTop: true,
+                              horizontalLines: [HorizontalLine(y: goalHours, color: goalColor, strokeWidth: 1.5)],
+                            ),
+                            barTouchData: BarTouchData(
+                              touchTooltipData: BarTouchTooltipData(
+                                getTooltipColor: (_) => t.raised,
+                                tooltipBorder: BorderSide(color: t.border),
+                                tooltipBorderRadius: BorderRadius.circular(12),
+                                tooltipPadding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+                                fitInsideHorizontally: true,
+                                fitInsideVertically: true,
+                                getTooltipItem: (group, _, rod, _) {
+                                  final n = nights[days[group.x]];
+                                  if (n == null) return null;
+                                  final time = DateFormat.jm();
+                                  return BarTooltipItem(
+                                    '${DateFormat('EEE d MMM').format(days[group.x])}\n',
+                                    tt.labelSmall!.copyWith(color: t.muted),
+                                    textAlign: TextAlign.left,
+                                    children: [
+                                      TextSpan(
+                                        text: '${formatSleep(n.asleep)}\n',
+                                        style: tt.titleSmall!.copyWith(fontFeatures: tabular),
+                                      ),
+                                      TextSpan(
+                                        text: '${time.format(n.start)} – ${time.format(n.end)}',
+                                        style: tt.labelSmall!.copyWith(color: t.muted, fontFeatures: tabular),
+                                      ),
+                                    ],
                                   );
                                 },
                               ),
                             ),
-                          ),
-                          extraLinesData: ExtraLinesData(
-                            extraLinesOnTop: true,
-                            horizontalLines: [HorizontalLine(y: goalHours, color: goalColor, strokeWidth: 1.5)],
-                          ),
-                          barTouchData: BarTouchData(
-                            touchTooltipData: BarTouchTooltipData(
-                              getTooltipColor: (_) => t.raised,
-                              tooltipBorder: BorderSide(color: t.border),
-                              tooltipBorderRadius: BorderRadius.circular(12),
-                              tooltipPadding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
-                              fitInsideHorizontally: true,
-                              fitInsideVertically: true,
-                              getTooltipItem: (group, _, rod, _) {
-                                final n = nights[days[group.x]];
-                                if (n == null) return null;
-                                final time = DateFormat.jm();
-                                return BarTooltipItem(
-                                  '${DateFormat('EEE d MMM').format(days[group.x])}\n',
-                                  tt.labelSmall!.copyWith(color: t.muted),
-                                  textAlign: TextAlign.left,
-                                  children: [
-                                    TextSpan(
-                                      text: '${formatSleep(n.asleep)}\n',
-                                      style: tt.titleSmall!.copyWith(fontFeatures: tabular),
-                                    ),
-                                    TextSpan(
-                                      text: '${time.format(n.start)} – ${time.format(n.end)}',
-                                      style: tt.labelSmall!.copyWith(color: t.muted, fontFeatures: tabular),
+                            barGroups: [
+                              for (final (i, d) in days.indexed)
+                                BarChartGroupData(
+                                  x: i,
+                                  barRods: [
+                                    BarChartRodData(
+                                      toY: nights[d] == null ? 0 : hours(nights[d]!),
+                                      width: barW,
+                                      borderRadius: BorderRadius.vertical(top: Radius.circular(radius)),
+                                      color: barColor,
+                                      backDrawRodData: BackgroundBarChartRodData(
+                                        show: range != TrendRange.quarter,
+                                        toY: maxH,
+                                        color: t.fg.withValues(alpha: 0.025),
+                                      ),
                                     ),
                                   ],
-                                );
-                              },
-                            ),
+                                ),
+                            ],
                           ),
-                          barGroups: [
-                            for (final (i, d) in days.indexed)
-                              BarChartGroupData(
-                                x: i,
-                                barRods: [
-                                  BarChartRodData(
-                                    toY: nights[d] == null ? 0 : hours(nights[d]!),
-                                    width: barW,
-                                    borderRadius: BorderRadius.vertical(top: Radius.circular(radius)),
-                                    color: barColor,
-                                    backDrawRodData: BackgroundBarChartRodData(
-                                      show: range != TrendRange.quarter,
-                                      toY: maxH,
-                                      color: t.fg.withValues(alpha: 0.025),
-                                    ),
-                                  ),
-                                ],
-                              ),
-                          ],
                         ),
                       ),
                     ),
@@ -1284,13 +1300,16 @@ class _GymYearCardState extends State<_GymYearCard> {
 
 /// One square per day, a column per week (Monday on top), like a training diary's year page.
 /// Empty days are the inset grey; one session fills the square, two or more fill it brighter.
+/// Drawn in a single painter (one layer, not 365 widgets), so it scrolls and builds lightly;
+/// tapping a training day says what was done.
 class _YearGrid extends StatelessWidget {
   const _YearGrid({required this.year, required this.byDay, required this.sessions});
   final int year;
   final Map<DateTime, int> byDay;
   final List<GymSession> sessions;
 
-  static const _cell = 11.0, _gap = 3.0;
+  static const _cell = 11.0, _gap = 3.0, _labelH = 16.0;
+  static const _step = _cell + _gap;
 
   @override
   Widget build(BuildContext context) {
@@ -1300,68 +1319,66 @@ class _YearGrid extends StatelessWidget {
     final today = startOfDay(DateTime.now());
     final lastDay = year == today.year ? today : DateTime(year, 12, 31);
     final weeks = (lastDay.difference(first).inDays ~/ 7) + 1;
-    final summaries = <DateTime, String>{};
-    for (final s in sessions) {
-      summaries[s.day] = summaries[s.day] == null ? s.summary : '${summaries[s.day]}\n${s.summary}';
-    }
-    final date = DateFormat('EEE d MMM');
+    final width = weeks * _step - _gap;
+    final height = _labelH + 7 * _step - _gap;
 
-    final columns = [
-      for (var w = 0; w < weeks; w++)
-        Padding(
-          padding: EdgeInsets.only(right: w == weeks - 1 ? 0 : _gap),
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              // Month label above the week the month starts in.
-              // Fixed width: in a sideways scroll the label would otherwise be unbounded.
-              SizedBox(
-                width: _cell,
-                height: 16,
-                child: () {
-                  final ws = addDays(first, w * 7);
-                  for (var d = 0; d < 7; d++) {
-                    final day = addDays(ws, d);
-                    if (day.year == year && day.day == 1) {
-                      return OverflowBox(
-                        alignment: Alignment.topLeft,
-                        maxWidth: 40,
-                        child: Text(DateFormat('MMM').format(day), style: tt.labelSmall),
-                      );
-                    }
-                  }
-                  return const SizedBox(width: _cell);
-                }(),
-              ),
-              for (var d = 0; d < 7; d++)
-                Builder(
-                  builder: (context) {
-                    final day = addDays(first, w * 7 + d);
-                    final inYear = day.year == year && !day.isAfter(lastDay);
-                    final n = byDay[day] ?? 0;
-                    final color = !inYear
-                        ? Colors.transparent
-                        : n == 0
-                        ? t.inset
-                        : t.fg.withValues(alpha: n >= 2 ? 1 : 0.72);
-                    final cell = Container(
-                      width: _cell,
-                      height: _cell,
-                      margin: const EdgeInsets.only(bottom: _gap),
-                      decoration: BoxDecoration(
-                        color: color,
-                        borderRadius: BorderRadius.circular(2.5),
-                        border: day == today ? Border.all(color: t.fg, width: 1.2) : null,
-                      ),
-                    );
-                    if (!inYear || n == 0) return cell;
-                    return Tooltip(message: '${date.format(day)}\n${summaries[day]}', child: cell);
-                  },
+    // Month labels sit above the week each month starts in.
+    final months = <(double, String)>[];
+    for (var w = 0; w < weeks; w++) {
+      for (var d = 0; d < 7; d++) {
+        final day = addDays(first, w * 7 + d);
+        if (day.year == year && day.day == 1) months.add((w * _step, DateFormat('MMM').format(day)));
+      }
+    }
+
+    void tap(Offset at) {
+      final w = (at.dx / _step).floor(), d = ((at.dy - _labelH) / _step).floor();
+      if (w < 0 || w >= weeks || d < 0 || d > 6) return;
+      final day = addDays(first, w * 7 + d);
+      final done = [
+        for (final s in sessions)
+          if (s.day == day) s.summary,
+      ];
+      if (done.isEmpty) return;
+      showToast(context, '${DateFormat('EEE d MMM').format(day)} · ${done.join(' + ')}');
+    }
+
+    final grid = SizedBox(
+      width: width,
+      height: height,
+      child: Stack(
+        children: [
+          for (final (x, label) in months)
+            Positioned(
+              left: x,
+              top: 0,
+              child: Text(label, style: tt.labelSmall),
+            ),
+          Positioned.fill(
+            child: GestureDetector(
+              behavior: HitTestBehavior.opaque,
+              onTapUp: (d) => tap(d.localPosition),
+              child: RepaintBoundary(
+                child: CustomPaint(
+                  isComplex: true,
+                  painter: _YearGridPainter(
+                    first: first,
+                    weeks: weeks,
+                    year: year,
+                    lastDay: lastDay,
+                    today: today,
+                    byDay: byDay,
+                    empty: t.inset,
+                    one: t.fg.withValues(alpha: 0.72),
+                    many: t.fg,
+                  ),
                 ),
-            ],
+              ),
+            ),
           ),
-        ),
-    ];
+        ],
+      ),
+    );
 
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
@@ -1370,8 +1387,7 @@ class _YearGrid extends StatelessWidget {
         // fades only the earlier side that runs off the edge (never the current week).
         LayoutBuilder(
           builder: (context, c) {
-            final grid = Row(crossAxisAlignment: CrossAxisAlignment.start, children: columns);
-            if (weeks * (_cell + _gap) <= c.maxWidth) return grid;
+            if (width <= c.maxWidth) return grid;
             return ShaderMask(
               blendMode: BlendMode.dstIn,
               shaderCallback: (rect) => const LinearGradient(
@@ -1402,6 +1418,53 @@ class _YearGrid extends StatelessWidget {
       ],
     );
   }
+}
+
+class _YearGridPainter extends CustomPainter {
+  _YearGridPainter({
+    required this.first,
+    required this.weeks,
+    required this.year,
+    required this.lastDay,
+    required this.today,
+    required this.byDay,
+    required this.empty,
+    required this.one,
+    required this.many,
+  });
+
+  final DateTime first, lastDay, today;
+  final int weeks, year;
+  final Map<DateTime, int> byDay;
+  final Color empty, one, many;
+
+  @override
+  void paint(Canvas canvas, Size size) {
+    const cell = _YearGrid._cell, step = _YearGrid._step, top = _YearGrid._labelH;
+    final fill = Paint();
+    final ring = Paint()
+      ..style = PaintingStyle.stroke
+      ..strokeWidth = 1.2
+      ..color = many;
+    for (var w = 0; w < weeks; w++) {
+      for (var d = 0; d < 7; d++) {
+        final day = addDays(first, w * 7 + d);
+        if (day.year != year || day.isAfter(lastDay)) continue;
+        final n = byDay[day] ?? 0;
+        fill.color = n == 0 ? empty : (n >= 2 ? many : one);
+        final r = RRect.fromRectAndRadius(
+          Rect.fromLTWH(w * step, top + d * step, cell, cell),
+          const Radius.circular(2.5),
+        );
+        canvas.drawRRect(r, fill);
+        if (day == today) canvas.drawRRect(r.deflate(0.6), ring);
+      }
+    }
+  }
+
+  @override
+  bool shouldRepaint(_YearGridPainter o) =>
+      o.year != year || o.weeks != weeks || o.byDay != byDay || o.empty != empty || o.many != many;
 }
 
 /// One training type: name, a slim bar against the most-trained type, the count and its share.

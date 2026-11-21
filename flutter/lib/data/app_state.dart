@@ -137,10 +137,29 @@ class AppState extends ChangeNotifier {
 
   // ---- Queries ----
 
+  /// Entries grouped by day, built once and reused until something changes. Screens ask for
+  /// many days at once (the day strip, a 90-day chart), so scanning the whole log for each day
+  /// was the main cost of a rebuild.
+  Map<DateTime, List<FoodEntry>>? _byDay;
+
   List<FoodEntry> entriesOn(DateTime day) {
-    final list = entries.where((e) => sameDay(e.consumedAt, day)).toList()
-      ..sort((a, b) => a.consumedAt.compareTo(b.consumedAt));
-    return list;
+    final index = _byDay ??= () {
+      final m = <DateTime, List<FoodEntry>>{};
+      for (final e in entries) {
+        m.putIfAbsent(startOfDay(e.consumedAt), () => []).add(e);
+      }
+      for (final l in m.values) {
+        l.sort((a, b) => a.consumedAt.compareTo(b.consumedAt));
+      }
+      return m;
+    }();
+    return List.of(index[startOfDay(day)] ?? const []);
+  }
+
+  @override
+  void notifyListeners() {
+    _byDay = null; // every change goes through here, so the index can never go stale
+    super.notifyListeners();
   }
 
   Nutrients consumedOn(DateTime day) => Nutrients.sum(entriesOn(day).map((e) => e.nutrients));

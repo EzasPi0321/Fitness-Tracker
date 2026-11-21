@@ -7,6 +7,7 @@ import 'package:material_symbols_icons/symbols.dart';
 
 import '../../data/app_state.dart';
 import '../../design/motion.dart';
+import '../../design/smooth_scroll.dart';
 import '../../design/tokens.dart';
 import '../../models/food.dart';
 import '../../models/nutrients.dart';
@@ -39,7 +40,7 @@ class _FoodLogScreenState extends State<FoodLogScreen> {
   /// When adding from an hour's +, results log at that hour.
   DateTime? _pendingAt;
 
-  final _scroll = ScrollController();
+  final _scroll = SmoothScrollController();
 
   @override
   void initState() {

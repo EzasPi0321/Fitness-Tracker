@@ -3,6 +3,7 @@ import 'package:material_symbols_icons/symbols.dart';
 
 import '../../data/app_state.dart';
 import '../../design/motion.dart';
+import '../../design/smooth_scroll.dart';
 import '../../design/tokens.dart';
 import '../../models/nutrients.dart';
 import '../../models/profile.dart';
@@ -49,47 +50,50 @@ class SettingsScreen extends StatelessWidget {
     return Scaffold(
       body: SafeArea(
         bottom: false,
-        child: ListView(
-          padding: EdgeInsets.fromLTRB(gutter, S.lg, gutter, S.xxl),
-          children: [
-            Center(
-              child: ConstrainedBox(
-                constraints: BoxConstraints(maxWidth: twoCol ? 1100 : 640),
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.stretch,
-                  children: [
-                    Text('Settings', style: tt.headlineMedium),
-                    if (state.isSample) ...[
-                      const SizedBox(height: S.sm),
-                      Text(
-                        'Sample data is loaded. Changes here are saved but you can start fresh any time.',
-                        style: tt.bodySmall,
-                      ),
-                    ],
-                    const SizedBox(height: S.xl),
-                    if (twoCol)
-                      Row(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          Expanded(
-                            child: Column(crossAxisAlignment: CrossAxisAlignment.stretch, children: left),
-                          ),
-                          const SizedBox(width: S.xl),
-                          Expanded(
-                            child: Column(crossAxisAlignment: CrossAxisAlignment.stretch, children: right),
-                          ),
-                        ],
-                      )
-                    else ...[
-                      ...left,
+        child: WithSmoothScroll(
+          builder: (c) => ListView(
+            controller: c,
+            padding: EdgeInsets.fromLTRB(gutter, S.lg, gutter, S.xxl),
+            children: [
+              Center(
+                child: ConstrainedBox(
+                  constraints: BoxConstraints(maxWidth: twoCol ? 1100 : 640),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.stretch,
+                    children: [
+                      Text('Settings', style: tt.headlineMedium),
+                      if (state.isSample) ...[
+                        const SizedBox(height: S.sm),
+                        Text(
+                          'Sample data is loaded. Changes here are saved but you can start fresh any time.',
+                          style: tt.bodySmall,
+                        ),
+                      ],
                       const SizedBox(height: S.xl),
-                      ...right,
+                      if (twoCol)
+                        Row(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Expanded(
+                              child: Column(crossAxisAlignment: CrossAxisAlignment.stretch, children: left),
+                            ),
+                            const SizedBox(width: S.xl),
+                            Expanded(
+                              child: Column(crossAxisAlignment: CrossAxisAlignment.stretch, children: right),
+                            ),
+                          ],
+                        )
+                      else ...[
+                        ...left,
+                        const SizedBox(height: S.xl),
+                        ...right,
+                      ],
                     ],
-                  ],
+                  ),
                 ),
               ),
-            ),
-          ],
+            ],
+          ),
         ),
       ),
     );

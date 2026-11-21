@@ -216,7 +216,8 @@ class FadeEdges extends StatelessWidget {
         colors: const [Color(0x00000000), Color(0xFF000000), Color(0xFF000000), Color(0x00000000)],
         stops: [0, inset, 1 - inset, 1],
       ).createShader(rect),
-      child: child,
+      // Its own layer: the mask is re-applied while scrolling, the content isn't redrawn.
+      child: RepaintBoundary(child: child),
     );
   }
 }

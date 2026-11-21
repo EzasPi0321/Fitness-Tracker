@@ -3,6 +3,7 @@ import 'package:material_symbols_icons/symbols.dart';
 
 import '../../data/app_state.dart';
 import '../../design/motion.dart';
+import '../../design/smooth_scroll.dart';
 import '../../design/tokens.dart';
 import '../../widgets/common.dart';
 import '../settings/profile_section.dart';
@@ -23,34 +24,37 @@ class ProfileScreen extends StatelessWidget {
     return Scaffold(
       body: SafeArea(
         bottom: false,
-        child: ListView(
-          padding: EdgeInsets.fromLTRB(gutter, S.lg, gutter, S.xxl),
-          children: [
-            Center(
-              child: ConstrainedBox(
-                constraints: BoxConstraints(maxWidth: twoCol ? 1100 : 640),
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.stretch,
-                  children: [
-                    Text('Profile', style: tt.headlineMedium),
-                    const SizedBox(height: S.xl),
-                    const Rise(child: _NameCard()),
-                    const SizedBox(height: S.xl),
-                    if (twoCol)
-                      const Row(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          Expanded(child: ProfileSection()),
-                          SizedBox(width: S.xl),
-                          Expanded(child: TargetsSection()),
-                        ],
-                      )
-                    else ...const [ProfileSection(), SizedBox(height: S.xl), TargetsSection()],
-                  ],
+        child: WithSmoothScroll(
+          builder: (c) => ListView(
+            controller: c,
+            padding: EdgeInsets.fromLTRB(gutter, S.lg, gutter, S.xxl),
+            children: [
+              Center(
+                child: ConstrainedBox(
+                  constraints: BoxConstraints(maxWidth: twoCol ? 1100 : 640),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.stretch,
+                    children: [
+                      Text('Profile', style: tt.headlineMedium),
+                      const SizedBox(height: S.xl),
+                      const Rise(child: _NameCard()),
+                      const SizedBox(height: S.xl),
+                      if (twoCol)
+                        const Row(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Expanded(child: ProfileSection()),
+                            SizedBox(width: S.xl),
+                            Expanded(child: TargetsSection()),
+                          ],
+                        )
+                      else ...const [ProfileSection(), SizedBox(height: S.xl), TargetsSection()],
+                    ],
+                  ),
                 ),
               ),
-            ),
-          ],
+            ],
+          ),
         ),
       ),
     );
