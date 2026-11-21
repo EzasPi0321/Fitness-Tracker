@@ -83,6 +83,24 @@ String dayTitle(DateTime day) {
   return DateFormat('EEE, MMM d').format(day);
 }
 
+const mlPerFluidOunce = 29.5735;
+
+/// Water in the user's units: litres/ml for metric, US fl oz for imperial.
+abstract final class Volume {
+  static String format(double ml, {required bool metric}) {
+    if (!metric) return '${whole(ml / mlPerFluidOunce)} fl oz';
+    return ml >= 1000 ? '${(ml / 1000).toStringAsFixed(ml % 1000 == 0 ? 0 : 1)} L' : '${whole(ml)} ml';
+  }
+
+  static double toDisplay(double ml, {required bool metric}) => metric ? ml : ml / mlPerFluidOunce;
+  static double fromDisplay(double v, {required bool metric}) => metric ? v : v * mlPerFluidOunce;
+  static String unit({required bool metric}) => metric ? 'ml' : 'fl oz';
+
+  /// The two quick-add sizes: a glass and a bottle.
+  static List<double> quickAdds({required bool metric}) =>
+      metric ? const [250, 500] : const [8 * mlPerFluidOunce, 16 * mlPerFluidOunce];
+}
+
 enum EnergyUnit { kcal, kJ }
 
 const kilojoulesPerKcal = 4.184;

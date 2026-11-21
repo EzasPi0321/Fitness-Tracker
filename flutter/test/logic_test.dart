@@ -436,4 +436,34 @@ void main() {
     s.updateProfileAndPlan((p) => p.weightKg = 5);
     expect(s.targets, before);
   });
+
+  group('Water', () {
+    test('goal follows body weight until set, entries add up per day, undo removes the last', () async {
+      final store = MemoryStore();
+      final s = AppState(store: store, health: UnsupportedHealthService());
+      await s.load();
+      s.completeOnboarding(UserProfile(weightKg: 80));
+      expect(s.waterGoal, 2800); // 80 kg × 35 ml
+      final now = DateTime.now();
+      await s.addWater(250, now);
+      await s.addWater(500, now);
+      await s.addWater(330, now.subtract(const Duration(days: 1)));
+      expect(s.waterTotalOn(now), 750);
+      expect(s.undoWater(now)!.ml, 500);
+      expect(s.waterTotalOn(now), 250);
+      s.setWaterGoal(2000);
+      await s.flush();
+      final again = AppState(store: store, health: UnsupportedHealthService());
+      await again.load();
+      expect(again.waterGoal, 2000);
+      expect(again.water, hasLength(2));
+    });
+
+    test('volumes read naturally in both unit systems', () {
+      expect(Volume.format(250, metric: true), '250 ml');
+      expect(Volume.format(2500, metric: true), '2.5 L');
+      expect(Volume.format(2000, metric: true), '2 L');
+      expect(Volume.format(8 * mlPerFluidOunce, metric: false), '8 fl oz');
+    });
+  });
 }

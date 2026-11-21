@@ -47,6 +47,7 @@ abstract class HealthService {
   });
   Future<void> deleteFood(DateTime at);
   Future<bool> saveWeight(double kilograms, DateTime at);
+  Future<bool> saveWater(double ml, DateTime at);
 }
 
 /// No health store (web, Windows, tests).
@@ -78,4 +79,6 @@ class UnsupportedHealthService implements HealthService {
   Future<void> deleteFood(DateTime at) async {}
   @override
   Future<bool> saveWeight(double kilograms, DateTime at) async => false;
+  @override
+  Future<bool> saveWater(double ml, DateTime at) async => false;
 }

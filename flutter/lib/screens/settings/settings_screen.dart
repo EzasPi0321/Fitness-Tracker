@@ -3,6 +3,7 @@ import 'package:material_symbols_icons/symbols.dart';
 
 import '../../data/app_state.dart';
 import '../../design/motion.dart';
+import '../../design/oklch.dart';
 import '../../design/tokens.dart';
 import '../../models/nutrients.dart';
 import '../../models/util.dart';
@@ -164,10 +165,31 @@ class _TargetsSection extends StatelessWidget {
             ),
           ),
         FRow(
+          leading: Container(
+            width: 10,
+            height: 10,
+            decoration: BoxDecoration(color: const Oklch(0.68, 0.13, 235).toColor(), shape: BoxShape.circle),
+          ),
+          label: 'Water',
+          sub: state.waterGoalOverride == null ? 'From your weight (35 ml per kg)' : 'Your own goal',
+          trailing: NumberInput(
+            key: ValueKey('water${state.profile?.usesMetric}${state.waterGoalOverride == null}'),
+            value: Volume.toDisplay(state.waterGoal, metric: state.profile?.usesMetric ?? true).roundToDouble(),
+            unit: Volume.unit(metric: state.profile?.usesMetric ?? true),
+            maxDigits: 0,
+            width: 130,
+            onChanged: (v) {
+              if (v == null || v <= 0) return;
+              state.setWaterGoal(Volume.fromDisplay(v, metric: state.profile?.usesMetric ?? true));
+            },
+          ),
+        ),
+        FRow(
           label: "Reset to my profile's plan",
           sub: 'Undo manual changes to these numbers',
           trailing: FIcon(Symbols.restart_alt, color: t.muted),
           onTap: () {
+            state.setWaterGoal(null);
             state.updateProfileAndPlan((_) {});
             showToast(context, 'Targets reset to your plan');
           },

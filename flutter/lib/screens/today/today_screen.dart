@@ -12,6 +12,7 @@ import '../../services/health_service.dart';
 import '../../services/platform_caps.dart';
 import '../../widgets/common.dart';
 import '../../widgets/rings.dart';
+import '../../widgets/water_card.dart';
 import '../log/log_flows.dart';
 import 'add_menu.dart';
 import 'edit_entry_sheet.dart';
@@ -171,13 +172,30 @@ class _TodayScreenState extends State<TodayScreen> {
                               Row(
                                 crossAxisAlignment: CrossAxisAlignment.start,
                                 children: [
-                                  SizedBox(width: 380, child: Rise(child: summary)),
+                                  SizedBox(
+                                    width: 380,
+                                    child: Column(
+                                      children: [
+                                        Rise(child: summary),
+                                        const SizedBox(height: S.lg),
+                                        Rise(
+                                          delay: const Duration(milliseconds: 40),
+                                          child: WaterCard(day: _day),
+                                        ),
+                                      ],
+                                    ),
+                                  ),
                                   const SizedBox(width: S.xl),
                                   Expanded(child: meals),
                                 ],
                               )
                             else ...[
                               Rise(child: summary),
+                              const SizedBox(height: S.lg),
+                              Rise(
+                                delay: const Duration(milliseconds: 40),
+                                child: WaterCard(day: _day),
+                              ),
                               const SizedBox(height: S.xl),
                               meals,
                             ],

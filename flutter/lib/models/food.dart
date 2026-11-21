@@ -197,6 +197,21 @@ class CustomFood {
   );
 }
 
+/// One drink of water, in millilitres.
+class WaterEntry {
+  WaterEntry({required this.id, required this.at, required this.ml});
+  final String id;
+  final DateTime at;
+  final double ml;
+
+  Map<String, dynamic> toJson() => {'id': id, 'at': at.millisecondsSinceEpoch, 'ml': ml};
+  factory WaterEntry.fromJson(Map<String, dynamic> j) => WaterEntry(
+    id: j['id'] as String,
+    at: DateTime.fromMillisecondsSinceEpoch((j['at'] as num).toInt()),
+    ml: (j['ml'] as num).toDouble(),
+  );
+}
+
 class WeightEntry {
   WeightEntry({required this.id, required this.date, required this.kilograms});
   final String id;

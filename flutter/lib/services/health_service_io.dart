@@ -19,6 +19,7 @@ class _MobileHealthService implements HealthService {
     hc.HealthDataType.WEIGHT,
     hc.HealthDataType.HEIGHT,
     hc.HealthDataType.NUTRITION,
+    hc.HealthDataType.WATER,
   ];
 
   @override
@@ -45,7 +46,7 @@ class _MobileHealthService implements HealthService {
     }
     final permissions = _read
         .map(
-          (t) => (t == hc.HealthDataType.NUTRITION || t == hc.HealthDataType.WEIGHT)
+          (t) => (t == hc.HealthDataType.NUTRITION || t == hc.HealthDataType.WEIGHT || t == hc.HealthDataType.WATER)
               ? hc.HealthDataAccess.READ_WRITE
               : hc.HealthDataAccess.READ,
         )
@@ -188,6 +189,22 @@ class _MobileHealthService implements HealthService {
         startTime: at,
         endTime: at,
         unit: hc.HealthDataUnit.KILOGRAM,
+      );
+    } catch (_) {
+      return false;
+    }
+  }
+
+  @override
+  Future<bool> saveWater(double ml, DateTime at) async {
+    await _ensure();
+    try {
+      return await _health.writeHealthData(
+        value: ml / 1000,
+        type: hc.HealthDataType.WATER,
+        startTime: at,
+        endTime: at.add(const Duration(minutes: 1)),
+        unit: hc.HealthDataUnit.LITER,
       );
     } catch (_) {
       return false;

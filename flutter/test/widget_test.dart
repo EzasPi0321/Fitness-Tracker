@@ -50,6 +50,13 @@ void main() {
 
     expect(find.textContaining('sample data'), findsOneWidget);
     expect(find.text('kcal left'), findsOneWidget);
+    // Water: one tap adds a glass.
+    await tester.ensureVisible(find.text('250 ml'));
+    await tester.pumpAndSettle();
+    final before = s.waterTotalOn(DateTime.now());
+    await tester.tap(find.text('250 ml'));
+    await tester.pumpAndSettle();
+    expect(s.waterTotalOn(DateTime.now()), before + 250);
     expect(find.text('Protein'), findsWidgets);
 
     await tester.tap(find.text('Progress').last);

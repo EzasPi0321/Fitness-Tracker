@@ -38,6 +38,10 @@ class AppState extends ChangeNotifier {
   final List<FoodEntry> entries = [];
   final List<CustomFood> customFoods = [];
   final List<WeightEntry> weights = [];
+  final List<WaterEntry> water = [];
+
+  /// Set by the user; when null the goal follows body weight.
+  double? waterGoalOverride;
 
   /// Black by default; light and system are options in Settings.
   ThemeMode appearance = ThemeMode.dark;
@@ -102,6 +106,7 @@ class AppState extends ChangeNotifier {
       entries.clear();
       weights.clear();
       customFoods.clear();
+      water.clear();
       isSample = false;
     }
     if (weights.isEmpty) weights.add(WeightEntry(id: newId(), date: DateTime.now(), kilograms: p.weightKg));
@@ -228,6 +233,43 @@ class AppState extends ChangeNotifier {
     _changed();
   }
 
+  // ---- Water ----
+
+  /// 35 ml per kg of body weight, rounded to 50 ml (1.5–4 L), unless the user set one.
+  double get waterGoal {
+    final o = waterGoalOverride;
+    if (o != null && o > 0) return o;
+    final kg = profile?.weightKg ?? 70;
+    return ((kg * 35 / 50).round() * 50).toDouble().clamp(1500, 4000);
+  }
+
+  List<WaterEntry> waterOn(DateTime day) =>
+      water.where((w) => sameDay(w.at, day)).toList()..sort((a, b) => a.at.compareTo(b.at));
+
+  double waterTotalOn(DateTime day) => waterOn(day).fold(0, (a, w) => a + w.ml);
+
+  Future<void> addWater(double ml, DateTime at) async {
+    if (ml <= 0 || !ml.isFinite) return;
+    water.add(WaterEntry(id: newId(), at: at, ml: ml));
+    _changed();
+    if (_syncHealth) await health.saveWater(ml, at);
+  }
+
+  /// Removes the most recent drink on [day] (the undo button).
+  WaterEntry? undoWater(DateTime day) {
+    final list = waterOn(day);
+    if (list.isEmpty) return null;
+    final last = list.last;
+    water.removeWhere((w) => w.id == last.id);
+    _changed();
+    return last;
+  }
+
+  void setWaterGoal(double? ml) {
+    waterGoalOverride = (ml == null || ml <= 0) ? null : ml;
+    _changed();
+  }
+
   // ---- Weight ----
 
   Future<void> addWeight(double kilograms, DateTime date) async {
@@ -293,6 +335,9 @@ class AppState extends ChangeNotifier {
     customFoods
       ..clear()
       ..addAll(s.customFoods);
+    water
+      ..clear()
+      ..addAll(s.water);
     isSample = true;
     if (save) {
       _changed();
@@ -305,6 +350,8 @@ class AppState extends ChangeNotifier {
     entries.clear();
     weights.clear();
     customFoods.clear();
+    water.clear();
+    waterGoalOverride = null;
     isSample = false;
     _changed();
   }
@@ -331,6 +378,7 @@ class AppState extends ChangeNotifier {
     'entries': entries.map((e) => e.toJson()).toList(),
     'customFoods': customFoods.map((e) => e.toJson()).toList(),
     'weights': weights.map((e) => e.toJson()).toList(),
+    'water': water.map((e) => e.toJson()).toList(),
     'settings': {
       'health': healthEnabled,
       'addActive': addActiveEnergy,
@@ -339,6 +387,7 @@ class AppState extends ChangeNotifier {
       'sample': isSample,
       'appearance': appearance.name,
       'energy': Energy.unit.name,
+      'waterGoal': waterGoalOverride,
     },
   };
 
@@ -355,8 +404,12 @@ class AppState extends ChangeNotifier {
     weights
       ..clear()
       ..addAll(list('weights').map(WeightEntry.fromJson));
+    water
+      ..clear()
+      ..addAll(list('water').map(WaterEntry.fromJson));
     final s = j['settings'] is Map ? (j['settings'] as Map).cast<String, dynamic>() : const <String, dynamic>{};
     healthEnabled = (s['health'] as bool?) ?? false;
+    waterGoalOverride = (s['waterGoal'] as num?)?.toDouble();
     addActiveEnergy = (s['addActive'] as bool?) ?? false;
     visionProvider = VisionProvider.values.firstWhere(
       (v) => v.name == s['provider'],

@@ -8,12 +8,13 @@ import '../models/util.dart';
 /// Realistic example data for the desktop preview and "Try with sample data".
 /// Deterministic, so screenshots and the preview look the same every time.
 class SampleData {
-  SampleData._(this.profile, this.entries, this.weights, this.customFoods);
+  SampleData._(this.profile, this.entries, this.weights, this.customFoods, this.water);
 
   final UserProfile profile;
   final List<FoodEntry> entries;
   final List<WeightEntry> weights;
   final List<CustomFood> customFoods;
+  final List<WaterEntry> water;
 
   static SampleData generate({DateTime? now}) {
     final rnd = Random(20261121);
@@ -131,6 +132,24 @@ class SampleData {
       ),
     ];
 
-    return SampleData._(profile, entries, weights, custom);
+    final water = <WaterEntry>[
+      WaterEntry(id: id(), at: today.add(const Duration(hours: 8, minutes: 5)), ml: 250),
+      WaterEntry(id: id(), at: today.add(const Duration(hours: 12, minutes: 40)), ml: 500),
+    ];
+    for (var d = 1; d <= 30; d++) {
+      final day = addDays(today, -d);
+      final glasses = 4 + rnd.nextInt(6);
+      for (var g = 0; g < glasses; g++) {
+        water.add(
+          WaterEntry(
+            id: id(),
+            at: day.add(Duration(hours: 7 + g * 2)),
+            ml: rnd.nextBool() ? 250 : 500,
+          ),
+        );
+      }
+    }
+
+    return SampleData._(profile, entries, weights, custom, water);
   }
 }
