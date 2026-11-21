@@ -9,6 +9,8 @@ import '../../models/nutrients.dart';
 import '../../models/util.dart';
 import '../../services/ai_vision.dart';
 import '../../services/platform_caps.dart';
+import '../../services/updates.dart';
+import '../../widgets/update_banner.dart';
 import '../../widgets/common.dart';
 
 class SettingsScreen extends StatelessWidget {
@@ -34,8 +36,12 @@ class SettingsScreen extends StatelessWidget {
           const FRow(label: 'Product data', sub: 'Open Food Facts, ODbL licence'),
           FRow(
             label: 'Version',
-            trailing: Text('2.0', style: tt.bodyLarge!.copyWith(color: FT.of(context).muted)),
+            trailing: Text(
+              appBuild == 0 ? 'Development build' : '2.0.0 (build $appBuild)',
+              style: tt.bodyLarge!.copyWith(color: FT.of(context).muted),
+            ),
           ),
+          const _UpdateRow(),
         ],
       ),
     ];
@@ -473,6 +479,61 @@ class _DataSectionState extends State<_DataSection> {
             onTap: state.startFresh,
           ),
       ],
+    );
+  }
+}
+
+/// "Check for updates": asks GitHub for the latest release and offers it.
+class _UpdateRow extends StatefulWidget {
+  const _UpdateRow();
+
+  @override
+  State<_UpdateRow> createState() => _UpdateRowState();
+}
+
+class _UpdateRowState extends State<_UpdateRow> {
+  bool _checking = false;
+  String? _result;
+
+  Future<void> _check() async {
+    final state = AppScope.read(context);
+    setState(() {
+      _checking = true;
+      _result = null;
+    });
+    String result;
+    try {
+      final u = await state.checkForUpdates(manual: true);
+      result = u == null ? "You're up to date" : 'Version ${u.label} is ready';
+    } on UpdateCheckException catch (e) {
+      result = e.message;
+    }
+    if (mounted) {
+      setState(() {
+        _checking = false;
+        _result = result;
+      });
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final state = AppScope.of(context);
+    final update = state.availableUpdate;
+    final t = FT.of(context);
+    if (PlatformCaps.isWeb) {
+      return const FRow(label: 'Updates', sub: 'The web version is always the latest');
+    }
+    return FRow(
+      leading: FIcon(Symbols.system_update, color: t.fg),
+      label: update == null ? 'Check for updates' : 'Install version ${update.label}',
+      sub: _result ?? (update == null ? 'From the Releases page on GitHub' : update.notes),
+      onTap: _checking ? null : (update == null ? _check : () => openUpdate(context, update)),
+      trailing: _checking
+          ? const SizedBox.square(dimension: 20, child: CircularProgressIndicator(strokeWidth: 2.4))
+          : update == null
+          ? FIcon(Symbols.refresh, color: t.muted)
+          : FIcon(Symbols.download, color: t.fg, weight: FontWeight.w600),
     );
   }
 }

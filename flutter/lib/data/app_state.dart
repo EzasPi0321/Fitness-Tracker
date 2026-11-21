@@ -2,6 +2,7 @@ import 'dart:async';
 import 'dart:convert';
 import 'dart:math';
 
+import 'package:flutter/foundation.dart' show kIsWeb;
 import 'package:flutter/material.dart' show ThemeMode;
 import 'package:flutter/widgets.dart';
 
@@ -12,6 +13,7 @@ import '../models/util.dart';
 import '../services/ai_vision.dart';
 import '../services/health_service.dart';
 import '../services/key_store.dart';
+import '../services/updates.dart';
 import 'sample_data.dart';
 import 'storage.dart';
 
@@ -24,10 +26,47 @@ String newId() {
 /// health store stay in step, and every change is saved right away (Doherty threshold:
 /// the UI never waits on disk or network).
 class AppState extends ChangeNotifier {
-  AppState({DocumentStore? store, HealthService? health, KeyStore? keys})
+  AppState({DocumentStore? store, HealthService? health, KeyStore? keys, UpdateService? updates})
     : _store = store ?? DocumentStore(),
       health = health ?? HealthService(),
-      keys = keys ?? KeyStore();
+      keys = keys ?? KeyStore(),
+      updates = updates ?? UpdateService();
+
+  final UpdateService updates;
+
+  /// A newer release, when one has been found.
+  AppUpdate? availableUpdate;
+  DateTime? _lastUpdateCheck;
+  int? _dismissedUpdateBuild;
+
+  /// True when the banner on Today should offer [availableUpdate].
+  bool get showUpdateBanner => availableUpdate != null && availableUpdate!.build != _dismissedUpdateBuild;
+
+  /// Looks for a newer release. Automatic checks run at most once a day and only on builds
+  /// made by CI (local builds have no number to compare). Returns the update, or null.
+  Future<AppUpdate?> checkForUpdates({bool manual = false}) async {
+    if (!manual) {
+      if (kIsWeb || appBuild == 0) return null;
+      final last = _lastUpdateCheck;
+      if (last != null && DateTime.now().difference(last) < const Duration(hours: 20)) return availableUpdate;
+    }
+    AppUpdate? found;
+    try {
+      found = await updates.check();
+    } on UpdateCheckException {
+      if (manual) rethrow;
+      return availableUpdate;
+    }
+    _lastUpdateCheck = DateTime.now();
+    availableUpdate = found;
+    _changed();
+    return found;
+  }
+
+  void dismissUpdate() {
+    _dismissedUpdateBuild = availableUpdate?.build;
+    _changed();
+  }
 
   final DocumentStore _store;
   final HealthService health;
@@ -78,6 +117,7 @@ class AppState extends ChangeNotifier {
     if (profile == null && seedSampleIfEmpty) loadSampleData(save: false);
     if (isSample && sampleSteps.isEmpty) sampleSteps.addAll(SampleData.generate().steps);
     loaded = true;
+    unawaited(checkForUpdates());
     notifyListeners();
   }
 
@@ -406,6 +446,8 @@ class AppState extends ChangeNotifier {
       'energy': Energy.unit.name,
       'waterGoal': waterGoalOverride,
       'stepGoal': stepGoal,
+      'lastUpdateCheck': _lastUpdateCheck?.millisecondsSinceEpoch,
+      'dismissedUpdate': _dismissedUpdateBuild,
     },
   };
 
@@ -429,6 +471,9 @@ class AppState extends ChangeNotifier {
     healthEnabled = (s['health'] as bool?) ?? false;
     waterGoalOverride = (s['waterGoal'] as num?)?.toDouble();
     stepGoal = ((s['stepGoal'] as num?) ?? 10000).toInt();
+    final lastCheck = s['lastUpdateCheck'] as num?;
+    _lastUpdateCheck = lastCheck == null ? null : DateTime.fromMillisecondsSinceEpoch(lastCheck.toInt());
+    _dismissedUpdateBuild = (s['dismissedUpdate'] as num?)?.toInt();
     addActiveEnergy = (s['addActive'] as bool?) ?? false;
     visionProvider = VisionProvider.values.firstWhere(
       (v) => v.name == s['provider'],

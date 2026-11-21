@@ -13,6 +13,7 @@ import '../../services/platform_caps.dart';
 import '../../widgets/common.dart';
 import '../../widgets/rings.dart';
 import '../../widgets/steps_card.dart';
+import '../../widgets/update_banner.dart';
 import '../../widgets/water_card.dart';
 import '../log/log_flows.dart';
 import 'add_menu.dart';
@@ -150,6 +151,7 @@ class _TodayScreenState extends State<TodayScreen> {
                         child: Column(
                           crossAxisAlignment: CrossAxisAlignment.stretch,
                           children: [
+                            const UpdateBanner(),
                             if (state.isSample) const _SampleBanner(),
                             Row(
                               children: [

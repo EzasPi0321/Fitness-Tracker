@@ -87,7 +87,7 @@ jobs:
           else
             echo "::warning::No ANDROID_KEYSTORE_BASE64 secret: this APK uses a temporary key and won't install over a differently signed one."
           fi
-      - run: flutter build apk --release --build-number "$BUILD_NUMBER"
+      - run: flutter build apk --release --build-number "$BUILD_NUMBER" --dart-define=FITTRACK_BUILD="$BUILD_NUMBER"
       - name: Collect
         run: |
           mkdir -p ../dist
@@ -109,7 +109,7 @@ jobs:
           flutter-version: ${{ env.FLUTTER_VERSION }}
           channel: stable
           cache: true
-      - run: flutter build web --release --no-web-resources-cdn --base-href / --build-number "$BUILD_NUMBER"
+      - run: flutter build web --release --no-web-resources-cdn --base-href / --build-number "$BUILD_NUMBER" --dart-define=FITTRACK_BUILD="$BUILD_NUMBER"
       - name: Collect
         run: |
           mkdir -p ../dist
@@ -131,7 +131,7 @@ jobs:
           flutter-version: ${{ env.FLUTTER_VERSION }}
           channel: stable
           cache: true
-      - run: flutter build ios --release --no-codesign --build-number "$BUILD_NUMBER"
+      - run: flutter build ios --release --no-codesign --build-number "$BUILD_NUMBER" --dart-define=FITTRACK_BUILD="$BUILD_NUMBER"
       - name: Package .ipa
         run: |
           mkdir -p ../dist/Payload
@@ -161,7 +161,7 @@ jobs:
           flutter-version: ${{ env.FLUTTER_VERSION }}
           channel: stable
           cache: true
-      - run: flutter build windows --release --build-number "$BUILD_NUMBER"
+      - run: flutter build windows --release --build-number "$BUILD_NUMBER" --dart-define=FITTRACK_BUILD="$BUILD_NUMBER"
       - name: Collect
         shell: pwsh
         run: |

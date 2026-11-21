@@ -11,6 +11,8 @@ import 'package:fittrack/models/util.dart';
 import 'package:fittrack/services/ai_vision.dart';
 import 'package:fittrack/services/health_service.dart';
 import 'package:fittrack/services/open_food_facts.dart';
+import 'package:fittrack/services/updates.dart';
+import 'package:flutter/foundation.dart' show TargetPlatform;
 import 'package:flutter_test/flutter_test.dart';
 
 void main() {
@@ -504,4 +506,58 @@ void main() {
     s.setStepGoal(0); // ignored
     expect(s.stepGoal, 8000);
   });
+
+  group('Updates', () {
+    final release = {
+      'tag_name': 'v2.0.0-build12',
+      'html_url': 'https://github.com/EzasPi0321/Fitness-Tracker/releases/tag/v2.0.0-build12',
+      'body': 'Add water tracking\n\nMore notes',
+      'assets': [
+        {'name': 'FitTrack.apk', 'browser_download_url': 'https://example.test/FitTrack.apk'},
+        {'name': 'FitTrack-Windows.zip', 'browser_download_url': 'https://example.test/FitTrack-Windows.zip'},
+      ],
+    };
+
+    test('a newer build is offered with the right file per platform', () {
+      final android = UpdateService.parseRelease(release, currentBuild: 7, platform: TargetPlatform.android, web: false)!;
+      expect(android.build, 12);
+      expect(android.version, '2.0.0');
+      expect(android.downloadUrl, endsWith('FitTrack.apk'));
+      expect(android.notes, 'Add water tracking');
+      final windows = UpdateService.parseRelease(release, currentBuild: 7, platform: TargetPlatform.windows, web: false)!;
+      expect(windows.downloadUrl, endsWith('FitTrack-Windows.zip'));
+      final ios = UpdateService.parseRelease(release, currentBuild: 7, platform: TargetPlatform.iOS, web: false)!;
+      expect(ios.downloadUrl, isNull); // opens the release page instead
+    });
+
+    test('the same or an older build is not offered', () {
+      expect(UpdateService.parseRelease(release, currentBuild: 12, platform: TargetPlatform.android, web: false), isNull);
+      expect(UpdateService.parseRelease({'tag_name': 'nightly'}, currentBuild: 1, platform: TargetPlatform.android, web: false), isNull);
+    });
+
+    test('a dismissed update hides the banner until a newer one arrives', () async {
+      final s = AppState(store: MemoryStore(), health: UnsupportedHealthService(), updates: _FakeUpdates(12));
+      await s.load();
+      await s.checkForUpdates(manual: true);
+      expect(s.showUpdateBanner, isTrue);
+      s.dismissUpdate();
+      expect(s.showUpdateBanner, isFalse);
+      (s.updates as _FakeUpdates).build = 13;
+      await s.checkForUpdates(manual: true);
+      expect(s.showUpdateBanner, isTrue);
+    });
+  });
+}
+
+class _FakeUpdates extends UpdateService {
+  _FakeUpdates(this.build);
+  int build;
+  @override
+  Future<AppUpdate?> check({int currentBuild = appBuild}) async => AppUpdate(
+    version: '2.0.0',
+    build: build,
+    notes: 'notes',
+    downloadUrl: null,
+    pageUrl: 'https://example.test',
+  );
 }
