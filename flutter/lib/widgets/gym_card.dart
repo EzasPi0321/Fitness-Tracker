@@ -106,18 +106,32 @@ class GymCard extends StatelessWidget {
             ),
           ],
           const SizedBox(height: S.lg),
-          Text(sessions.isEmpty ? 'What did you train?' : 'Add another', style: tt.labelMedium),
-          const SizedBox(height: S.sm),
-          Wrap(
-            spacing: S.sm,
-            runSpacing: S.sm,
+          // The five types are the choice; adding details is a quieter, secondary action.
+          Row(
             children: [
-              for (final type in TrainingType.values) _TypeButton(type: type, onTap: () => quickLog(type)),
-              _TypeButton(
-                label: 'Details…',
-                icon: Symbols.tune,
-                onTap: () => showGymSheet(context, day: day),
+              Expanded(child: Text(sessions.isEmpty ? 'What did you train?' : 'Add another', style: tt.labelMedium)),
+              TextButton(
+                style: TextButton.styleFrom(
+                  minimumSize: const Size(44, 36),
+                  padding: const EdgeInsets.symmetric(horizontal: 8),
+                  foregroundColor: t.muted,
+                  textStyle: tt.labelMedium,
+                ),
+                onPressed: () => showGymSheet(context, day: day),
+                child: const Text('Add details'),
               ),
+            ],
+          ),
+          const SizedBox(height: S.xs),
+          // One row of equal buttons: five choices read as one set, and none wraps alone.
+          Row(
+            children: [
+              for (final (i, type) in TrainingType.values.indexed) ...[
+                if (i > 0) const SizedBox(width: 6),
+                Expanded(
+                  child: _TypeButton(type: type, onTap: () => quickLog(type)),
+                ),
+              ],
             ],
           ),
         ],
@@ -127,10 +141,8 @@ class GymCard extends StatelessWidget {
 }
 
 class _TypeButton extends StatelessWidget {
-  const _TypeButton({this.type, this.label, this.icon, required this.onTap});
-  final TrainingType? type;
-  final String? label;
-  final IconData? icon;
+  const _TypeButton({required this.type, required this.onTap});
+  final TrainingType type;
   final VoidCallback onTap;
 
   @override
@@ -139,21 +151,19 @@ class _TypeButton extends StatelessWidget {
     final tt = Theme.of(context).textTheme;
     return Squishy(
       onTap: onTap,
-      semanticLabel: type == null ? label : 'Log ${type!.label}',
+      semanticLabel: 'Log ${type.label}',
       child: Container(
         height: 40,
-        padding: const EdgeInsets.symmetric(horizontal: 14),
+        padding: const EdgeInsets.symmetric(horizontal: 4),
+        alignment: Alignment.center,
         decoration: BoxDecoration(
           color: t.raised,
           borderRadius: BorderRadius.circular(S.radiusControl),
           border: Border.all(color: t.border),
         ),
-        child: Row(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            if (icon != null) ...[FIcon(icon!, size: 18, color: t.muted), const SizedBox(width: 6)],
-            Text(type?.label ?? label!, style: tt.labelLarge),
-          ],
+        child: FittedBox(
+          fit: BoxFit.scaleDown,
+          child: Text(type.label, style: tt.labelLarge, maxLines: 1),
         ),
       ),
     );
