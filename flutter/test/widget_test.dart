@@ -49,8 +49,8 @@ void main() {
     await _pump(tester, s, const Size(400, 860));
 
     expect(find.textContaining('sample data'), findsOneWidget);
-    expect(find.text('kcal left'), findsOneWidget);
-    expect(find.textContaining(', Alex'), findsOneWidget); // greeting uses the profile name
+    expect(find.text('Energy left'), findsOneWidget);
+    expect(find.textContaining('Priya · '), findsOneWidget); // the line above Today uses the profile name
     // Water: one tap adds a glass.
     await tester.ensureVisible(find.text('250 ml'));
     await tester.pumpAndSettle();
@@ -69,9 +69,8 @@ void main() {
 
     await tester.tap(find.text('Profile').last);
     await tester.pumpAndSettle();
-    expect(find.text('Alex'), findsWidgets); // the sample profile's name
-    expect(find.text('AL'), findsNothing);
-    expect(find.text('A'), findsOneWidget); // initials avatar
+    expect(find.text('Priya Nair'), findsWidgets); // the sample profile's name
+    expect(find.text('PN'), findsOneWidget); // initials avatar
     expect(find.text('Cut'), findsOneWidget);
     await tester.tap(find.text('Cut'));
     await tester.pumpAndSettle();

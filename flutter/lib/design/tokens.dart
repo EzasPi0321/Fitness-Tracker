@@ -79,10 +79,7 @@ class FT extends ThemeExtension<FT> {
       carbs: const Oklch(0.62, 0.16, 55).toColor(),
       fat: const Oklch(0.62, 0.16, 318).toColor(),
       weight: const Oklch(0.58, 0.11, 205).toColor(),
-      shadow: const [
-        BoxShadow(color: Color(0x0F000000), blurRadius: 2, offset: Offset(0, 1)),
-        BoxShadow(color: Color(0x0D000000), blurRadius: 18, offset: Offset(0, 6)),
-      ],
+      shadow: const [], // one depth cue per surface: the hairline border
     );
   }
 
@@ -132,8 +129,8 @@ abstract final class S {
   static const xs = 4.0, sm = 8.0, md = 12.0, lg = 16.0, xl = 24.0, xxl = 32.0;
 
   /// Cards use 24; anything nested inside gets `inner(24, padding)`.
-  static const radiusCard = 24.0;
-  static const radiusControl = 14.0;
+  static const radiusCard = 20.0;
+  static const radiusControl = 10.0;
 
   /// Nested rounded corners: inner radius = outer radius − padding, never below 4.
   static double inner(double outer, double padding) => (outer - padding).clamp(4.0, outer);
@@ -199,18 +196,18 @@ ThemeData buildTheme(FT t) {
       );
 
   final text = TextTheme(
-    displaySmall: s(40, FontWeight.w700, family: _fontDisplay, ls: -0.8, height: 1.05),
-    headlineMedium: s(30, FontWeight.w700, family: _fontDisplay, ls: -0.5, height: 1.1),
-    headlineSmall: s(22, FontWeight.w700, family: _fontDisplay, ls: -0.3),
-    titleLarge: s(19, FontWeight.w600, family: _fontDisplay, ls: -0.2),
+    displaySmall: s(40, FontWeight.w600, family: _fontDisplay, ls: -0.8, height: 1.05),
+    headlineMedium: s(30, FontWeight.w600, family: _fontDisplay, ls: -0.4, height: 1.1),
+    headlineSmall: s(22, FontWeight.w600, family: _fontDisplay, ls: -0.2),
+    titleLarge: s(19, FontWeight.w600, family: _fontDisplay),
     titleMedium: s(16, FontWeight.w600),
     titleSmall: s(14, FontWeight.w600),
     bodyLarge: s(16, FontWeight.w400, height: 1.4),
     bodyMedium: s(14.5, FontWeight.w400, height: 1.4),
     bodySmall: s(12.5, FontWeight.w400, height: 1.35, color: t.muted),
     labelLarge: s(14.5, FontWeight.w600),
-    labelMedium: s(12.5, FontWeight.w600, color: t.muted),
-    labelSmall: s(11, FontWeight.w600, ls: 0.6, color: t.muted),
+    labelMedium: s(12.5, FontWeight.w500, color: t.muted),
+    labelSmall: s(11.5, FontWeight.w500, ls: 0.1, color: t.muted),
   );
 
   final controlShape = RoundedRectangleBorder(borderRadius: BorderRadius.circular(S.radiusControl));
@@ -310,6 +307,7 @@ ThemeData buildTheme(FT t) {
         side: BorderSide(color: t.border),
         textStyle: s(13.5, FontWeight.w600),
         minimumSize: const Size(48, 40),
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(S.radiusControl)),
       ),
     ),
     switchTheme: SwitchThemeData(

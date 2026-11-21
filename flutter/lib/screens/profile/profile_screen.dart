@@ -86,18 +86,11 @@ class _NameCardState extends State<_NameCard> {
       padding: const EdgeInsets.all(S.xl),
       child: Row(
         children: [
-          // Solid drawing: a soft top highlight gives the disc volume.
+          // A flat ink disc with the initials, like a monogram stamp.
           Container(
             width: 64,
             height: 64,
-            decoration: BoxDecoration(
-              shape: BoxShape.circle,
-              gradient: RadialGradient(
-                center: const Alignment(-0.3, -0.45),
-                radius: 0.9,
-                colors: [t.accent, Color.lerp(t.accent, t.dark ? Colors.black : Colors.white, 0.16)!],
-              ),
-            ),
+            decoration: BoxDecoration(shape: BoxShape.circle, color: t.accent),
             child: Center(
               child: BlurSwitcher(
                 child: initials.isEmpty

@@ -202,33 +202,30 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
     return ListView(
       padding: const EdgeInsets.all(S.xl),
       children: [
-        const SizedBox(height: S.xxl),
+        const SizedBox(height: S.xl),
         Rise(
-          child: Container(
-            width: 88,
-            height: 88,
-            alignment: Alignment.centerLeft,
-            child: Container(
-              width: 88,
-              height: 88,
-              decoration: BoxDecoration(borderRadius: BorderRadius.circular(26), color: t.accent),
-              child: Center(
-                child: FIcon(Symbols.donut_large, size: 48, color: t.onAccent, weight: FontWeight.w700),
-              ),
-            ),
+          child: Row(
+            children: [
+              FIcon(Symbols.donut_large, size: 24, color: t.fg, weight: FontWeight.w600),
+              const SizedBox(width: S.sm),
+              Text('FitTrack', style: tt.titleMedium),
+            ],
           ),
         ),
         const SizedBox(height: S.xl),
         Rise(
           delay: const Duration(milliseconds: 60),
-          child: Text('Eat to your plan,\nnot to a guess.', style: tt.displaySmall),
+          child: Text('Your calories, worked out from your body.', style: tt.displaySmall),
         ),
+        const SizedBox(height: S.xl),
+        // The moment: the plan the app builds, set like the Nutrition Information panel on a packet.
+        Rise(delay: const Duration(milliseconds: 100), child: const _ExamplePanel()),
         const SizedBox(height: S.lg),
         Rise(
-          delay: const Duration(milliseconds: 100),
+          delay: const Duration(milliseconds: 120),
           child: Text(
-            'FitTrack works out your daily calories and macros, then makes logging fast: scan a barcode, snap your plate, or type it in.',
-            style: tt.bodyLarge!.copyWith(color: t.muted),
+            'Then log meals by barcode, label photo or plate photo, and see what\'s left for the day.',
+            style: tt.bodyMedium!.copyWith(color: t.muted),
           ),
         ),
         const SizedBox(height: S.xxl),
@@ -609,6 +606,56 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
           style: tt.bodySmall,
         ),
       ],
+    );
+  }
+}
+
+/// A sample plan on the welcome screen, worked out with the same calculator as yours
+/// (Mifflin–St Jeor, the default body below, Maintain, Balanced) and laid out like a
+/// Nutrition Information panel: a heading rule, then one ruled row per value.
+class _ExamplePanel extends StatelessWidget {
+  const _ExamplePanel();
+
+  @override
+  Widget build(BuildContext context) {
+    final t = FT.of(context);
+    final tt = Theme.of(context).textTheme;
+    final sample = UserProfile();
+    final n = sample.plan.targets;
+    Widget row(String label, String value, {bool lead = false}) => Container(
+      padding: const EdgeInsets.symmetric(vertical: S.sm),
+      decoration: BoxDecoration(
+        border: Border(top: BorderSide(color: t.border)),
+      ),
+      child: Row(
+        children: [
+          Expanded(child: Text(label, style: lead ? tt.titleMedium : tt.bodyMedium)),
+          Text(value, style: (lead ? tt.titleMedium : tt.bodyMedium)!.copyWith(fontFeatures: tabular)),
+        ],
+      ),
+    );
+    return Container(
+      padding: const EdgeInsets.fromLTRB(S.lg, S.md, S.lg, S.xs),
+      decoration: BoxDecoration(
+        border: Border.all(color: t.fg.withValues(alpha: 0.7), width: 1.5),
+        borderRadius: BorderRadius.circular(6),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          Text('Example daily plan', style: tt.titleMedium),
+          Text(
+            '${sample.age} years · ${whole(sample.heightCm)} cm · ${whole(sample.weightKg)} kg · moderately active',
+            style: tt.bodySmall,
+          ),
+          const SizedBox(height: S.sm),
+          Container(height: 4, color: t.fg.withValues(alpha: 0.7)),
+          row('Energy', Energy.format(n.calories), lead: true),
+          row('Protein', '${whole(n.protein)} g'),
+          row('Carbohydrate', '${whole(n.carbs)} g'),
+          row('Fat, total', '${whole(n.fat)} g'),
+        ],
+      ),
     );
   }
 }

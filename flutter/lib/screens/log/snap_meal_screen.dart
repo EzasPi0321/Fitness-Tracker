@@ -225,7 +225,7 @@ class _SnapMealScreenState extends State<SnapMealScreen> {
         const SizedBox(height: S.xl),
         FilledButton.icon(
           onPressed: _photo == null ? null : _analyze,
-          icon: const FIcon(Symbols.auto_awesome, size: 20, weight: FontWeight.w600),
+          icon: const FIcon(Symbols.scale, size: 20, weight: FontWeight.w600),
           label: Text(
             AiModel.byId(state.visionModel).isSmart
                 ? 'Estimate with AI'

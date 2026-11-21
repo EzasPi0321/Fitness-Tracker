@@ -146,7 +146,7 @@ class UserProfile {
   bool usesMetric;
   Nutrients targets;
 
-  /// First word of the name, for greetings ("Good morning, Daniel").
+  /// First word of the name, for the line above Today ("Daniel · Sat 21 Nov").
   String get firstName => name.trim().split(RegExp(r'\s+')).first;
 
   /// Up to two initials for the avatar.

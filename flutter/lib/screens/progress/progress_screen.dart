@@ -188,7 +188,7 @@ String _compact(double v) {
 }
 
 /// Grid lines: hairline, dashed and quiet, so data carries the weight.
-FlLine _gridLine(FT t) => FlLine(color: t.border.withValues(alpha: 0.6), strokeWidth: 0.8, dashArray: const [2, 4]);
+FlLine _gridLine(FT t) => FlLine(color: t.border.withValues(alpha: 0.5), strokeWidth: 0.6);
 
 class _CalorieCard extends StatelessWidget {
   const _CalorieCard({required this.days, required this.logged, required this.target, required this.range});
@@ -241,7 +241,7 @@ class _CalorieCard extends StatelessWidget {
             runSpacing: S.xs,
             children: [
               _LegendItem(
-                swatch: _DashSwatch(color: goalColor),
+                swatch: _LineSwatch(color: goalColor),
                 label: 'Goal ${Energy.format(target)}',
               ),
               _LegendItem(
@@ -345,14 +345,7 @@ class _CalorieCard extends StatelessWidget {
                           ),
                           extraLinesData: ExtraLinesData(
                             extraLinesOnTop: true,
-                            horizontalLines: [
-                              HorizontalLine(
-                                y: target * k,
-                                color: goalColor,
-                                strokeWidth: 1.5,
-                                dashArray: const [6, 4],
-                              ),
-                            ],
+                            horizontalLines: [HorizontalLine(y: target * k, color: goalColor, strokeWidth: 1.5)],
                           ),
                           barTouchData: BarTouchData(
                             touchTooltipData: BarTouchTooltipData(
@@ -503,22 +496,14 @@ class _BarSwatch extends StatelessWidget {
   );
 }
 
-class _DashSwatch extends StatelessWidget {
-  const _DashSwatch({required this.color});
+class _LineSwatch extends StatelessWidget {
+  const _LineSwatch({required this.color});
   final Color color;
   @override
-  Widget build(BuildContext context) => Row(
-    mainAxisSize: MainAxisSize.min,
-    children: [
-      for (var i = 0; i < 2; i++) ...[
-        if (i > 0) const SizedBox(width: 2),
-        Container(
-          width: 5,
-          height: 2,
-          decoration: BoxDecoration(color: color, borderRadius: BorderRadius.circular(1)),
-        ),
-      ],
-    ],
+  Widget build(BuildContext context) => Container(
+    width: 12,
+    height: 2,
+    decoration: BoxDecoration(color: color, borderRadius: BorderRadius.circular(1)),
   );
 }
 
@@ -536,7 +521,7 @@ class _Tile extends StatelessWidget {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        Text(label.toUpperCase(), style: tt.labelSmall!.copyWith(color: t.muted, letterSpacing: 0.6)),
+        Text(label, style: tt.bodySmall),
         const SizedBox(height: 4),
         Text.rich(
           TextSpan(

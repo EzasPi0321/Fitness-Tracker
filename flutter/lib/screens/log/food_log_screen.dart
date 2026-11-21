@@ -286,7 +286,7 @@ class _MacroBars extends StatelessWidget {
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              Text(label, style: tt.labelSmall!.copyWith(color: color, letterSpacing: 0.4)),
+              Text(label, style: tt.labelSmall!.copyWith(color: color)),
               FittedBox(
                 fit: BoxFit.scaleDown,
                 alignment: Alignment.centerLeft,
@@ -319,13 +319,13 @@ class _MacroBars extends StatelessWidget {
 
     return Row(
       children: [
-        bar(Energy.label.toUpperCase(), consumed.calories, targets.calories, t.calories, energy: true),
+        bar(Energy.label, consumed.calories, targets.calories, t.calories, energy: true),
         const SizedBox(width: S.md),
-        bar('PROTEIN', consumed.protein, targets.protein, t.protein),
+        bar('Protein', consumed.protein, targets.protein, t.protein),
         const SizedBox(width: S.md),
-        bar('FAT', consumed.fat, targets.fat, t.fat),
+        bar('Fat', consumed.fat, targets.fat, t.fat),
         const SizedBox(width: S.md),
-        bar('CARBS', consumed.carbs, targets.carbs, t.carbs),
+        bar('Carbs', consumed.carbs, targets.carbs, t.carbs),
       ],
     );
   }
@@ -378,7 +378,7 @@ class _HourBlock extends StatelessWidget {
                       padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
                       decoration: BoxDecoration(
                         color: isNow ? t.accent : t.inset,
-                        borderRadius: BorderRadius.circular(99),
+                        borderRadius: BorderRadius.circular(6),
                       ),
                       child: Text(
                         label,
@@ -420,7 +420,9 @@ class _HourBlock extends StatelessWidget {
                         ),
                       ),
                       Expanded(
-                        child: entries.isEmpty
+                        // One entry already shows its own numbers: the hour total only earns
+                        // its place when it adds something up.
+                        child: entries.length < 2
                             ? const SizedBox.shrink()
                             : Padding(
                                 padding: const EdgeInsets.only(right: S.xs),
@@ -606,15 +608,8 @@ class _SearchBar extends StatelessWidget {
             height: 56,
             decoration: BoxDecoration(
               color: t.raised,
-              borderRadius: BorderRadius.circular(28),
+              borderRadius: BorderRadius.circular(16),
               border: Border.all(color: t.border),
-              boxShadow: [
-                BoxShadow(
-                  color: Colors.black.withValues(alpha: t.dark ? 0.5 : 0.12),
-                  blurRadius: 20,
-                  offset: const Offset(0, 6),
-                ),
-              ],
             ),
             child: Row(
               children: [
@@ -669,18 +664,11 @@ class _SearchBar extends StatelessWidget {
             height: 56,
             decoration: BoxDecoration(
               color: t.raised,
-              shape: BoxShape.circle,
+              borderRadius: BorderRadius.circular(16),
               border: Border.all(color: t.border),
-              boxShadow: [
-                BoxShadow(
-                  color: Colors.black.withValues(alpha: t.dark ? 0.5 : 0.12),
-                  blurRadius: 20,
-                  offset: const Offset(0, 6),
-                ),
-              ],
             ),
             child: Center(
-              child: FIcon(Symbols.auto_awesome, color: t.fg, weight: FontWeight.w500),
+              child: FIcon(Symbols.photo_camera, color: t.fg, weight: FontWeight.w500),
             ),
           ),
         ),

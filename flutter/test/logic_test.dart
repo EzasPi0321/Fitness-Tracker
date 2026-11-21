@@ -626,10 +626,9 @@ void main() {
     });
   });
 
-  test('greeting and initials come from the profile name', () {
-    expect(greeting(DateTime(2026, 1, 1, 8), 'Daniel'), 'Good morning, Daniel');
-    expect(greeting(DateTime(2026, 1, 1, 14), ''), 'Good afternoon');
-    expect(greeting(DateTime(2026, 1, 1, 21), ' Sam '), 'Good evening, Sam');
+  test('the name line and initials come from the profile name', () {
+    expect(nameAndDate(DateTime(2026, 11, 21), 'Daniel'), 'Daniel · Sat 21 Nov');
+    expect(nameAndDate(DateTime(2026, 11, 21), ' '), 'Sat 21 Nov');
     expect(UserProfile(name: 'Daniel Xie').initials, 'DX');
     expect(UserProfile(name: 'Daniel Xie').firstName, 'Daniel');
     expect(UserProfile().initials, '');

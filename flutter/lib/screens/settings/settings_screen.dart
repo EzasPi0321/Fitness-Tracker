@@ -582,7 +582,7 @@ class _DataSectionState extends State<_DataSection> {
           const SizedBox.shrink()
         else if (!state.isSample)
           FRow(
-            leading: FIcon(Symbols.auto_awesome, color: t.muted),
+            leading: FIcon(Symbols.dataset, color: t.muted),
             label: 'Load sample data',
             sub: 'Replaces your log with 90 days of examples',
             onTap: () => state.loadSampleData(),

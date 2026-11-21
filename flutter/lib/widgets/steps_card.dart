@@ -87,15 +87,15 @@ class StepsCard extends StatelessWidget {
               duration: Motion.of(context, Motion.slow),
               curve: Motion.settle,
               builder: (context, f, _) => Container(
-                height: 10,
-                decoration: BoxDecoration(color: t.inset, borderRadius: BorderRadius.circular(99)),
+                height: 6,
+                decoration: BoxDecoration(color: t.inset, borderRadius: BorderRadius.circular(3)),
                 alignment: Alignment.centerLeft,
                 child: FractionallySizedBox(
                   widthFactor: f.clamp(0.0, 1.0),
                   child: Container(
                     decoration: BoxDecoration(
-                      borderRadius: BorderRadius.circular(99),
-                      gradient: oklchLinearGradient([hue.withL(hue.l - 0.08), hue.withL(hue.l + 0.06)]),
+                      borderRadius: BorderRadius.circular(3),
+                      color: hue.toColor(),
                     ),
                   ),
                 ),

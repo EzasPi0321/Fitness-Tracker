@@ -168,20 +168,9 @@ class _AddMenuState extends State<AddMenu> with SingleTickerProviderStateMixin {
                   width: fab,
                   height: fab,
                   decoration: BoxDecoration(
+                    // Flat ink disc: the one solid shape on screen, no shine.
                     shape: BoxShape.circle,
-                    // Solid drawing: a soft top-left highlight gives the disc volume.
-                    gradient: RadialGradient(
-                      center: const Alignment(-0.3, -0.45),
-                      radius: 0.9,
-                      colors: [t.accent, Color.lerp(t.accent, t.dark ? Colors.black : Colors.white, 0.14)!],
-                    ),
-                    boxShadow: [
-                      BoxShadow(
-                        color: Colors.black.withValues(alpha: t.dark ? 0.6 : 0.25),
-                        blurRadius: 18,
-                        offset: const Offset(0, 8),
-                      ),
-                    ],
+                    color: t.accent,
                   ),
                   child: Center(
                     child: BlurSwitcher(
@@ -226,9 +215,8 @@ class _MenuItem extends StatelessWidget {
             padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 7),
             decoration: BoxDecoration(
               color: t.raised,
-              borderRadius: BorderRadius.circular(99),
+              borderRadius: BorderRadius.circular(8),
               border: Border.all(color: t.border),
-              boxShadow: t.shadow,
             ),
             child: Text(item.label, style: tt.labelLarge, maxLines: 1, softWrap: false),
           ),
@@ -240,7 +228,6 @@ class _MenuItem extends StatelessWidget {
               color: t.raised,
               shape: BoxShape.circle,
               border: Border.all(color: t.border),
-              boxShadow: t.shadow,
             ),
             child: Center(
               child: FIcon(item.icon, size: 24, color: t.fg, weight: FontWeight.w600),
