@@ -345,7 +345,9 @@ Return:
 - serving_size: the serving size text as printed (e.g. "2 tbsp (32 g)"), or "" if none.
 - serving_grams: grams (or ml) in one serving, or 0 if not printed.
 - basis: "serving" if the values you report are per serving, "100g" if per 100 g / 100 ml.
-  Prefer per-serving values when the label shows both.
+  Prefer per-serving values when the label shows both. Australian/NZ panels list "Avg. Quantity per Serving"
+  then "per 100 g": use the per-serving column; their energy is usually in kJ, sometimes with Cal in brackets,
+  and fat is written "Fat, total".
 - energy: the energy number exactly as printed, and energy_unit: "kcal" or "kJ". If both are printed, give the kcal figure.
 - protein_g, carbs_g (total carbohydrate), fat_g (total fat).
 - readable: true if the panel was legible, false if you had to guess.

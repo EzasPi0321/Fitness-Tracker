@@ -655,6 +655,78 @@ Protein
       expect(r.printedUnit, EnergyUnit.kJ);
     });
 
+    test('Australian panel read row by row (kJ with Cal, "Fat, total", two columns)', () {
+      final r = LabelOcr.parse('''
+NUTRITION INFORMATION
+Servings per package: 8
+Serving size: 30 g
+Avg. Quantity per Serving Avg. Quantity per 100 g
+Energy 540 kJ (129 Cal) 1800 kJ (430 Cal)
+Protein 3.2 g 10.7 g
+Fat, total 2.1 g 7.0 g
+- saturated 0.4 g 1.3 g
+Carbohydrate 19.8 g 66.0 g
+- sugars 4.5 g 15.0 g
+Dietary Fibre 2.9 g 9.7 g
+Sodium 95 mg 317 mg
+''')!;
+      expect(r.perServing.calories, 129); // the per-serving column, not per 100 g
+      expect(r.perServing.protein, closeTo(3.2, 1e-9));
+      expect(r.perServing.fat, closeTo(2.1, 1e-9));
+      expect(r.perServing.carbs, closeTo(19.8, 1e-9));
+      expect(r.servingGrams, 30);
+      expect(r.readable, isTrue);
+    });
+
+    test('Australian panel read column by column (names first, then values)', () {
+      final r = LabelOcr.parse('''
+NUTRITION INFORMATION
+Servings per package: 5
+Serving size: 40 g
+Energy
+Protein
+Fat, total
+- saturated
+Carbohydrate
+- sugars
+Sodium
+Avg. Quantity per Serving
+628 kJ
+4.1 g
+5.6 g
+1.0 g
+21.2 g
+6.3 g
+120 mg
+Avg. Quantity per 100 g
+1570 kJ
+10.3 g
+14.0 g
+2.5 g
+53.0 g
+15.8 g
+300 mg
+''')!;
+      expect(r.perServing.calories, closeTo(628 / 4.184, 0.01));
+      expect(r.printedUnit, EnergyUnit.kJ);
+      expect(r.perServing.protein, closeTo(4.1, 1e-9));
+      expect(r.perServing.fat, closeTo(5.6, 1e-9)); // not the "- saturated" 1.0 g
+      expect(r.perServing.carbs, closeTo(21.2, 1e-9)); // not the "- sugars" 6.3 g
+      expect(r.servingGrams, 40);
+    });
+
+    test('Australian kJ-only panel with no Cal figure', () {
+      final r = LabelOcr.parse('''
+Serving size: 250 mL
+Energy 420kJ 168kJ
+Protein 8.5g 3.4g
+Fat, total 9.8g 3.9g
+Carbohydrate 12.0g 4.8g
+''')!;
+      expect(r.perServing.calories, closeTo(420 / 4.184, 0.01));
+      expect(r.perServing.fat, closeTo(9.8, 1e-9));
+    });
+
     test('text that is not a nutrition panel gives nothing', () {
       expect(LabelOcr.parse('Ingredients: oats, honey, almonds'), isNull);
     });

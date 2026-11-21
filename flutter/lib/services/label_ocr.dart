@@ -42,7 +42,8 @@ class LabelOcr {
     // Energy: prefer a kcal figure, then "Calories N", then kJ converted.
     double? kcal;
     var printedKJ = false;
-    final kcalMatch = RegExp(r'(\d+(?:[.,]\d+)?)\s*kcal').firstMatch(all);
+    // "kcal", or Australian "Cal" as in "540 kJ (129 Cal)".
+    final kcalMatch = RegExp(r'(\d+(?:[.,]\d+)?)\s*(?:kcal|cal)\b').firstMatch(all);
     if (kcalMatch != null) kcal = parseLenientNumber(kcalMatch.group(1));
     kcal ??= _valueAfter(lines, RegExp(r'^calories\b'), unit: '');
     if (kcal == null) {
@@ -54,9 +55,22 @@ class LabelOcr {
       }
     }
 
-    final fat = _valueAfter(lines, RegExp(r'^(total\s+)?fat\b'));
-    final carbs = _valueAfter(lines, RegExp(r'^(total\s+)?carbohydrates?\b|^carbs\b'));
-    final protein = _valueAfter(lines, RegExp(r'^proteins?\b'));
+    var fat = _valueAfter(lines, RegExp(r'^(total\s+)?fat\b'));
+    var carbs = _valueAfter(lines, RegExp(r'^(total\s+)?carbohydrates?\b|^carbs\b'));
+    var protein = _valueAfter(lines, RegExp(r'^proteins?\b'));
+
+    // Table read column by column (common on Australian/NZ panels): names first, then
+    // each column of values. Fill only what the line-by-line pass missed.
+    if (kcal == null || fat == null || carbs == null || protein == null) {
+      final cols = _columns(lines);
+      if (kcal == null && cols.energyKcal != null) {
+        kcal = cols.energyKcal;
+        printedKJ = cols.energyWasKJ;
+      }
+      fat ??= cols.fat;
+      carbs ??= cols.carbs;
+      protein ??= cols.protein;
+    }
 
     final found = [kcal, fat, carbs, protein].where((v) => v != null).length;
     if (found < 2) return null;
@@ -90,6 +104,52 @@ class LabelOcr {
     );
   }
 
+  static final _valueOnly = RegExp(r'^[<~]?\s*(\d+(?:[.,]\d+)?)\s*(g|mg|mcg|µg|kj|kcal|cal)?\b\s*(\([^)]*\))?\s*%?$');
+
+  /// Pairs nutrient names with values when OCR returned them as separate runs of lines.
+  /// The first value after the names belongs to the first name, and so on: that is the
+  /// first column, which is per serving on Australian panels.
+  static _Columns _columns(List<String> lines) {
+    final names = <String>[];
+    final values = <String>[];
+    for (final raw in lines) {
+      final l = raw.replaceFirst(RegExp(r'^[-–•*\s]+'), '');
+      if (_valueOnly.hasMatch(l)) {
+        if (names.isNotEmpty) values.add(l);
+      } else if (!RegExp(r'\d').hasMatch(l) &&
+          RegExp(
+            r'^(energy|protein|fat|saturated|trans|carbohydrate|sugars?|dietary|fibre|fiber|sodium|salt|calories|cholesterol|potassium|calcium|polyunsaturated|monounsaturated)',
+          ).hasMatch(l)) {
+        names.add(l);
+      }
+    }
+    final c = _Columns();
+    for (var i = 0; i < names.length && i < values.length; i++) {
+      final name = names[i];
+      final m = _valueOnly.firstMatch(values[i])!;
+      final v = parseLenientNumber(m.group(1));
+      if (v == null) continue;
+      if (name.startsWith('energy') || name.startsWith('calories')) {
+        final cal = RegExp(r'(\d+(?:[.,]\d+)?)\s*(?:kcal|cal)\b').firstMatch(values[i]);
+        if (cal != null) {
+          c.energyKcal = parseLenientNumber(cal.group(1));
+        } else if (m.group(2) == 'kj') {
+          c.energyKcal = v / kilojoulesPerKcal;
+          c.energyWasKJ = true;
+        } else {
+          c.energyKcal = v;
+        }
+      } else if (RegExp(r'^fat\b').hasMatch(name)) {
+        c.fat ??= v;
+      } else if (name.startsWith('carbohydrate')) {
+        c.carbs ??= v;
+      } else if (name.startsWith('protein')) {
+        c.protein ??= v;
+      }
+    }
+    return c;
+  }
+
   /// The first gram value on the line that starts with [label], or on one of the next two
   /// lines (OCR often splits a table's label and value columns). Skips sub-rows such as
   /// "Saturated Fat" or "of which sugars" because they don't start with the label.
@@ -107,4 +167,12 @@ class LabelOcr {
     }
     return null;
   }
+}
+
+class _Columns {
+  double? energyKcal;
+  bool energyWasKJ = false;
+  double? fat;
+  double? carbs;
+  double? protein;
 }
