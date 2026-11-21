@@ -1,10 +1,12 @@
 import 'package:flutter/material.dart';
+import 'package:intl/intl.dart';
 import 'package:material_symbols_icons/symbols.dart';
 
 import '../../data/app_state.dart';
 import '../../design/motion.dart';
 import '../../design/smooth_scroll.dart';
 import '../../design/tokens.dart';
+import '../../models/ai_usage.dart';
 import '../../models/nutrients.dart';
 import '../../models/profile.dart';
 import '../../models/util.dart';
@@ -544,6 +546,8 @@ class _AISectionState extends State<_AISection> {
             style: Theme.of(context).textTheme.bodySmall,
           ),
         ),
+        const SizedBox(height: S.lg),
+        const _AiUsageGroup(),
       ],
     );
   }
@@ -667,6 +671,79 @@ class _UpdateRowState extends State<_UpdateRow> {
           : update == null
           ? FIcon(Symbols.refresh, color: t.muted)
           : FIcon(Symbols.download, color: t.fg, weight: FontWeight.w600),
+    );
+  }
+}
+
+/// What photo estimates cost and how much credit is left. The API key can't read the account
+/// balance, so the user types it in once and FitTrack counts down from there using the token
+/// counts the provider reports with every answer.
+class _AiUsageGroup extends StatelessWidget {
+  const _AiUsageGroup();
+
+  @override
+  Widget build(BuildContext context) {
+    final state = AppScope.of(context);
+    final t = FT.of(context);
+    final tt = Theme.of(context).textTheme;
+    final month = state.aiUsageThisMonth.toList();
+    final monthUsd = month.fold<double>(0, (a, u) => a + (u.usd ?? 0));
+    final priced = state.visionProvider == VisionProvider.claude;
+    final per = state.costPerPhotoUsd;
+    final left = state.aiBalanceLeftUsd;
+    final photos = state.photosLeft;
+    final tokens = month.fold<int>(0, (a, u) => a + u.inputTokens + u.outputTokens);
+
+    Widget value(String text, {Color? color}) => Text(
+      text,
+      style: tt.titleSmall!.copyWith(color: color, fontFeatures: tabular),
+    );
+
+    return FGroup(
+      label: 'Usage',
+      footer: Text(
+        priced
+            ? 'Costs come from the tokens Claude reports with every answer, at Anthropic’s list prices. '
+                  'Your API key can’t read your balance, so type it in from the Anthropic Console (Billing) and FitTrack counts down from there.'
+            : 'Tokens are counted from every answer. FitTrack doesn’t track prices for this provider; check its console for your balance.',
+      ),
+      children: [
+        FRow(
+          label: 'This month',
+          sub: month.isEmpty
+              ? 'No photos sent yet'
+              : '${month.length} ${month.length == 1 ? 'photo' : 'photos'} and labels',
+          trailing: value(priced ? (month.isEmpty ? '–' : formatUsd(monthUsd)) : '${whole(tokens.toDouble())} tokens'),
+        ),
+        if (priced && per != null)
+          FRow(
+            label: 'Per photo',
+            sub: state.costPerPhotoIsMeasured ? 'Average of your recent photos' : 'Estimate until you’ve sent some',
+            trailing: value(formatUsd(per)),
+          ),
+        if (priced)
+          FRow(
+            label: 'Credit balance',
+            sub: state.aiBalanceAt == null
+                ? 'Optional: what your Anthropic Console shows'
+                : 'Entered ${DateFormat('d MMM').format(state.aiBalanceAt!)}',
+            trailing: NumberInput(
+              key: ValueKey(state.aiBalanceAt),
+              value: state.aiBalanceUsd,
+              unit: 'US\$',
+              hint: 'US\$',
+              maxDigits: 2,
+              width: 120,
+              onChanged: (v) => state.setAiBalance(v),
+            ),
+          ),
+        if (priced && left != null)
+          FRow(
+            label: 'Left now',
+            sub: photos == null ? null : 'About $photos more ${photos == 1 ? 'photo' : 'photos'} at your current mix',
+            trailing: value(formatUsd(left), color: photos != null && photos < 20 ? t.warn : null),
+          ),
+      ],
     );
   }
 }

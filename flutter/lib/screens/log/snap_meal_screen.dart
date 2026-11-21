@@ -9,6 +9,7 @@ import 'package:material_symbols_icons/symbols.dart';
 import '../../data/app_state.dart';
 import '../../design/motion.dart';
 import '../../design/tokens.dart';
+import '../../models/ai_usage.dart';
 import '../../models/food.dart';
 import '../../models/nutrients.dart';
 import '../../models/util.dart';
@@ -89,6 +90,9 @@ class _SnapMealScreenState extends State<SnapMealScreen> {
     }
   }
 
+  /// What the last estimate cost, when the provider's price is known.
+  double? _photoUsd;
+
   Future<void> _analyze() async {
     final photo = _photo;
     if (photo == null) return;
@@ -98,11 +102,12 @@ class _SnapMealScreenState extends State<SnapMealScreen> {
       _phase = _Phase.working;
       _error = null;
     });
+    final service = AIVisionService(provider: state.visionProvider, apiKey: key, model: state.visionModel);
     try {
-      final service = AIVisionService(provider: state.visionProvider, apiKey: key, model: state.visionModel);
       final result = await service.analyzeMeal(photo, hint: _hint.text);
       if (!mounted) return;
       setState(() {
+        _photoUsd = service.calls.isEmpty ? null : AiUsage.ofCalls('meal', service.calls).usd;
         _analysis = result;
         _include
           ..clear()
@@ -117,6 +122,9 @@ class _SnapMealScreenState extends State<SnapMealScreen> {
           _error = e.message;
         });
       }
+    } finally {
+      // Counted even when the answer was unusable: the provider still bills the request.
+      state.recordAiUsage('meal', service.calls);
     }
   }
 
@@ -241,6 +249,8 @@ class _SnapMealScreenState extends State<SnapMealScreen> {
           style: tt.bodySmall,
           textAlign: TextAlign.center,
         ),
+        const SizedBox(height: S.xs),
+        _CostLine(state: state),
       ],
     );
   }
@@ -278,7 +288,8 @@ class _SnapMealScreenState extends State<SnapMealScreen> {
                   child: Text(
                     a.escalated
                         ? 'Checked by ${AiModel.nameOf(a.answeredBy)}: the quick model wasn’t sure about this one.'
-                        : 'Estimated by ${AiModel.nameOf(a.answeredBy)}.',
+                        : 'Estimated by ${AiModel.nameOf(a.answeredBy)}'
+                              '${_photoUsd == null ? '' : ' · this photo cost ${formatUsd(_photoUsd!)}'}.',
                     style: tt.bodySmall!.copyWith(color: FT.of(context).muted),
                   ),
                 ),
@@ -561,6 +572,37 @@ class _ReadingPhotoState extends State<_ReadingPhoto> with SingleTickerProviderS
             ),
           ),
       ],
+    );
+  }
+}
+
+/// Before sending: what a photo costs and, when a balance was entered, how many are left.
+/// Turns amber when the credit is nearly gone, so it never runs out by surprise.
+class _CostLine extends StatelessWidget {
+  const _CostLine({required this.state});
+  final AppState state;
+
+  @override
+  Widget build(BuildContext context) {
+    final t = FT.of(context);
+    final tt = Theme.of(context).textTheme;
+    final per = state.costPerPhotoUsd;
+    if (per == null) return const SizedBox.shrink();
+    final left = state.photosLeft;
+    final low = left != null && left < 20;
+    final text = [
+      '${state.costPerPhotoIsMeasured ? '' : 'About '}${formatUsd(per)} a photo',
+      if (left != null) 'about $left left',
+    ].join(' · ');
+    if (low) {
+      return Center(
+        child: StatusPill(text: left == 0 ? 'Credit used up: top up in your Anthropic Console' : text, color: t.warn),
+      );
+    }
+    return Text(
+      text,
+      style: tt.bodySmall!.copyWith(fontFeatures: tabular),
+      textAlign: TextAlign.center,
     );
   }
 }

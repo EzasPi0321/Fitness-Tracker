@@ -4,6 +4,7 @@ import 'dart:typed_data';
 import 'package:flutter/foundation.dart' show kIsWeb;
 import 'package:http/http.dart' as http;
 
+import '../models/ai_usage.dart';
 import '../models/nutrients.dart';
 import '../models/util.dart';
 import 'open_food_facts.dart' show lossyDouble;
@@ -167,8 +168,18 @@ class VisionException implements Exception {
 
 /// Sends a meal photo to a multimodal model and returns structured nutrition estimates.
 class AIVisionService {
-  AIVisionService({required this.provider, required this.apiKey, required this.model, http.Client? client})
-    : _client = client ?? http.Client();
+  AIVisionService({
+    required this.provider,
+    required this.apiKey,
+    required this.model,
+    http.Client? client,
+    List<AiCall>? calls,
+  }) : _client = client ?? http.Client(),
+       calls = calls ?? [];
+
+  /// Every request this service made, with the tokens the provider reported. Read it after a
+  /// photo to record what it cost (Smart mode's two requests land in the same list).
+  final List<AiCall> calls;
 
   final VisionProvider provider;
   final String apiKey;
@@ -231,7 +242,8 @@ Respond with JSON only.''';
     );
   }
 
-  AIVisionService _as(String id) => AIVisionService(provider: provider, apiKey: apiKey, model: id, client: _client);
+  AIVisionService _as(String id) =>
+      AIVisionService(provider: provider, apiKey: apiKey, model: id, client: _client, calls: calls);
 
   Future<MealAnalysis> analyzeMeal(Uint8List jpeg, {String? hint}) async {
     if (apiKey.trim().isEmpty) throw VisionException.missingKey;
@@ -289,6 +301,15 @@ Respond with JSON only.''';
       {'x-goog-api-key': apiKey},
       body,
     );
+    final meta = json['usageMetadata'] as Map?;
+    calls.add(
+      AiCall(
+        model: model,
+        inputTokens: ((meta?['promptTokenCount'] as num?) ?? 0).toInt(),
+        outputTokens: (((meta?['candidatesTokenCount'] as num?) ?? 0) + ((meta?['thoughtsTokenCount'] as num?) ?? 0))
+            .toInt(),
+      ),
+    );
     final reason = (json['promptFeedback'] as Map?)?['blockReason'];
     if (reason != null) throw VisionException('The AI service declined this image ($reason).');
     final candidates = json['candidates'] as List?;
@@ -322,6 +343,14 @@ Respond with JSON only.''';
     final json = await _post(Uri.parse('https://api.openai.com/v1/chat/completions'), {
       'Authorization': 'Bearer $apiKey',
     }, body);
+    final u = json['usage'] as Map?;
+    calls.add(
+      AiCall(
+        model: model,
+        inputTokens: ((u?['prompt_tokens'] as num?) ?? 0).toInt(),
+        outputTokens: ((u?['completion_tokens'] as num?) ?? 0).toInt(),
+      ),
+    );
     final message = ((json['choices'] as List?)?.firstOrNull as Map?)?['message'] as Map?;
     if (message == null) throw VisionException.empty;
     final refusal = message['refusal'] as String?;
@@ -372,6 +401,19 @@ Respond with JSON only.''';
       },
       body,
       timeout: const Duration(seconds: 120),
+    );
+    // Recorded before reading the answer: a declined request is still billed.
+    final u = json['usage'] as Map?;
+    calls.add(
+      AiCall(
+        model: (json['model'] as String?) ?? model, // a fallback may have answered
+        inputTokens:
+            (((u?['input_tokens'] as num?) ?? 0) +
+                    ((u?['cache_creation_input_tokens'] as num?) ?? 0) +
+                    ((u?['cache_read_input_tokens'] as num?) ?? 0))
+                .toInt(),
+        outputTokens: ((u?['output_tokens'] as num?) ?? 0).toInt(),
+      ),
     );
     return claudeText(json);
   }

@@ -302,11 +302,12 @@ Future<LabelReading?> readLabelPhoto(BuildContext context, ImageSource source) a
     try {
       final jpeg = await prepareMealPhoto(await file.readAsBytes());
       if (jpeg == null) throw const VisionException("That file couldn’t be read as a photo.");
-      reading = await AIVisionService(
-        provider: state.visionProvider,
-        apiKey: key,
-        model: state.visionModel,
-      ).readNutritionLabel(jpeg);
+      final service = AIVisionService(provider: state.visionProvider, apiKey: key, model: state.visionModel);
+      try {
+        reading = await service.readNutritionLabel(jpeg);
+      } finally {
+        state.recordAiUsage('label', service.calls);
+      }
     } on VisionException catch (e) {
       error = e.message;
     }
