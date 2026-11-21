@@ -64,6 +64,27 @@ class SampleData {
         ('Cottage Cheese', 'Good Culture', 140, 19, 6, 4, EntrySource.barcode),
       ],
     };
+    // Typical fibre (g), sugars (g) and weight (g) per serving, so the preview shows a real
+    // spread of health scores.
+    const extras = <String, (double, double, double)>{
+      'Greek Yogurt': (0, 6, 170),
+      'Oatmeal with Berries': (8, 12, 350),
+      'Scrambled Eggs': (0, 1, 120),
+      'Banana': (3.1, 14, 118),
+      'Whole-Grain Toast': (5, 5, 56),
+      'Chicken Salad': (5, 6, 350),
+      'Turkey Wrap': (4, 5, 250),
+      'Salmon Rice Bowl': (4, 6, 450),
+      'Lentil Soup': (11, 6, 400),
+      'Spaghetti Bolognese': (7, 12, 450),
+      'Steak & Potatoes': (5, 3, 450),
+      'Chicken Stir-Fry': (6, 10, 420),
+      'Veggie Burrito': (13, 6, 380),
+      'Protein Bar': (14, 1, 60),
+      'Apple': (4.4, 19, 182),
+      'Almonds': (3.5, 1.2, 28),
+      'Cottage Cheese': (0, 4, 150),
+    };
     const hours = {MealType.breakfast: 8.0, MealType.lunch: 12.5, MealType.dinner: 19.0, MealType.snack: 15.5};
 
     FoodEntry make(
@@ -82,7 +103,17 @@ class SampleData {
         consumedAt: day.add(Duration(minutes: minutes)),
         quantity: qty,
         unit: 'serving',
-        nutrients: Nutrients(calories: f.$3, protein: f.$4, carbs: f.$5, fat: f.$6) * qty,
+        grams: extras[f.$1] == null ? null : extras[f.$1]!.$3 * qty,
+        nutrients:
+            Nutrients(
+              calories: f.$3,
+              protein: f.$4,
+              carbs: f.$5,
+              fat: f.$6,
+              fiber: extras[f.$1]?.$1 ?? 0,
+              sugar: extras[f.$1]?.$2 ?? 0,
+            ) *
+            qty,
       );
     }
 

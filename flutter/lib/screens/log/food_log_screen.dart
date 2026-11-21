@@ -13,6 +13,7 @@ import '../../models/nutrients.dart';
 import '../../models/util.dart';
 import '../../services/open_food_facts.dart';
 import '../../services/platform_caps.dart';
+import '../../widgets/score.dart';
 import '../../widgets/common.dart';
 import '../today/edit_entry_sheet.dart';
 import '../today/today_screen.dart' show DayCarousel;
@@ -534,11 +535,25 @@ class _LogCard extends StatelessWidget {
                       maxLines: 1,
                       overflow: TextOverflow.ellipsis,
                     ),
-                    Text(
-                      macros,
-                      style: tt.labelSmall!.copyWith(color: t.muted, fontFeatures: tabular),
-                      maxLines: 1,
-                      overflow: TextOverflow.ellipsis,
+                    Row(
+                      children: [
+                        Flexible(
+                          child: Text(
+                            macros,
+                            style: tt.labelSmall!.copyWith(color: t.muted, fontFeatures: tabular),
+                            maxLines: 1,
+                            overflow: TextOverflow.ellipsis,
+                          ),
+                        ),
+                        if (entry.healthScore case final score?) ...[
+                          const SizedBox(width: S.sm),
+                          ScoreBadge(
+                            score.score,
+                            size: 12,
+                            onTap: () => showScoreSheet(context, name: entry.name, score: score),
+                          ),
+                        ],
+                      ],
                     ),
                   ],
                 ),

@@ -6,6 +6,7 @@ import 'package:fittrack/data/storage.dart';
 import 'package:fittrack/design/oklch.dart';
 import 'package:fittrack/models/food.dart';
 import 'package:fittrack/models/gym.dart';
+import 'package:fittrack/models/health_score.dart';
 import 'package:fittrack/models/nutrients.dart';
 import 'package:fittrack/models/profile.dart';
 import 'package:fittrack/models/sleep.dart';
@@ -748,6 +749,8 @@ Protein 7g
       expect(r.perServing.fat, 16);
       expect(r.perServing.carbs, 8);
       expect(r.perServing.protein, 7);
+      expect(r.perServing.fiber, 2);
+      expect(r.perServing.sugar, 3);
       expect(r.servingGrams, 32);
       expect(r.readable, isTrue);
     });
@@ -772,6 +775,7 @@ Protein
       expect(r.perServing.fat, closeTo(30.9, 1e-9));
       expect(r.perServing.carbs, closeTo(57.5, 1e-9));
       expect(r.perServing.protein, closeTo(6.3, 1e-9));
+      expect(r.perServing.sugar, closeTo(56.3, 1e-9));
       expect(r.servingGrams, 100);
       expect(r.servingDescription, '100 g');
     });
@@ -801,6 +805,8 @@ Sodium 95 mg 317 mg
       expect(r.perServing.protein, closeTo(3.2, 1e-9));
       expect(r.perServing.fat, closeTo(2.1, 1e-9));
       expect(r.perServing.carbs, closeTo(19.8, 1e-9));
+      expect(r.perServing.sugar, closeTo(4.5, 1e-9));
+      expect(r.perServing.fiber, closeTo(2.9, 1e-9));
       expect(r.servingGrams, 30);
       expect(r.readable, isTrue);
     });
@@ -1013,6 +1019,54 @@ Carbohydrate 12.0g 4.8g
       expect(again.gym, isEmpty);
       again.restoreGym(removed);
       expect(again.gym, hasLength(1));
+    });
+  });
+  group('Health score', () {
+    int score(Nutrients n, [double? g]) => HealthScore.of(n, grams: g)!.score;
+
+    test('whole foods score high, snack foods low', () {
+      // per 100 g
+      final broccoli = score(
+        const Nutrients(calories: 34, protein: 2.8, carbs: 7, fat: 0.4, fiber: 2.6, sugar: 1.7),
+        100,
+      );
+      final chicken = score(const Nutrients(calories: 165, protein: 31, carbs: 0, fat: 3.6), 100);
+      final banana = score(
+        const Nutrients(calories: 105, protein: 1.3, carbs: 27, fat: 0.4, fiber: 3.1, sugar: 14),
+        118,
+      );
+      final rice = score(const Nutrients(calories: 130, protein: 2.7, carbs: 28, fat: 0.3, fiber: 0.4), 100);
+      final crisps = score(const Nutrients(calories: 536, protein: 7, carbs: 53, fat: 35, fiber: 4.4, sugar: 0.5), 100);
+      final cola = score(const Nutrients(calories: 140, carbs: 39, sugar: 39), 330);
+      expect(broccoli, greaterThanOrEqualTo(95));
+      expect(chicken, inInclusiveRange(65, 80));
+      expect(banana, inInclusiveRange(65, 80)); // fruit sugar comes with fibre, so it isn't punished
+      expect(rice, inInclusiveRange(40, 60));
+      expect(crisps, lessThan(25));
+      expect(cola, lessThan(35));
+      expect(ScoreBand.of(broccoli), ScoreBand.excellent);
+      expect(ScoreBand.of(crisps), ScoreBand.poor);
+    });
+
+    test('without a weight, density is left out instead of counted as zero', () {
+      final s = HealthScore.of(const Nutrients(calories: 480, protein: 42, carbs: 18, fat: 26))!;
+      expect(s.parts.first.counted, isFalse);
+      expect(s.score, inInclusiveRange(55, 70));
+    });
+
+    test('a meal is weighted by calories', () {
+      final avg = HealthScore.average([
+        (const Nutrients(calories: 34, protein: 2.8, fiber: 2.6, carbs: 7, fat: 0.4), 100.0), // ~100
+        (const Nutrients(calories: 536, protein: 7, carbs: 53, fat: 35, fiber: 4.4), 100.0), // low
+      ])!;
+      expect(avg, lessThan(30)); // the crisps carry most of the calories
+      expect(HealthScore.of(Nutrients.zero), isNull);
+    });
+
+    test('fibre and sugar survive saving', () {
+      const n = Nutrients(calories: 100, fiber: 3, sugar: 12);
+      expect(Nutrients.fromJson(n.toJson()), n);
+      expect(Nutrients.fromJson(const Nutrients(calories: 5).toJson()).fiber, 0);
     });
   });
 }

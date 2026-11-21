@@ -7,12 +7,14 @@ import 'package:material_symbols_icons/symbols.dart';
 
 import '../../data/app_state.dart';
 import '../../design/tokens.dart';
+import '../../models/health_score.dart';
 import '../../models/food.dart';
 import '../../models/util.dart';
 import '../../services/ai_vision.dart';
 import '../../services/label_ocr.dart';
 import '../../services/open_food_facts.dart';
 import '../../services/platform_caps.dart';
+import '../../widgets/score.dart';
 import '../../widgets/common.dart';
 import 'manual_entry_screen.dart';
 import 'product_sheet.dart';
@@ -30,10 +32,25 @@ Future<void> logAndCelebrate(BuildContext context, List<FoodEntry> entries) asyn
   HapticFeedback.mediumImpact();
   final kcal = entries.fold<double>(0, (a, e) => a + e.nutrients.calories);
   final what = entries.length == 1 ? entries.first.name : '${entries.length} items';
+  // The score lands with the confirmation: one food's own, or the plate's weighted by calories.
+  final score = HealthScore.average([for (final e in entries) (e.nutrients, e.grams)]);
   messenger.hideCurrentSnackBar();
   messenger.showSnackBar(
     SnackBar(
-      content: Text('Logged $what · ${Energy.format(kcal)}'),
+      content: Row(
+        children: [
+          Expanded(child: Text('Logged $what · ${Energy.format(kcal)}', maxLines: 2, overflow: TextOverflow.ellipsis)),
+          if (score != null) ...[
+            const SizedBox(width: S.md),
+            ScoreBadge(
+              score,
+              label: ScoreBand.of(score).label,
+              // The snack bar is dark in light mode too.
+              textColor: FT.of(context).dark ? FT.of(context).fg : FT.of(context).bg,
+            ),
+          ],
+        ],
+      ),
       action: SnackBarAction(
         label: 'Undo',
         onPressed: () {

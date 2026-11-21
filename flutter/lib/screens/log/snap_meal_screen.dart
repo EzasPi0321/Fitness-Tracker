@@ -388,7 +388,9 @@ class _DetectedCard extends StatelessWidget {
                             ..calories *= f
                             ..protein *= f
                             ..carbs *= f
-                            ..fat *= f;
+                            ..fat *= f
+                            ..fiber *= f
+                            ..sugar *= f;
                           onChanged();
                         },
                       ),

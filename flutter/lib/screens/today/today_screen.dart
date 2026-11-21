@@ -10,8 +10,10 @@ import '../../models/nutrients.dart';
 import '../../models/util.dart';
 import '../../services/health_service.dart';
 import '../../services/platform_caps.dart';
+import '../../widgets/score.dart';
 import '../../widgets/common.dart';
 import '../../widgets/rings.dart';
+import '../../models/health_score.dart';
 import '../../models/sleep.dart';
 import '../../widgets/gym_card.dart';
 import '../../widgets/sleep_card.dart';
@@ -122,6 +124,7 @@ class _TodayScreenState extends State<TodayScreen> {
       showActive: state.healthEnabled && state.health.isSupported,
       includeActive: state.healthEnabled && state.addActiveEnergy,
       pulse: state.logPulse,
+      foodScore: HealthScore.average([for (final e in entries) (e.nutrients, e.grams)]),
     );
 
     final meals = Column(
@@ -402,8 +405,11 @@ class _SummaryCard extends StatelessWidget {
     required this.showActive,
     required this.includeActive,
     required this.pulse,
+    this.foodScore,
   });
 
+  /// The day's health score: each food weighted by its calories.
+  final int? foodScore;
   final Nutrients consumed;
   final Nutrients targets;
   final double active;
@@ -460,6 +466,17 @@ class _SummaryCard extends StatelessWidget {
           ].join(' · '),
           style: tt.bodySmall!.copyWith(fontFeatures: tabular),
         ),
+        if (foodScore != null) ...[
+          const SizedBox(height: S.sm),
+          Wrap(
+            spacing: S.sm,
+            crossAxisAlignment: WrapCrossAlignment.center,
+            children: [
+              Text('Food score', style: tt.bodySmall),
+              ScoreBadge(foodScore!, size: 13, label: ScoreBand.of(foodScore!).label),
+            ],
+          ),
+        ],
       ],
     );
 
@@ -637,11 +654,25 @@ class _EntryRow extends StatelessWidget {
                       if (entry.trust != null) ...[const SizedBox(width: 4), TrustTag(entry.trust!, compact: true)],
                     ],
                   ),
-                  Text(
-                    [?entry.brand, entry.portionDescription].join(' · '),
-                    style: tt.bodySmall,
-                    maxLines: 1,
-                    overflow: TextOverflow.ellipsis,
+                  Row(
+                    children: [
+                      Flexible(
+                        child: Text(
+                          [?entry.brand, entry.portionDescription].join(' · '),
+                          style: tt.bodySmall,
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
+                        ),
+                      ),
+                      if (entry.healthScore case final score?) ...[
+                        const SizedBox(width: S.sm),
+                        ScoreBadge(
+                          score.score,
+                          size: 12,
+                          onTap: () => showScoreSheet(context, name: entry.name, score: score),
+                        ),
+                      ],
+                    ],
                   ),
                 ],
               ),
