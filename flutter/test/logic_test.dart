@@ -769,6 +769,9 @@ Carbohydrate 12.0g 4.8g
   });
 
   test('the live app removes old sample data but keeps what the user logged', () async {
+    // Act as a release build: tests run in debug mode, which allows sample data.
+    AppState.demoOverride = false;
+    addTearDown(() => AppState.demoOverride = null);
     // An older version saved sample data; the user also logged one real meal.
     final store = MemoryStore();
     final old = AppState(store: store, health: UnsupportedHealthService());
@@ -789,7 +792,7 @@ Carbohydrate 12.0g 4.8g
     await old.flush();
 
     final s = AppState(store: store, health: UnsupportedHealthService());
-    await s.load(); // not the web preview, so sample data isn't allowed
+    await s.load(); // a release phone build, so sample data isn't allowed
     expect(AppState.demoAllowed, isFalse);
     expect(s.isSample, isFalse);
     expect(s.profile, isNull); // back to setup

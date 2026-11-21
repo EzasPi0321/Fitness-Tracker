@@ -2,7 +2,7 @@ import 'dart:async';
 import 'dart:convert';
 import 'dart:math';
 
-import 'package:flutter/foundation.dart' show kIsWeb;
+import 'package:flutter/foundation.dart' show kDebugMode, kIsWeb;
 import 'package:flutter/material.dart' show ThemeMode;
 import 'package:flutter/widgets.dart';
 
@@ -405,8 +405,13 @@ class AppState extends ChangeNotifier {
 
   // ---- Sample data ----
 
-  /// Sample data is for the web preview only.
-  static bool get demoAllowed => kIsWeb;
+  /// Sample data is offered in the web preview, in debug builds (`flutter run`), and in any
+  /// build made with `--dart-define=FITTRACK_DEMO=true`. Release builds from CI never have it.
+  static bool get demoAllowed => demoOverride ?? (kIsWeb || kDebugMode || const bool.fromEnvironment('FITTRACK_DEMO'));
+
+  /// Lets tests act as a release build (tests themselves run in debug mode).
+  @visibleForTesting
+  static bool? demoOverride;
 
   /// Drops the generated examples (their ids start with "sample-") but keeps anything the
   /// user logged themselves, then sends them to onboarding to set up their own plan.
