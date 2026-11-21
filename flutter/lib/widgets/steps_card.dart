@@ -3,7 +3,6 @@ import 'package:material_symbols_icons/symbols.dart';
 
 import '../data/app_state.dart';
 import '../design/motion.dart';
-import '../design/oklch.dart';
 import '../design/tokens.dart';
 import '../models/util.dart';
 import 'common.dart';
@@ -22,7 +21,8 @@ class StepsCard extends StatelessWidget {
     final tt = Theme.of(context).textTheme;
     final goal = state.stepGoal;
     final count = steps;
-    const hue = Oklch(0.72, 0.15, 160);
+    // Neutral, like the calorie bars: green only ever means calories against the goal.
+    final barColor = t.fg.withValues(alpha: t.dark ? 0.86 : 0.78);
     final frac = count == null || goal <= 0 ? 0.0 : count / goal;
 
     return FCard(
@@ -77,7 +77,7 @@ class StepsCard extends StatelessWidget {
                   ],
                 ),
               ),
-              if (frac >= 1) StatusPill(text: 'Goal reached', color: hue.toColor(), icon: Symbols.check),
+              if (frac >= 1) StatusPill(text: 'Goal reached', color: t.fg, icon: Symbols.check),
             ],
           ),
           if (count != null) ...[
@@ -95,7 +95,7 @@ class StepsCard extends StatelessWidget {
                   child: Container(
                     decoration: BoxDecoration(
                       borderRadius: BorderRadius.circular(3),
-                      color: hue.toColor(),
+                      color: barColor,
                     ),
                   ),
                 ),

@@ -288,9 +288,10 @@ class _SampleBanner extends StatelessWidget {
       child: Container(
         padding: const EdgeInsets.fromLTRB(S.lg, S.sm, S.sm, S.sm),
         decoration: BoxDecoration(
-          color: t.warn.withValues(alpha: 0.12),
+          // A plain card: amber stays on the icon, so a demo notice never outranks the data.
+          color: t.surface,
           borderRadius: BorderRadius.circular(S.radiusControl),
-          border: Border.all(color: t.warn.withValues(alpha: 0.3)),
+          border: Border.all(color: t.border),
         ),
         child: Row(
           children: [

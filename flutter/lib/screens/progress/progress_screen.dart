@@ -717,7 +717,7 @@ class _WeightCard extends StatelessWidget {
       final hi = (vals.reduce(math.max) + 1).ceilToDouble();
       final interval = math.max(1.0, ((hi - lo) / 4).ceilToDouble());
       final spots = [for (final p in points) FlSpot(x(p.date), _d(p.kilograms))];
-      final wo = Oklch(t.dark ? 0.74 : 0.58, t.dark ? 0.10 : 0.11, 205);
+      final wo = t.bodyO;
       body = SizedBox(
         height: 200,
         child: LineChart(
