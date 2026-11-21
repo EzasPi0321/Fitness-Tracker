@@ -19,7 +19,7 @@ name: Build FitTrack
 on:
   push:
     branches: ["**"]
-    paths-ignore: ["**.md"]
+    paths-ignore: ["**.md", ".claude/**"]
   workflow_dispatch:
 
 permissions:
