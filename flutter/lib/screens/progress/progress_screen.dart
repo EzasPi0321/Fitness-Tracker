@@ -11,6 +11,7 @@ import '../../design/oklch.dart';
 import '../../design/tokens.dart';
 import '../../models/nutrients.dart';
 import '../../models/profile.dart';
+import '../../models/sleep.dart';
 import '../../models/util.dart';
 import '../../services/health_service.dart';
 import '../../widgets/common.dart';
@@ -42,6 +43,7 @@ class ProgressScreen extends StatefulWidget {
 class _ProgressScreenState extends State<ProgressScreen> {
   TrendRange _range = TrendRange.week;
   List<WeightSample> _healthWeights = const [];
+  List<SleepNight> _healthSleep = const [];
 
   @override
   void didChangeDependencies() {
@@ -52,8 +54,15 @@ class _ProgressScreenState extends State<ProgressScreen> {
   Future<void> _loadHealth() async {
     final s = AppScope.read(context);
     if (!s.healthEnabled || !s.health.isSupported) return;
-    final w = await s.health.weightHistory(addDays(DateTime.now(), -TrendRange.quarter.days));
-    if (mounted) setState(() => _healthWeights = w);
+    final since = addDays(DateTime.now(), -TrendRange.quarter.days);
+    final w = await s.health.weightHistory(since);
+    final sl = await s.health.sleep(startOfDay(since), DateTime.now());
+    if (mounted) {
+      setState(() {
+        _healthWeights = w;
+        _healthSleep = sl;
+      });
+    }
   }
 
   @override
@@ -84,6 +93,14 @@ class _ProgressScreenState extends State<ProgressScreen> {
     final calorie = _CalorieCard(days: days, logged: logged, target: state.targets.calories, range: _range);
     final macros = _MacroCard(logged: logged, targets: state.targets);
     final weight = _WeightCard(points: weights, metric: metric, start: start);
+    // Logged nights win over the health store's for the same morning.
+    final nights = {...nightsByDay(_healthSleep), ...state.loggedNights};
+    final sleepCard = _SleepTrendCard(
+      days: [for (final d in days) d.date],
+      nights: nights,
+      goalHours: state.sleepGoalHours,
+      range: _range,
+    );
 
     return Scaffold(
       body: SafeArea(
@@ -147,6 +164,8 @@ class _ProgressScreenState extends State<ProgressScreen> {
                       const SizedBox(height: S.lg),
                       Rise(delay: const Duration(milliseconds: 90), child: weight),
                     ],
+                    const SizedBox(height: S.lg),
+                    Rise(delay: const Duration(milliseconds: 120), child: sleepCard),
                   ],
                 ),
               ),
@@ -911,6 +930,252 @@ class _LogWeightSheetState extends State<_LogWeightSheet> {
             FilledButton(onPressed: (_value ?? 0) > 0 ? _save : null, child: const Text('Save')),
           ],
         ),
+      ),
+    );
+  }
+}
+
+/// Hours asleep each night against the goal. Same build as the calorie chart: neutral bars,
+/// a solid goal line with its value in its own gutter, and three plain stats underneath.
+class _SleepTrendCard extends StatelessWidget {
+  const _SleepTrendCard({required this.days, required this.nights, required this.goalHours, required this.range});
+  final List<DateTime> days;
+  final Map<DateTime, SleepNight> nights;
+  final double goalHours;
+  final TrendRange range;
+
+  static const _chartH = 200.0;
+  static const _bottomH = 26.0;
+  static const _goalGutter = 54.0;
+
+  @override
+  Widget build(BuildContext context) {
+    final t = FT.of(context);
+    final tt = Theme.of(context).textTheme;
+    final inRange = [
+      for (final d in days)
+        if (nights[d] != null) nights[d]!,
+    ];
+    double hours(SleepNight n) => n.asleep.inMinutes / 60;
+    final avg = inRange.isEmpty ? 0.0 : inRange.fold<double>(0, (a, n) => a + hours(n)) / inRange.length;
+    final onGoal = inRange.where((n) => hours(n) >= goalHours - 0.25).length;
+    // Usual bedtime: the median, counting minutes from noon so 11 PM and 1 AM sit together.
+    String? usualBed;
+    if (inRange.isNotEmpty) {
+      final mins = [for (final n in inRange) ((n.start.hour + 12) % 24) * 60 + n.start.minute]..sort();
+      final m = mins[mins.length ~/ 2];
+      final at = DateTime(2000, 1, 1, ((m ~/ 60) + 12) % 24, m % 60);
+      usualBed = DateFormat.jm().format(at);
+    }
+    final maxH = math.max(10.0, inRange.fold<double>(goalHours + 1, (a, n) => math.max(a, hours(n)))).ceilToDouble();
+    final barColor = t.fg.withValues(alpha: t.dark ? 0.86 : 0.78);
+    final goalColor = t.bodyO.toColor();
+    final today = startOfDay(DateTime.now());
+
+    return FCard(
+      padding: const EdgeInsets.all(S.xl),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          _CardTitle(
+            'Sleep',
+            inRange.isEmpty
+                ? 'No nights in this period'
+                : 'Average ${formatSleep(Duration(minutes: (avg * 60).round()))} a night',
+          ),
+          const SizedBox(height: S.md),
+          Wrap(
+            spacing: S.lg,
+            runSpacing: S.xs,
+            children: [
+              _LegendItem(
+                swatch: _LineSwatch(color: goalColor),
+                label: 'Goal ${formatSleep(Duration(minutes: (goalHours * 60).round()))}',
+              ),
+              _LegendItem(
+                swatch: _BarSwatch(color: barColor),
+                label: 'Asleep',
+              ),
+            ],
+          ),
+          const SizedBox(height: S.lg),
+          SizedBox(
+            height: _chartH,
+            child: LayoutBuilder(
+              builder: (context, c) {
+                final plotH = _chartH - _bottomH;
+                final goalY = (plotH * (1 - goalHours / maxH)).clamp(0.0, plotH);
+                final slot = (c.maxWidth - 36 - _goalGutter) / days.length;
+                final barW = (slot * 0.36).clamp(2.0, 24.0);
+                final radius = math.min(barW / 2, 4.0);
+                return Stack(
+                  clipBehavior: Clip.none,
+                  children: [
+                    Positioned.fill(
+                      child: BarChart(
+                        duration: Motion.of(context, Motion.slow),
+                        curve: Motion.standard,
+                        BarChartData(
+                          maxY: maxH,
+                          minY: 0,
+                          alignment: BarChartAlignment.spaceAround,
+                          gridData: FlGridData(
+                            drawVerticalLine: false,
+                            horizontalInterval: 2,
+                            getDrawingHorizontalLine: (_) => _gridLine(t),
+                          ),
+                          borderData: FlBorderData(
+                            show: true,
+                            border: Border(bottom: BorderSide(color: t.border)),
+                          ),
+                          titlesData: FlTitlesData(
+                            topTitles: const AxisTitles(),
+                            rightTitles: AxisTitles(
+                              sideTitles: SideTitles(
+                                showTitles: true,
+                                reservedSize: _goalGutter,
+                                getTitlesWidget: (_, _) => const SizedBox.shrink(),
+                              ),
+                            ),
+                            leftTitles: AxisTitles(
+                              sideTitles: SideTitles(
+                                showTitles: true,
+                                reservedSize: 36,
+                                interval: 2,
+                                getTitlesWidget: (v, meta) => SideTitleWidget(
+                                  meta: meta,
+                                  child: Text(
+                                    '${v.round()} h',
+                                    style: tt.labelSmall!.copyWith(color: t.muted, fontFeatures: tabular),
+                                  ),
+                                ),
+                              ),
+                            ),
+                            bottomTitles: AxisTitles(
+                              sideTitles: SideTitles(
+                                showTitles: true,
+                                reservedSize: _bottomH,
+                                getTitlesWidget: (v, meta) {
+                                  final i = v.toInt();
+                                  final every = switch (range) {
+                                    TrendRange.week => 1,
+                                    TrendRange.month => 7,
+                                    TrendRange.quarter => 15,
+                                  };
+                                  if (i < 0 || i >= days.length || (days.length - 1 - i) % every != 0) {
+                                    return const SizedBox.shrink();
+                                  }
+                                  final d = days[i];
+                                  final isToday = d == today;
+                                  final label = range == TrendRange.week
+                                      ? (isToday ? 'Today' : DateFormat('EEE').format(d))
+                                      : DateFormat('d MMM').format(d);
+                                  return SideTitleWidget(
+                                    meta: meta,
+                                    child: Text(
+                                      label,
+                                      style: tt.labelSmall!.copyWith(
+                                        color: isToday ? t.fg : t.muted,
+                                        fontWeight: isToday ? FontWeight.w600 : null,
+                                      ),
+                                    ),
+                                  );
+                                },
+                              ),
+                            ),
+                          ),
+                          extraLinesData: ExtraLinesData(
+                            extraLinesOnTop: true,
+                            horizontalLines: [HorizontalLine(y: goalHours, color: goalColor, strokeWidth: 1.5)],
+                          ),
+                          barTouchData: BarTouchData(
+                            touchTooltipData: BarTouchTooltipData(
+                              getTooltipColor: (_) => t.raised,
+                              tooltipBorder: BorderSide(color: t.border),
+                              tooltipBorderRadius: BorderRadius.circular(12),
+                              tooltipPadding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+                              fitInsideHorizontally: true,
+                              fitInsideVertically: true,
+                              getTooltipItem: (group, _, rod, _) {
+                                final n = nights[days[group.x]];
+                                if (n == null) return null;
+                                final time = DateFormat.jm();
+                                return BarTooltipItem(
+                                  '${DateFormat('EEE d MMM').format(days[group.x])}\n',
+                                  tt.labelSmall!.copyWith(color: t.muted),
+                                  textAlign: TextAlign.left,
+                                  children: [
+                                    TextSpan(
+                                      text: '${formatSleep(n.asleep)}\n',
+                                      style: tt.titleSmall!.copyWith(fontFeatures: tabular),
+                                    ),
+                                    TextSpan(
+                                      text: '${time.format(n.start)} – ${time.format(n.end)}',
+                                      style: tt.labelSmall!.copyWith(color: t.muted, fontFeatures: tabular),
+                                    ),
+                                  ],
+                                );
+                              },
+                            ),
+                          ),
+                          barGroups: [
+                            for (final (i, d) in days.indexed)
+                              BarChartGroupData(
+                                x: i,
+                                barRods: [
+                                  BarChartRodData(
+                                    toY: nights[d] == null ? 0 : hours(nights[d]!),
+                                    width: barW,
+                                    borderRadius: BorderRadius.vertical(top: Radius.circular(radius)),
+                                    color: barColor,
+                                    backDrawRodData: BackgroundBarChartRodData(
+                                      show: range != TrendRange.quarter,
+                                      toY: maxH,
+                                      color: t.fg.withValues(alpha: 0.025),
+                                    ),
+                                  ),
+                                ],
+                              ),
+                          ],
+                        ),
+                      ),
+                    ),
+                    Positioned(
+                      right: 0,
+                      width: _goalGutter - 6,
+                      top: goalY - 11,
+                      height: 22,
+                      child: IgnorePointer(
+                        child: Container(
+                          alignment: Alignment.center,
+                          decoration: BoxDecoration(color: goalColor, borderRadius: BorderRadius.circular(6)),
+                          child: Text(
+                            '${goalHours % 1 == 0 ? goalHours.toStringAsFixed(0) : goalHours.toStringAsFixed(1)} h',
+                            style: tt.labelSmall!.copyWith(
+                              color: t.dark ? Colors.black : Colors.white,
+                              fontWeight: FontWeight.w700,
+                              fontFeatures: tabular,
+                            ),
+                          ),
+                        ),
+                      ),
+                    ),
+                  ],
+                );
+              },
+            ),
+          ),
+          const SizedBox(height: S.xl),
+          Divider(height: 1, color: t.border),
+          const SizedBox(height: S.lg),
+          Row(
+            children: [
+              Expanded(child: _Tile('Nights logged', '${inRange.length}', suffix: '/${days.length}')),
+              Expanded(child: _Tile('On goal', '$onGoal', suffix: onGoal == 1 ? ' night' : ' nights')),
+              Expanded(child: _Tile('Usual bedtime', usualBed ?? '–')),
+            ],
+          ),
+        ],
       ),
     );
   }

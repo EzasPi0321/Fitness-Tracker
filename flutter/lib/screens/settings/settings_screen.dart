@@ -206,6 +206,20 @@ class TargetsSection extends StatelessWidget {
           ),
         ),
         FRow(
+          leading: FIcon(Symbols.bed, size: 16, color: t.muted, weight: FontWeight.w600),
+          label: 'Sleep',
+          sub: 'Hours asleep each night (7–9 suits most adults)',
+          trailing: NumberInput(
+            value: state.sleepGoalHours,
+            unit: 'h',
+            maxDigits: 1,
+            width: 110,
+            onChanged: (v) {
+              if (v != null) state.setSleepGoal(v);
+            },
+          ),
+        ),
+        FRow(
           label: "Reset to my profile’s plan",
           sub: 'Undo manual changes to these numbers',
           trailing: FIcon(Symbols.restart_alt, color: t.muted),

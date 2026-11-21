@@ -3,12 +3,13 @@ import 'dart:math';
 import '../models/food.dart';
 import '../models/nutrients.dart';
 import '../models/profile.dart';
+import '../models/sleep.dart';
 import '../models/util.dart';
 
 /// Realistic example data for the desktop preview and "Try with sample data".
 /// Deterministic, so screenshots and the preview look the same every time.
 class SampleData {
-  SampleData._(this.profile, this.entries, this.weights, this.customFoods, this.water, this.steps);
+  SampleData._(this.profile, this.entries, this.weights, this.customFoods, this.water, this.steps, this.sleep);
 
   final UserProfile profile;
   final List<FoodEntry> entries;
@@ -16,6 +17,7 @@ class SampleData {
   final List<CustomFood> customFoods;
   final List<WaterEntry> water;
   final Map<DateTime, int> steps;
+  final List<SleepEntry> sleep;
 
   static SampleData generate({DateTime? now}) {
     final rnd = Random(20261121);
@@ -157,6 +159,22 @@ class SampleData {
       steps[addDays(today, -d)] = 4000 + rnd.nextInt(9000);
     }
 
-    return SampleData._(profile, entries, weights, custom, water, steps);
+    // Bedtimes around 10:30 PM to midnight, waking 6:15 to 7:45, a few nights skipped.
+    final sleep = <SleepEntry>[
+      SleepEntry(
+        id: id(),
+        start: today.subtract(const Duration(minutes: 70)),
+        end: today.add(const Duration(hours: 6, minutes: 35)),
+      ),
+    ];
+    for (var d = 1; d <= 60; d++) {
+      if (d % 9 == 4) continue;
+      final day = addDays(today, -d);
+      final bed = day.subtract(Duration(minutes: 30 + rnd.nextInt(90)));
+      final wake = day.add(Duration(hours: 6, minutes: 15 + rnd.nextInt(90)));
+      sleep.add(SleepEntry(id: id(), start: bed, end: wake));
+    }
+
+    return SampleData._(profile, entries, weights, custom, water, steps, sleep);
   }
 }

@@ -1,4 +1,5 @@
 import '../models/nutrients.dart';
+import '../models/sleep.dart';
 import 'health_service_stub.dart' if (dart.library.io) 'health_service_io.dart' as impl;
 
 class WorkoutSummary {
@@ -46,6 +47,9 @@ abstract class HealthService {
   Future<Map<DateTime, double>> dailyActiveEnergy(DateTime from, DateTime to);
   Future<List<WorkoutSummary>> workouts(DateTime day);
   Future<List<WeightSample>> weightHistory(DateTime since);
+
+  /// Nights of sleep that ended between [from] and [to].
+  Future<List<SleepNight>> sleep(DateTime from, DateTime to);
   Future<HealthSnapshot> snapshot();
 
   /// Saves a logged food as a nutrition record. Returns true on success.
@@ -82,6 +86,8 @@ class UnsupportedHealthService implements HealthService {
   Future<List<WorkoutSummary>> workouts(DateTime day) async => const [];
   @override
   Future<List<WeightSample>> weightHistory(DateTime since) async => const [];
+  @override
+  Future<List<SleepNight>> sleep(DateTime from, DateTime to) async => const [];
   @override
   Future<HealthSnapshot> snapshot() async => const HealthSnapshot();
   @override

@@ -7,6 +7,7 @@ import 'package:fittrack/design/oklch.dart';
 import 'package:fittrack/models/food.dart';
 import 'package:fittrack/models/nutrients.dart';
 import 'package:fittrack/models/profile.dart';
+import 'package:fittrack/models/sleep.dart';
 import 'package:fittrack/models/util.dart';
 import 'package:fittrack/services/ai_vision.dart';
 import 'package:fittrack/services/health_service.dart';
@@ -901,6 +902,56 @@ Carbohydrate 12.0g 4.8g
     expect(s.weights, isEmpty);
     expect(s.water, isEmpty);
     expect(s.customFoods, isEmpty);
+  });
+  group('Sleep', () {
+    test('a night belongs to the morning you woke up, and logged nights save and reload', () async {
+      final store = MemoryStore();
+      final s = AppState(store: store, health: UnsupportedHealthService());
+      await s.load();
+      final today = DateTime(2026, 1, 10); // a fixed past morning, so the test never depends on the clock
+      final bed = today.subtract(const Duration(minutes: 50)); // 11:10 PM the night before
+      final wake = today.add(const Duration(hours: 6, minutes: 35));
+      expect(s.logSleep(bed, wake), isNull);
+      final n = s.loggedNights[today]!;
+      expect(n.asleep, const Duration(hours: 7, minutes: 25));
+      expect(formatSleep(n.asleep), '7 h 25 min');
+      // Logging the same morning again replaces it.
+      expect(s.logSleep(bed.add(const Duration(minutes: 30)), wake), isNull);
+      expect(s.sleep, hasLength(1));
+      s.setSleepGoal(7.5);
+      await s.flush();
+      final again = AppState(store: store, health: UnsupportedHealthService());
+      await again.load();
+      expect(again.sleep, hasLength(1));
+      expect(again.sleepGoalHours, 7.5);
+    });
+
+    test('impossible nights are refused with a reason', () async {
+      final s = AppState(store: MemoryStore(), health: UnsupportedHealthService());
+      await s.load();
+      final t = DateTime(2026, 1, 10, 7);
+      expect(s.logSleep(t, t.subtract(const Duration(hours: 1))), contains('after bedtime'));
+      expect(s.logSleep(t.subtract(const Duration(hours: 18)), t), contains('16 hours'));
+      expect(s.sleep, isEmpty);
+    });
+
+    test('Apple Health stages merge into one night; a short nap stays separate', () {
+      final d = DateTime(2026, 3, 2);
+      ({DateTime start, DateTime end}) seg(int h1, int m1, int h2, int m2, [int dayOffset = 0]) => (
+        start: d.add(Duration(days: dayOffset, hours: h1, minutes: m1)),
+        end: d.add(Duration(days: dayOffset, hours: h2, minutes: m2)),
+      );
+      final nights = mergeSegments([
+        seg(23, 0, 24 + 2, 0), // light
+        seg(24 + 2, 0, 24 + 3, 30), // deep
+        seg(24 + 4, 0, 24 + 6, 30), // REM after 30 min awake
+        seg(24 + 14, 0, 24 + 14, 40), // afternoon nap
+      ]);
+      expect(nights, hasLength(2));
+      expect(nights.first.asleep, const Duration(hours: 7)); // 3h + 1.5h + 2.5h, the gap isn't sleep
+      final byDay = nightsByDay(nights);
+      expect(byDay[DateTime(2026, 3, 3)]!.asleep, const Duration(hours: 7)); // the nap doesn't replace it
+    });
   });
 }
 

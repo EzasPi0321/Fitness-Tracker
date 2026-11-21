@@ -9,6 +9,7 @@ import 'package:flutter/widgets.dart';
 import '../models/food.dart';
 import '../models/nutrients.dart';
 import '../models/profile.dart';
+import '../models/sleep.dart';
 import '../models/util.dart';
 import '../services/ai_vision.dart';
 import '../services/health_service.dart';
@@ -81,6 +82,10 @@ class AppState extends ChangeNotifier {
   final List<CustomFood> customFoods = [];
   final List<WeightEntry> weights = [];
   final List<WaterEntry> water = [];
+  final List<SleepEntry> sleep = [];
+
+  /// Hours of sleep to aim for each night.
+  double sleepGoalHours = 8;
 
   /// Set by the user; when null the goal follows body weight.
   double? waterGoalOverride;
@@ -160,6 +165,7 @@ class AppState extends ChangeNotifier {
       weights.clear();
       customFoods.clear();
       water.clear();
+      sleep.clear();
       sampleSteps.clear();
       isSample = false;
     }
@@ -319,6 +325,44 @@ class AppState extends ChangeNotifier {
     return last;
   }
 
+  // ---- Sleep ----
+
+  /// Nights logged by hand, by the day you woke up.
+  Map<DateTime, SleepNight> get loggedNights => nightsByDay(sleep.map(SleepNight.fromEntry));
+
+  /// Logs a night (or replaces [replaceId]). Returns an error to show, or null when saved.
+  String? logSleep(DateTime start, DateTime end, {String? replaceId}) {
+    if (!end.isAfter(start)) return 'Wake-up time must be after bedtime.';
+    final d = end.difference(start);
+    if (d > const Duration(hours: 16)) return 'That’s over 16 hours. Check the times.';
+    if (end.isAfter(DateTime.now().add(const Duration(minutes: 5)))) return 'Wake-up time is in the future.';
+    if (replaceId != null) sleep.removeWhere((s) => s.id == replaceId);
+    // One logged night per morning: a new one replaces the old.
+    sleep.removeWhere((s) => sameDay(s.end, end));
+    sleep.add(SleepEntry(id: newId(), start: start, end: end));
+    _changed();
+    return null;
+  }
+
+  SleepEntry? removeSleep(String id) {
+    final i = sleep.indexWhere((s) => s.id == id);
+    if (i < 0) return null;
+    final removed = sleep.removeAt(i);
+    _changed();
+    return removed;
+  }
+
+  void restoreSleep(SleepEntry e) {
+    sleep.add(e);
+    _changed();
+  }
+
+  void setSleepGoal(double hours) {
+    if (hours < 4 || hours > 12) return;
+    sleepGoalHours = hours;
+    _changed();
+  }
+
   void setStepGoal(int steps) {
     if (steps <= 0) return;
     stepGoal = steps;
@@ -424,6 +468,7 @@ class AppState extends ChangeNotifier {
     entries.removeWhere((e) => generated(e.id));
     weights.removeWhere((w) => generated(w.id));
     water.removeWhere((w) => generated(w.id));
+    sleep.removeWhere((s) => generated(s.id));
     customFoods.removeWhere((f) => generated(f.id));
     sampleSteps.clear();
     profile = null;
@@ -446,6 +491,9 @@ class AppState extends ChangeNotifier {
     water
       ..clear()
       ..addAll(s.water);
+    sleep
+      ..clear()
+      ..addAll(s.sleep);
     sampleSteps
       ..clear()
       ..addAll(s.steps);
@@ -462,6 +510,7 @@ class AppState extends ChangeNotifier {
     weights.clear();
     customFoods.clear();
     water.clear();
+    sleep.clear();
     sampleSteps.clear();
     waterGoalOverride = null;
     isSample = false;
@@ -491,6 +540,7 @@ class AppState extends ChangeNotifier {
     'customFoods': customFoods.map((e) => e.toJson()).toList(),
     'weights': weights.map((e) => e.toJson()).toList(),
     'water': water.map((e) => e.toJson()).toList(),
+    'sleep': sleep.map((e) => e.toJson()).toList(),
     'settings': {
       'health': healthEnabled,
       'addActive': addActiveEnergy,
@@ -502,6 +552,7 @@ class AppState extends ChangeNotifier {
       'energy': Energy.unit.name,
       'waterGoal': waterGoalOverride,
       'stepGoal': stepGoal,
+      'sleepGoal': sleepGoalHours,
       'lastUpdateCheck': _lastUpdateCheck?.millisecondsSinceEpoch,
       'dismissedUpdate': _dismissedUpdateBuild,
     },
@@ -523,10 +574,14 @@ class AppState extends ChangeNotifier {
     water
       ..clear()
       ..addAll(list('water').map(WaterEntry.fromJson));
+    sleep
+      ..clear()
+      ..addAll(list('sleep').map(SleepEntry.fromJson));
     final s = j['settings'] is Map ? (j['settings'] as Map).cast<String, dynamic>() : const <String, dynamic>{};
     healthEnabled = (s['health'] as bool?) ?? false;
     waterGoalOverride = (s['waterGoal'] as num?)?.toDouble();
     stepGoal = ((s['stepGoal'] as num?) ?? 10000).toInt();
+    sleepGoalHours = ((s['sleepGoal'] as num?) ?? 8).toDouble().clamp(4, 12);
     final lastCheck = s['lastUpdateCheck'] as num?;
     _lastUpdateCheck = lastCheck == null ? null : DateTime.fromMillisecondsSinceEpoch(lastCheck.toInt());
     _dismissedUpdateBuild = (s['dismissedUpdate'] as num?)?.toInt();

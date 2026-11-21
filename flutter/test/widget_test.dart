@@ -65,7 +65,7 @@ void main() {
     expect(find.text('Calorie intake'), findsOneWidget);
     await tester.tap(find.text('30D'));
     await tester.pumpAndSettle();
-    expect(find.textContaining('/30'), findsOneWidget);
+    expect(find.textContaining('/30'), findsWidgets); // days logged, and nights logged on the sleep chart
 
     await tester.tap(find.text('Profile').last);
     await tester.pumpAndSettle();
