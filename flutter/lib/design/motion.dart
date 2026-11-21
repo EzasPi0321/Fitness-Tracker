@@ -46,9 +46,10 @@ class _SquishyState extends State<Squishy> with SingleTickerProviderStateMixin {
   bool _focused = false;
 
   double get _depth => switch (widget.feel) {
-    PressFeel.subtle => 0.025,
-    PressFeel.normal => 0.06,
-    PressFeel.bold => 0.10,
+    // Never below 95% (scale 0.95): tactile without looking broken.
+    PressFeel.subtle => 0.02,
+    PressFeel.normal => 0.04,
+    PressFeel.bold => 0.05,
   };
 
   void _down() {
@@ -240,15 +241,27 @@ class CountUp extends StatelessWidget {
 }
 
 /// Appear with a short rise and settle; used for staged entrances, one group at a time.
+/// Screens opened many times a day (the main tabs) sit inside this, so their content is
+/// simply there at launch instead of rising in every time (frequency of use).
+class NoEntrance extends InheritedWidget {
+  const NoEntrance({super.key, required super.child});
+  static bool of(BuildContext context) => context.dependOnInheritedWidgetOfExactType<NoEntrance>() != null;
+  @override
+  bool updateShouldNotify(NoEntrance oldWidget) => false;
+}
+
 class Rise extends StatelessWidget {
-  const Rise({super.key, required this.child, this.delay = Duration.zero, this.distance = 10});
+  const Rise({super.key, required this.child, this.delay = Duration.zero, this.distance = 10, this.always = false});
   final Widget child;
   final Duration delay;
   final double distance;
 
+  /// Rise even inside [NoEntrance]: for things that genuinely arrive later, like a banner.
+  final bool always;
+
   @override
   Widget build(BuildContext context) {
-    if (Motion.reduced(context)) return child;
+    if (Motion.reduced(context) || (!always && NoEntrance.of(context))) return child;
     final total = Motion.slow + delay;
     final start = delay.inMilliseconds / total.inMilliseconds;
     return TweenAnimationBuilder<double>(

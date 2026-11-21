@@ -93,10 +93,7 @@ class StepsCard extends StatelessWidget {
                 child: FractionallySizedBox(
                   widthFactor: f.clamp(0.0, 1.0),
                   child: Container(
-                    decoration: BoxDecoration(
-                      borderRadius: BorderRadius.circular(3),
-                      color: barColor,
-                    ),
+                    decoration: BoxDecoration(borderRadius: BorderRadius.circular(3), color: barColor),
                   ),
                 ),
               ),

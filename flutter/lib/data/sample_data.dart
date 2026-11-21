@@ -30,13 +30,13 @@ class SampleData {
         ('Oatmeal with Berries', null, 310, 10, 54, 6, EntrySource.manual),
         ('Scrambled Eggs', null, 180, 12, 2, 14, EntrySource.photoAI),
         ('Banana', null, 105, 1.3, 27, 0.4, EntrySource.manual),
-        ('Whole-Grain Toast', "Dave's Killer Bread", 160, 7, 28, 2, EntrySource.barcode),
+        ('Whole-Grain Toast', "Dave’s Killer Bread", 160, 7, 28, 2, EntrySource.barcode),
       ],
       MealType.lunch: [
         ('Chicken Salad', null, 480, 42, 18, 26, EntrySource.photoAI),
         ('Turkey Wrap', null, 430, 30, 42, 14, EntrySource.manual),
         ('Salmon Rice Bowl', null, 620, 35, 70, 18, EntrySource.photoAI),
-        ('Lentil Soup', "Amy's", 320, 18, 46, 7, EntrySource.barcode),
+        ('Lentil Soup', "Amy’s", 320, 18, 46, 7, EntrySource.barcode),
       ],
       MealType.dinner: [
         ('Spaghetti Bolognese', null, 650, 32, 78, 20, EntrySource.photoAI),

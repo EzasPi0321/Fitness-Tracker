@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:image/image.dart' as img;
@@ -5,6 +7,7 @@ import 'package:image_picker/image_picker.dart';
 import 'package:material_symbols_icons/symbols.dart';
 
 import '../../data/app_state.dart';
+import '../../design/motion.dart';
 import '../../design/tokens.dart';
 import '../../models/food.dart';
 import '../../models/nutrients.dart';
@@ -75,13 +78,13 @@ class _SnapMealScreenState extends State<SnapMealScreen> {
       final raw = await file.readAsBytes();
       final jpeg = await prepareMealPhoto(raw);
       if (jpeg == null) {
-        setState(() => _error = 'That file couldn\'t be read as a photo.');
+        setState(() => _error = 'That file couldn’t be read as a photo.');
         return;
       }
       setState(() => _photo = jpeg);
     } catch (_) {
       setState(
-        () => _error = source == ImageSource.camera ? 'The camera isn\'t available.' : 'Couldn\'t open the photo.',
+        () => _error = source == ImageSource.camera ? 'The camera isn’t available.' : 'Couldn’t open the photo.',
       );
     }
   }
@@ -243,21 +246,9 @@ class _SnapMealScreenState extends State<SnapMealScreen> {
   }
 
   Widget _workingView(BuildContext context) {
-    final tt = Theme.of(context).textTheme;
-    return Column(
+    return Center(
       key: const ValueKey('working'),
-      mainAxisAlignment: MainAxisAlignment.center,
-      children: [
-        if (_photo != null)
-          ClipRRect(
-            borderRadius: BorderRadius.circular(S.radiusCard),
-            child: Image.memory(_photo!, width: 220, height: 165, fit: BoxFit.cover),
-          ),
-        const SizedBox(height: S.xl),
-        const SizedBox(width: 220, child: LinearProgressIndicator()),
-        const SizedBox(height: S.md),
-        Text('Identifying foods and portions…', style: tt.bodyMedium),
-      ],
+      child: _ReadingPhoto(photo: _photo),
     );
   }
 
@@ -286,7 +277,7 @@ class _SnapMealScreenState extends State<SnapMealScreen> {
                   padding: const EdgeInsets.only(top: 4),
                   child: Text(
                     a.escalated
-                        ? 'Checked by ${AiModel.nameOf(a.answeredBy)}: the quick model wasn\'t sure about this one.'
+                        ? 'Checked by ${AiModel.nameOf(a.answeredBy)}: the quick model wasn’t sure about this one.'
                         : 'Estimated by ${AiModel.nameOf(a.answeredBy)}.',
                     style: tt.bodySmall!.copyWith(color: FT.of(context).muted),
                   ),
@@ -417,6 +408,157 @@ class _DetectedCard extends StatelessWidget {
           ],
         ),
       ),
+    );
+  }
+}
+
+/// Waiting for an estimate: a reading line passes down the photo (the photo is what's being
+/// read), and the steps underneath tick off on a timer so the wait says what it's doing.
+/// Reduced motion keeps the steps and drops the moving line.
+class _ReadingPhoto extends StatefulWidget {
+  const _ReadingPhoto({required this.photo});
+  final Uint8List? photo;
+
+  @override
+  State<_ReadingPhoto> createState() => _ReadingPhotoState();
+}
+
+class _ReadingPhotoState extends State<_ReadingPhoto> with SingleTickerProviderStateMixin {
+  /* 0 s reading the photo · 1.4 s finding each food · 3.2 s weighing portions */
+  static const _steps = ['Reading the photo', 'Finding each food', 'Weighing portions'];
+  static const _at = [Duration.zero, Duration(milliseconds: 1400), Duration(milliseconds: 3200)];
+
+  late final _scan = AnimationController(vsync: this, duration: const Duration(milliseconds: 1600));
+  final _timers = <Timer>[];
+  int _step = 0;
+
+  @override
+  void initState() {
+    super.initState();
+    for (var i = 1; i < _at.length; i++) {
+      _timers.add(Timer(_at[i], () => mounted ? setState(() => _step = i) : null));
+    }
+  }
+
+  @override
+  void didChangeDependencies() {
+    super.didChangeDependencies();
+    if (Motion.reduced(context)) {
+      _scan.stop();
+    } else if (!_scan.isAnimating) {
+      _scan.repeat();
+    }
+  }
+
+  @override
+  void dispose() {
+    for (final t in _timers) {
+      t.cancel();
+    }
+    _scan.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final t = FT.of(context);
+    final tt = Theme.of(context).textTheme;
+    const w = 240.0, h = 180.0;
+    return Column(
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        if (widget.photo != null)
+          ClipRRect(
+            borderRadius: BorderRadius.circular(S.radiusCard),
+            child: SizedBox(
+              width: w,
+              height: h,
+              child: Stack(
+                fit: StackFit.expand,
+                children: [
+                  Image.memory(widget.photo!, fit: BoxFit.cover),
+                  IgnorePointer(
+                    child: AnimatedBuilder(
+                      animation: _scan,
+                      builder: (context, _) {
+                        if (!_scan.isAnimating) return const SizedBox.shrink();
+                        // Eased so the line slows at the edges, like a scanner head.
+                        final y = Curves.easeInOutSine.transform(_scan.value) * (h + 40) - 20;
+                        return Stack(
+                          children: [
+                            Positioned(
+                              left: 0,
+                              right: 0,
+                              top: y - 28,
+                              height: 28,
+                              child: DecoratedBox(
+                                decoration: BoxDecoration(
+                                  gradient: LinearGradient(
+                                    begin: Alignment.topCenter,
+                                    end: Alignment.bottomCenter,
+                                    colors: [Colors.white.withValues(alpha: 0), Colors.white.withValues(alpha: 0.18)],
+                                  ),
+                                ),
+                              ),
+                            ),
+                            Positioned(
+                              left: 0,
+                              right: 0,
+                              top: y,
+                              height: 1.5,
+                              child: ColoredBox(color: t.fg),
+                            ),
+                          ],
+                        );
+                      },
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ),
+        const SizedBox(height: S.xl),
+        for (final (i, label) in _steps.indexed)
+          Padding(
+            padding: const EdgeInsets.symmetric(vertical: 3),
+            child: SizedBox(
+              width: w,
+              child: Row(
+                children: [
+                  SizedBox(
+                    width: 20,
+                    child: BlurSwitcher(
+                      child: i < _step
+                          ? FIcon(
+                              Symbols.check,
+                              key: const ValueKey('done'),
+                              size: 18,
+                              color: t.fg,
+                              weight: FontWeight.w600,
+                            )
+                          : i == _step
+                          ? Container(
+                              key: const ValueKey('now'),
+                              width: 6,
+                              height: 6,
+                              decoration: BoxDecoration(color: t.fg, shape: BoxShape.circle),
+                            )
+                          : const SizedBox(key: ValueKey('later')),
+                    ),
+                  ),
+                  const SizedBox(width: S.sm),
+                  Flexible(
+                    child: AnimatedDefaultTextStyle(
+                      duration: Motion.of(context, Motion.base),
+                      style: tt.bodyMedium!.copyWith(color: i <= _step ? t.fg : t.muted),
+                      child: Text(label, maxLines: 1, overflow: TextOverflow.ellipsis),
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ),
+      ],
     );
   }
 }

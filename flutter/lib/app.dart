@@ -3,6 +3,7 @@ import 'package:flutter/material.dart';
 import 'package:material_symbols_icons/symbols.dart';
 
 import 'data/app_state.dart';
+import 'design/motion.dart';
 import 'design/tokens.dart';
 import 'screens/log/food_log_screen.dart';
 import 'screens/onboarding/onboarding_screen.dart';
@@ -112,9 +113,11 @@ class _ShellState extends State<Shell> {
   Widget build(BuildContext context) {
     final t = FT.of(context);
     final wide = MediaQuery.sizeOf(context).width >= 840;
-    final pages = IndexedStack(
-      index: _index,
-      children: const [TodayScreen(), FoodLogScreen(), ProgressScreen(), ProfileScreen(), SettingsScreen()],
+    final pages = NoEntrance(
+      child: IndexedStack(
+        index: _index,
+        children: const [TodayScreen(), FoodLogScreen(), ProgressScreen(), ProfileScreen(), SettingsScreen()],
+      ),
     );
 
     if (wide) {

@@ -348,7 +348,7 @@ void main() {
     test('calories that disagree with the macros are unverified', () {
       final p = OpenFoodFactsService.parseProduct('1', product(['en:nutrition-facts-completed'], kcal: 120))!;
       expect(p.trust!.verified, isFalse);
-      expect(p.trust!.note, contains("don't match"));
+      expect(p.trust!.note, contains('don’t match'));
     });
 
     test('trust survives a save and reload', () {

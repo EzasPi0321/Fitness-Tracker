@@ -18,7 +18,7 @@ class LabelOcr {
       final reading = parse(result.text);
       if (reading == null) {
         throw const VisionException(
-          "Couldn't find the nutrition numbers. Photograph just the nutrition panel, flat and in good light.",
+          "Couldn’t find the nutrition numbers. Photograph just the nutrition panel, flat and in good light.",
         );
       }
       return reading;

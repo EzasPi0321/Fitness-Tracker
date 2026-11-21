@@ -186,7 +186,7 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
       trailing: (a) => Energy.format(NutritionCalculator.tdee(_bmr, a)),
     ),
     _Step.goal => _choices<WeightGoal>(
-      'What\'s your goal?',
+      'What’s your goal?',
       WeightGoal.values,
       _draft.goal,
       (g) => g.title,
@@ -224,7 +224,7 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
         Rise(
           delay: const Duration(milliseconds: 120),
           child: Text(
-            'Then log meals by barcode, label photo or plate photo, and see what\'s left for the day.',
+            'Then log meals by barcode, label photo or plate photo, and see what’s left for the day.',
             style: tt.bodyMedium!.copyWith(color: t.muted),
           ),
         ),

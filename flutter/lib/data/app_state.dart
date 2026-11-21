@@ -352,7 +352,7 @@ class AppState extends ChangeNotifier {
     final ok = await health.requestAuthorization();
     healthEnabled = ok;
     if (!ok) {
-      healthError = '${health.storeName} access wasn\'t granted. You can allow it in the ${health.storeName} app.';
+      healthError = '${health.storeName} access wasn’t granted. You can allow it in the ${health.storeName} app.';
     }
     await refreshHealthAccess();
     _changed();

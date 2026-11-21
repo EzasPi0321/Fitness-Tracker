@@ -38,6 +38,8 @@ class _FoodLogScreenState extends State<FoodLogScreen> {
   /// When adding from an hour's +, results log at that hour.
   DateTime? _pendingAt;
 
+  final _scroll = ScrollController();
+
   @override
   void initState() {
     super.initState();
@@ -49,12 +51,24 @@ class _FoodLogScreenState extends State<FoodLogScreen> {
   void dispose() {
     _search.dispose();
     _searchFocus.dispose();
+    _scroll.dispose();
     super.dispose();
   }
 
-  void _scrollToNow() {
+  /// Opens on the current hour, not at midnight. The hour list is lazy, so the current hour
+  /// may not exist yet: jump to an estimate (every hour is at least ~52 px tall), let it
+  /// build, then line it up exactly.
+  void _scrollToNow([int attempt = 0]) {
+    if (!mounted) return;
     final c = _nowKey.currentContext;
-    if (c != null) Scrollable.ensureVisible(c, alignment: 0.25, duration: Duration.zero);
+    if (c != null) {
+      Scrollable.ensureVisible(c, alignment: 0.25, duration: Duration.zero);
+      return;
+    }
+    if (attempt >= 3 || !_scroll.hasClients) return;
+    final p = _scroll.position;
+    _scroll.jumpTo((DateTime.now().hour * 52.0).clamp(p.minScrollExtent, p.maxScrollExtent));
+    WidgetsBinding.instance.addPostFrameCallback((_) => _scrollToNow(attempt + 1));
   }
 
   void _select(DateTime d) {
@@ -126,6 +140,7 @@ class _FoodLogScreenState extends State<FoodLogScreen> {
           SafeArea(
             bottom: false,
             child: CustomScrollView(
+              controller: _scroll,
               slivers: [
                 SliverPadding(
                   padding: EdgeInsets.fromLTRB(gutter, S.lg, gutter, 0),
@@ -167,25 +182,25 @@ class _FoodLogScreenState extends State<FoodLogScreen> {
                 ),
                 SliverPadding(
                   padding: EdgeInsets.fromLTRB(gutter, 0, gutter, 140),
-                  sliver: SliverList.builder(
-                    itemCount: last - first + 1,
-                    itemBuilder: (context, i) {
-                      final hour = first + i;
-                      final isNow = isToday && hour == nowHour;
-                      return Center(
-                        child: ConstrainedBox(
-                          constraints: const BoxConstraints(maxWidth: 820),
-                          child: _HourBlock(
-                            key: isNow ? _nowKey : null,
-                            hour: hour,
-                            entries: byHour[hour] ?? const [],
-                            isNow: isNow,
-                            isLast: hour == last,
-                            onAdd: () => _addAtHour(hour),
+                  // All 24 hours are built up front (cheap), so the current hour exists to scroll
+                  // to on open; a lazy list hadn't built it yet and the log opened at midnight.
+                  sliver: SliverList.list(
+                    children: [
+                      for (var hour = first; hour <= last; hour++)
+                        Center(
+                          child: ConstrainedBox(
+                            constraints: const BoxConstraints(maxWidth: 820),
+                            child: _HourBlock(
+                              key: isToday && hour == nowHour ? _nowKey : null,
+                              hour: hour,
+                              entries: byHour[hour] ?? const [],
+                              isNow: isToday && hour == nowHour,
+                              isLast: hour == last,
+                              onAdd: () => _addAtHour(hour),
+                            ),
                           ),
                         ),
-                      );
-                    },
+                    ],
                   ),
                 ),
               ],
@@ -323,9 +338,9 @@ class _MacroBars extends StatelessWidget {
         const SizedBox(width: S.md),
         bar('Protein', consumed.protein, targets.protein, t.protein),
         const SizedBox(width: S.md),
-        bar('Fat', consumed.fat, targets.fat, t.fat),
-        const SizedBox(width: S.md),
         bar('Carbs', consumed.carbs, targets.carbs, t.carbs),
+        const SizedBox(width: S.md),
+        bar('Fat', consumed.fat, targets.fat, t.fat),
       ],
     );
   }
@@ -427,7 +442,7 @@ class _HourBlock extends StatelessWidget {
                             : Padding(
                                 padding: const EdgeInsets.only(right: S.xs),
                                 child: Text(
-                                  '${Energy.format(total.calories)}  ·  ${whole(total.protein)}P ${whole(total.fat)}F ${whole(total.carbs)}C',
+                                  '${Energy.format(total.calories)}  ·  ${whole(total.protein)}P ${whole(total.carbs)}C ${whole(total.fat)}F',
                                   textAlign: TextAlign.right,
                                   maxLines: 1,
                                   overflow: TextOverflow.fade,
@@ -465,7 +480,7 @@ class _LogCard extends StatelessWidget {
       Energy.format(n.calories),
       if (grams != null) '${whole(grams)} g' else entry.portionDescription,
     ].join('  ·  ');
-    final macros = '${whole(n.protein)}P  ${whole(n.fat)}F  ${whole(n.carbs)}C';
+    final macros = '${whole(n.protein)}P  ${whole(n.carbs)}C  ${whole(n.fat)}F';
 
     return Material(
       color: t.surface,

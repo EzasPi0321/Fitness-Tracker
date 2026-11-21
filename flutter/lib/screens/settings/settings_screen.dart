@@ -206,7 +206,7 @@ class TargetsSection extends StatelessWidget {
           ),
         ),
         FRow(
-          label: "Reset to my profile's plan",
+          label: "Reset to my profile’s plan",
           sub: 'Undo manual changes to these numbers',
           trailing: FIcon(Symbols.restart_alt, color: t.muted),
           onTap: () {
@@ -289,7 +289,7 @@ class _HealthSection extends StatelessWidget {
           FRow(
             leading: FIcon(Symbols.favorite, color: t.muted),
             label: 'Health sync',
-            trailing: const StatusPill(text: 'Phone only', color: Color(0xFF8A8F8C)),
+            trailing: StatusPill(text: 'Phone only', color: FT.of(context).muted),
           ),
         ],
       );
@@ -311,7 +311,7 @@ class _HealthSection extends StatelessWidget {
         ),
         FRow(
           label: 'Add active energy to budget',
-          sub: 'Exercise calories raise today\'s goal',
+          sub: 'Exercise calories raise today’s goal',
           trailing: Switch(
             value: state.addActiveEnergy,
             onChanged: state.healthEnabled ? state.setAddActiveEnergy : null,
@@ -522,7 +522,7 @@ class _AISectionState extends State<_AISection> {
         Padding(
           padding: const EdgeInsets.fromLTRB(6, S.sm, 6, 0),
           child: Text(
-            'Needed for meal-photo estimates. Nutrition labels are read on your phone without a key; with one, the AI reads them instead. The key stays in this device\'s secure storage.',
+            'Needed for meal-photo estimates. Nutrition labels are read on your phone without a key; with one, the AI reads them instead. The key stays in this device’s secure storage.',
             style: Theme.of(context).textTheme.bodySmall,
           ),
         ),
@@ -556,7 +556,7 @@ class _DataSectionState extends State<_DataSection> {
                   padding: const EdgeInsets.all(S.md),
                   child: Row(
                     children: [
-                      const Expanded(child: Text('Delete every food log? This can\'t be undone.')),
+                      const Expanded(child: Text('Delete every food log? This can’t be undone.')),
                       TextButton(onPressed: () => setState(() => _confirm = false), child: const Text('Keep')),
                       FilledButton(
                         style: FilledButton.styleFrom(backgroundColor: t.over),
@@ -619,7 +619,7 @@ class _UpdateRowState extends State<_UpdateRow> {
     String result;
     try {
       final u = await state.checkForUpdates(manual: true);
-      result = u == null ? "You're up to date" : 'Version ${u.label} is ready';
+      result = u == null ? "You’re up to date" : 'Version ${u.label} is ready';
     } on UpdateCheckException catch (e) {
       result = e.message;
     }

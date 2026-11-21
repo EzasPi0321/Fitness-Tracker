@@ -9,10 +9,10 @@ class FoodLookupException implements Exception {
   const FoodLookupException(this.message);
   final String message;
 
-  static const invalidBarcode = FoodLookupException("That doesn't look like a valid product barcode.");
-  static const notFound = FoodLookupException("This product isn't in the Open Food Facts database yet.");
-  static const decoding = FoodLookupException("The product data couldn't be read.");
-  static const offline = FoodLookupException("Couldn't reach Open Food Facts. Check your connection and try again.");
+  static const invalidBarcode = FoodLookupException("That doesn’t look like a valid product barcode.");
+  static const notFound = FoodLookupException("This product isn’t in the Open Food Facts database yet.");
+  static const decoding = FoodLookupException("The product data couldn’t be read.");
+  static const offline = FoodLookupException("Couldn’t reach Open Food Facts. Check your connection and try again.");
 
   @override
   String toString() => message;
@@ -114,7 +114,7 @@ class OpenFoodFactsService {
     if (problems.isNotEmpty)
       return const NutritionTrust.unverified('Open Food Facts flagged a problem with these numbers');
     if (!NutritionTrust.caloriesMatchMacros(n))
-      return const NutritionTrust.unverified("Calories don't match the protein, carbs and fat");
+      return const NutritionTrust.unverified("Calories don’t match the protein, carbs and fat");
     return NutritionTrust.verified(
       checked
           ? 'Checked by Open Food Facts editors; calories match the macros'
