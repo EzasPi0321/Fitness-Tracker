@@ -336,11 +336,20 @@ class AppState extends ChangeNotifier {
     final d = end.difference(start);
     if (d > const Duration(hours: 16)) return 'That’s over 16 hours. Check the times.';
     if (end.isAfter(DateTime.now().add(const Duration(minutes: 5)))) return 'Wake-up time is in the future.';
-    if (replaceId != null) sleep.removeWhere((s) => s.id == replaceId);
-    // One logged night per morning: a new one replaces the old.
-    sleep.removeWhere((s) => sameDay(s.end, end));
+    // One logged night per morning: a new one (or the edited one) replaces the old.
+    final replaced = sleep.where((s) => s.id == replaceId || sameDay(s.end, end)).toList();
+    sleep.removeWhere(replaced.contains);
     sleep.add(SleepEntry(id: newId(), start: start, end: end));
     _changed();
+    // Mirror it to Samsung Health / Apple Health, replacing what FitTrack wrote before.
+    if (_syncHealth) {
+      unawaited(() async {
+        for (final r in replaced) {
+          await health.deleteSleep(r.start, r.end);
+        }
+        await health.saveSleep(start, end);
+      }());
+    }
     return null;
   }
 
@@ -349,12 +358,14 @@ class AppState extends ChangeNotifier {
     if (i < 0) return null;
     final removed = sleep.removeAt(i);
     _changed();
+    if (_syncHealth) unawaited(health.deleteSleep(removed.start, removed.end));
     return removed;
   }
 
   void restoreSleep(SleepEntry e) {
     sleep.add(e);
     _changed();
+    if (_syncHealth) unawaited(health.saveSleep(e.start, e.end));
   }
 
   void setSleepGoal(double hours) {

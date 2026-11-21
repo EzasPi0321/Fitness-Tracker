@@ -926,6 +926,26 @@ Carbohydrate 12.0g 4.8g
       expect(again.sleepGoalHours, 7.5);
     });
 
+    test('logged nights are mirrored to Samsung Health / Apple Health when sync is on', () async {
+      final h = _SleepHealth();
+      final s = AppState(store: MemoryStore(), health: h);
+      await s.load();
+      await s.setHealthEnabled(true);
+      final day = DateTime(2026, 1, 10);
+      s.logSleep(day.subtract(const Duration(hours: 1)), day.add(const Duration(hours: 7)));
+      await Future<void>.delayed(Duration.zero);
+      // Editing replaces what FitTrack wrote; deleting removes it.
+      s.logSleep(
+        day.subtract(const Duration(minutes: 30)),
+        day.add(const Duration(hours: 7)),
+        replaceId: s.sleep.single.id,
+      );
+      await Future<void>.delayed(Duration.zero);
+      s.removeSleep(s.sleep.single.id);
+      await Future<void>.delayed(Duration.zero);
+      expect(h.log, ['save 23:0-7:0', 'delete 23:0-7:0', 'save 23:30-7:0', 'delete 23:30-7:0']);
+    });
+
     test('impossible nights are refused with a reason', () async {
       final s = AppState(store: MemoryStore(), health: UnsupportedHealthService());
       await s.load();
@@ -974,4 +994,22 @@ class _FakeUpdates extends UpdateService {
   @override
   Future<AppUpdate?> check({int currentBuild = appBuild}) async =>
       AppUpdate(version: '2.0.0', build: build, notes: 'notes', downloadUrl: null, pageUrl: 'https://example.test');
+}
+
+/// Records what FitTrack writes to the health store.
+class _SleepHealth extends UnsupportedHealthService {
+  final log = <String>[];
+  @override
+  bool get isSupported => true;
+  @override
+  Future<bool> requestAuthorization() async => true;
+  @override
+  Future<bool> saveSleep(DateTime start, DateTime end) async {
+    log.add('save ${start.hour}:${start.minute}-${end.hour}:${end.minute}');
+    return true;
+  }
+
+  @override
+  Future<void> deleteSleep(DateTime start, DateTime end) async =>
+      log.add('delete ${start.hour}:${start.minute}-${end.hour}:${end.minute}');
 }

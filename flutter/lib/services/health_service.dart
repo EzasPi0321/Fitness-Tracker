@@ -62,6 +62,12 @@ abstract class HealthService {
   Future<void> deleteFood(DateTime at);
   Future<bool> saveWeight(double kilograms, DateTime at);
   Future<bool> saveWater(double ml, DateTime at);
+
+  /// Saves a night logged in FitTrack, so Samsung Health / Apple Health has it too.
+  Future<bool> saveSleep(DateTime start, DateTime end);
+
+  /// Removes a night FitTrack saved earlier (when it's edited or deleted here).
+  Future<void> deleteSleep(DateTime start, DateTime end);
 }
 
 /// No health store (web, Windows, tests).
@@ -103,4 +109,8 @@ class UnsupportedHealthService implements HealthService {
   Future<bool> saveWeight(double kilograms, DateTime at) async => false;
   @override
   Future<bool> saveWater(double ml, DateTime at) async => false;
+  @override
+  Future<bool> saveSleep(DateTime start, DateTime end) async => false;
+  @override
+  Future<void> deleteSleep(DateTime start, DateTime end) async {}
 }

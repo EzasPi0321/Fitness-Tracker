@@ -34,6 +34,11 @@ class _MobileHealthService implements HealthService {
   ];
   static const _sleepAndroid = [hc.HealthDataType.SLEEP_SESSION];
 
+  /// The type a logged night is written as: a whole session in Health Connect (which
+  /// Samsung Health reads), plain "asleep" in Apple Health.
+  static hc.HealthDataType get _sleepWrite =>
+      Platform.isIOS ? hc.HealthDataType.SLEEP_ASLEEP : hc.HealthDataType.SLEEP_SESSION;
+
   List<hc.HealthDataType> get _read => [..._common, ...(Platform.isIOS ? _sleepIOS : _sleepAndroid)];
 
   @override
@@ -79,7 +84,11 @@ class _MobileHealthService implements HealthService {
     }
     final permissions = _read
         .map(
-          (t) => (t == hc.HealthDataType.NUTRITION || t == hc.HealthDataType.WEIGHT || t == hc.HealthDataType.WATER)
+          (t) =>
+              (t == hc.HealthDataType.NUTRITION ||
+                  t == hc.HealthDataType.WEIGHT ||
+                  t == hc.HealthDataType.WATER ||
+                  t == _sleepWrite)
               ? hc.HealthDataAccess.READ_WRITE
               : hc.HealthDataAccess.READ,
         )
@@ -292,6 +301,30 @@ class _MobileHealthService implements HealthService {
     } catch (_) {
       return false;
     }
+  }
+
+  @override
+  Future<bool> saveSleep(DateTime start, DateTime end) async {
+    await _ensure();
+    try {
+      return await _health.writeHealthData(
+        value: end.difference(start).inMinutes.toDouble(),
+        type: _sleepWrite,
+        startTime: start,
+        endTime: end,
+        recordingMethod: hc.RecordingMethod.manual,
+      );
+    } catch (_) {
+      return false;
+    }
+  }
+
+  @override
+  Future<void> deleteSleep(DateTime start, DateTime end) async {
+    await _ensure();
+    try {
+      await _health.delete(type: _sleepWrite, startTime: start, endTime: end);
+    } catch (_) {}
   }
 
   @override

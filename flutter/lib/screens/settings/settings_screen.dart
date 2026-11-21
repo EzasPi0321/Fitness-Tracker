@@ -314,8 +314,8 @@ class _HealthSection extends StatelessWidget {
       footer: state.healthError != null
           ? StatusPill(text: state.healthError!, color: t.warn, icon: Symbols.info)
           : Text(
-              'Reads steps, active energy, workouts and weight; saves meals, water and weight. '
-              '${Theme.of(context).platform == TargetPlatform.android ? 'Samsung phones: in Samsung Health, open Settings › Health Connect and turn on sharing for steps, exercise, weight, water and nutrition. FitTrack reads and writes it from there.' : 'Manage access in Settings › Health › Data Access & Devices.'}',
+              'Reads steps, sleep, active energy, workouts and weight; saves meals, water, weight and sleep. '
+              '${Theme.of(context).platform == TargetPlatform.android ? 'Samsung phones: in Samsung Health, open Settings › Health Connect and turn on sharing for steps, sleep, exercise, weight, water and nutrition. FitTrack reads and writes it from there.' : 'Manage access in Settings › Health › Data Access & Devices.'}',
             ),
       children: [
         FRow(
