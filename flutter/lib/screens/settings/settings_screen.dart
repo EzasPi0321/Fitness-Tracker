@@ -307,7 +307,97 @@ class _HealthSection extends StatelessWidget {
             onChanged: state.healthEnabled ? state.setAddActiveEnergy : null,
           ),
         ),
+        if (state.healthEnabled) const _HealthStatus(),
       ],
+    );
+  }
+}
+
+/// What FitTrack can actually see right now: today's steps, and any data type that hasn't been
+/// allowed, with the exact place to fix it.
+class _HealthStatus extends StatefulWidget {
+  const _HealthStatus();
+
+  @override
+  State<_HealthStatus> createState() => _HealthStatusState();
+}
+
+class _HealthStatusState extends State<_HealthStatus> {
+  int? _steps;
+  bool _checking = true;
+
+  @override
+  void initState() {
+    super.initState();
+    _check();
+  }
+
+  Future<void> _check() async {
+    final state = AppScope.read(context);
+    setState(() => _checking = true);
+    await state.refreshHealthAccess();
+    final steps = await state.health.steps(DateTime.now());
+    state.refreshHealth();
+    if (mounted) {
+      setState(() {
+        _steps = steps;
+        _checking = false;
+      });
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final state = AppScope.of(context);
+    final t = FT.of(context);
+    final tt = Theme.of(context).textTheme;
+    final android = Theme.of(context).platform == TargetPlatform.android;
+    final missing = state.healthMissing;
+    final noSteps = !_checking && (_steps == null || _steps == 0);
+
+    return Padding(
+      padding: const EdgeInsets.fromLTRB(S.lg, S.md, S.sm, S.md),
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  _checking ? 'Checking…' : 'Steps today: ${_steps == null ? '—' : whole(_steps!.toDouble())}',
+                  style: tt.bodyLarge,
+                ),
+                if (missing.isNotEmpty) ...[
+                  const SizedBox(height: 4),
+                  StatusPill(text: 'Not allowed: ${missing.join(', ')}', color: t.warn, icon: Symbols.info),
+                  const SizedBox(height: 4),
+                  Text(
+                    android
+                        ? 'Allow them in Settings › Apps › Health Connect › App permissions › FitTrack.'
+                        : 'Allow them in Settings › Health › Data Access & Devices › FitTrack.',
+                    style: tt.bodySmall,
+                  ),
+                ],
+                if (noSteps && android) ...[
+                  const SizedBox(height: 4),
+                  Text(
+                    'No steps yet. In Samsung Health: Settings › Health Connect › App permissions › '
+                    'Samsung Health, and turn on Steps (and Exercise, Weight). Samsung Health copies '
+                    'new steps every so often, so give it a few minutes.',
+                    style: tt.bodySmall,
+                  ),
+                ],
+              ],
+            ),
+          ),
+          IconButton(
+            tooltip: 'Check again',
+            onPressed: _checking ? null : _check,
+            icon: FIcon(Symbols.refresh, color: t.fg),
+          ),
+        ],
+      ),
     );
   }
 }

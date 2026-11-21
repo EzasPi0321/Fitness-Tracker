@@ -731,6 +731,31 @@ Carbohydrate 12.0g 4.8g
       expect(LabelOcr.parse('Ingredients: oats, honey, almonds'), isNull);
     });
   });
+
+  test('connecting with only some health permissions still syncs, and says what is missing', () async {
+    final s = AppState(store: MemoryStore(), health: _PartialHealth());
+    await s.load();
+    s.completeOnboarding(UserProfile());
+    final before = s.healthRefresh.value;
+    await s.setHealthEnabled(true);
+    expect(s.healthEnabled, isTrue);
+    expect(s.healthError, isNull);
+    expect(s.healthMissing, ['Water']);
+    expect(s.healthRefresh.value, greaterThan(before)); // screens re-read steps
+  });
+}
+
+class _PartialHealth extends UnsupportedHealthService {
+  @override
+  bool get isSupported => true;
+  @override
+  List<String> get readNames => const ['Steps', 'Weight', 'Water'];
+  @override
+  Future<bool> requestAuthorization() async => true;
+  @override
+  Future<Set<String>?> grantedReads() async => {'Steps', 'Weight'};
+  @override
+  Future<int?> steps(DateTime day) async => 4210;
 }
 
 class _FakeUpdates extends UpdateService {

@@ -282,10 +282,20 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
               if (snap.weightKg != null && snap.weightKg! >= 30 && snap.weightKg! <= 350)
                 _draft.weightKg = snap.weightKg!;
             });
-            _go(1);
+            // Stay here and show it worked; Continue moves on.
           },
-          child: Text('Connect $name'),
+          child: Text(state.healthEnabled ? 'Connected' : 'Connect $name'),
         ),
+        if (state.healthEnabled) ...[
+          const SizedBox(height: S.md),
+          StatusPill(
+            text: state.healthMissing.isEmpty
+                ? 'Connected to $name. Tap Continue.'
+                : 'Connected. Not allowed: ${state.healthMissing.join(', ')}',
+            color: state.healthMissing.isEmpty ? t.good : t.warn,
+            icon: Symbols.check,
+          ),
+        ],
         if (state.healthError != null) ...[
           const SizedBox(height: S.md),
           StatusPill(text: state.healthError!, color: t.warn, icon: Symbols.info),

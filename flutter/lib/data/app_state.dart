@@ -344,10 +344,35 @@ class AppState extends ChangeNotifier {
     healthError = null;
     final ok = await health.requestAuthorization();
     healthEnabled = ok;
-    if (!ok)
+    if (!ok) {
       healthError = '${health.storeName} access wasn\'t granted. You can allow it in the ${health.storeName} app.';
+    }
+    await refreshHealthAccess();
     _changed();
+    refreshHealth();
   }
+
+  /// Data types the health store hasn't allowed FitTrack to read (Android only; Apple hides it).
+  List<String> healthMissing = const [];
+
+  Future<void> refreshHealthAccess() async {
+    if (!healthEnabled || !health.isSupported) {
+      healthMissing = const [];
+      return;
+    }
+    final granted = await health.grantedReads();
+    healthMissing = granted == null
+        ? const []
+        : [
+            for (final n in health.readNames)
+              if (!granted.contains(n)) n,
+          ];
+  }
+
+  /// Bumped when health data should be read again (connected, app reopened, pulled to refresh).
+  final healthRefresh = ValueNotifier<int>(0);
+
+  void refreshHealth() => healthRefresh.value++;
 
   void setEnergyUnit(EnergyUnit u) {
     Energy.unit = u;
@@ -491,6 +516,7 @@ class AppState extends ChangeNotifier {
   void dispose() {
     _saveTimer?.cancel();
     logPulse.dispose();
+    healthRefresh.dispose();
     super.dispose();
   }
 }
