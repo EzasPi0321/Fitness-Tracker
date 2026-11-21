@@ -9,7 +9,7 @@ import '../models/util.dart';
 import 'open_food_facts.dart' show lossyDouble;
 
 enum VisionProvider {
-  claude('Claude', 'Anthropic Claude', 'claude-opus-5-5'),
+  claude('Claude', 'Anthropic Claude', AiModel.smartId),
   gemini('Gemini', 'Google Gemini', 'gemini-2.5-flash'),
   openAI('OpenAI', 'OpenAI', 'gpt-4o-mini');
 
@@ -35,7 +35,15 @@ class AiModel {
   final String label;
   final VisionProvider provider;
 
+  /// Not a real model: Haiku first, and Opus only when Haiku isn't sure. The default.
+  static const smartId = 'claude-smart';
+  static const quickModel = 'claude-haiku-5-5';
+  static const carefulModel = 'claude-opus-5-5';
+
+  bool get isSmart => id == smartId;
+
   static const all = [
+    AiModel(smartId, 'Smart (Haiku, Opus when unsure)', VisionProvider.claude),
     AiModel('claude-opus-5-5', 'Claude Opus 5.5', VisionProvider.claude),
     AiModel('claude-sonnet-5-5', 'Claude Sonnet 5.5', VisionProvider.claude),
     AiModel('claude-haiku-5-5', 'Claude Haiku 5.5', VisionProvider.claude),
@@ -46,6 +54,10 @@ class AiModel {
   ];
 
   static AiModel byId(String id) => all.firstWhere((m) => m.id == id, orElse: () => all.first);
+
+  /// Display name for a real model id (what actually answered).
+  static String nameOf(String id) =>
+      all.firstWhere((m) => m.id == id, orElse: () => AiModel(id, id, VisionProvider.claude)).label;
 }
 
 class DetectedFood {
@@ -71,9 +83,34 @@ class DetectedFood {
 }
 
 class MealAnalysis {
-  MealAnalysis({required this.items, this.notes = ''});
+  MealAnalysis({required this.items, this.notes = '', this.answeredBy = '', this.escalated = false});
   final List<DetectedFood> items;
   final String notes;
+
+  /// The model that produced these numbers.
+  final String answeredBy;
+
+  /// Smart mode: the quick model wasn't sure, so the careful model answered.
+  final bool escalated;
+
+  MealAnalysis copyWith({String? answeredBy, bool? escalated}) => MealAnalysis(
+    items: items,
+    notes: notes,
+    answeredBy: answeredBy ?? this.answeredBy,
+    escalated: escalated ?? this.escalated,
+  );
+
+  /// Smart mode hands a photo to the careful model when the quick one found nothing, or is
+  /// unsure about any item, or about the meal as a whole (confidence weighted by calories).
+  bool get needsCarefulLook {
+    if (items.isEmpty) return true;
+    if (items.any((i) => i.confidence < 0.6)) return true;
+    final kcal = items.fold<double>(0, (a, i) => a + i.calories);
+    final weighted = kcal <= 0
+        ? items.fold<double>(0, (a, i) => a + i.confidence) / items.length
+        : items.fold<double>(0, (a, i) => a + i.confidence * i.calories) / kcal;
+    return weighted < 0.75;
+  }
 }
 
 /// Values transcribed from a nutrition facts panel, always per serving.
@@ -86,6 +123,7 @@ class LabelReading {
     required this.perServing,
     required this.readable,
     this.printedUnit = EnergyUnit.kcal,
+    this.answeredBy = '',
   });
   final String name;
   final String brand;
@@ -96,6 +134,20 @@ class LabelReading {
 
   /// The energy unit printed on the package.
   final EnergyUnit printedUnit;
+
+  /// The model that read the label.
+  final String answeredBy;
+
+  LabelReading withModel(String id) => LabelReading(
+    name: name,
+    brand: brand,
+    servingDescription: servingDescription,
+    servingGrams: servingGrams,
+    perServing: perServing,
+    readable: readable,
+    printedUnit: printedUnit,
+    answeredBy: id,
+  );
 }
 
 class VisionException implements Exception {
@@ -162,8 +214,21 @@ Respond with JSON only.''';
     );
   }
 
+  AIVisionService _as(String id) => AIVisionService(provider: provider, apiKey: apiKey, model: id, client: _client);
+
   Future<MealAnalysis> analyzeMeal(Uint8List jpeg, {String? hint}) async {
     if (apiKey.trim().isEmpty) throw VisionException.missingKey;
+    if (model == AiModel.smartId) {
+      // Haiku first (about 1/35 of Opus's price); Opus only when Haiku isn't sure or fails.
+      try {
+        final quick = await _as(AiModel.quickModel).analyzeMeal(jpeg, hint: hint);
+        if (!quick.needsCarefulLook) return quick;
+      } on VisionException catch (e) {
+        if (_isConnection(e)) rethrow;
+      }
+      final careful = await _as(AiModel.carefulModel).analyzeMeal(jpeg, hint: hint);
+      return careful.copyWith(escalated: true);
+    }
     final b64 = base64Encode(jpeg);
     var userText = 'Analyse this meal photo and return the nutrition estimate.';
     final h = hint?.trim();
@@ -173,8 +238,12 @@ Respond with JSON only.''';
       VisionProvider.openAI => await _openAI(b64, userText, instructions, responseSchema(provider), 'meal_analysis'),
       VisionProvider.claude => await _claude(b64, userText, instructions, responseSchema(provider)),
     };
-    return decodeAnalysis(raw);
+    return decodeAnalysis(raw).copyWith(answeredBy: model);
   }
+
+  /// Errors Opus would hit too (no connection, bad key, rate limit): don't pay for a second try.
+  static bool _isConnection(VisionException e) =>
+      e.message.startsWith("Couldn't reach") || RegExp(r'failed \((401|403|429)\)').hasMatch(e.message);
 
   Future<String> _gemini(String b64, String userText, String system, Map<String, dynamic> schema) async {
     final body = {
@@ -399,6 +468,16 @@ Never estimate from the look of the food. Use only the printed numbers. Respond 
 
   Future<LabelReading> readNutritionLabel(Uint8List jpeg) async {
     if (apiKey.trim().isEmpty) throw VisionException.missingKey;
+    if (model == AiModel.smartId) {
+      // Reading printed numbers is easy work: Opus only if Haiku couldn't read the panel.
+      try {
+        final quick = await _as(AiModel.quickModel).readNutritionLabel(jpeg);
+        if (quick.readable) return quick;
+      } on VisionException catch (e) {
+        if (_isConnection(e)) rethrow;
+      }
+      return _as(AiModel.carefulModel).readNutritionLabel(jpeg);
+    }
     final b64 = base64Encode(jpeg);
     const text = 'Transcribe this nutrition facts label.';
     final raw = switch (provider) {
@@ -406,7 +485,7 @@ Never estimate from the look of the food. Use only the printed numbers. Respond 
       VisionProvider.openAI => await _openAI(b64, text, labelInstructions, labelSchema(provider), 'nutrition_label'),
       VisionProvider.claude => await _claude(b64, text, labelInstructions, labelSchema(provider)),
     };
-    return decodeLabel(raw);
+    return decodeLabel(raw).withModel(model);
   }
 
   static LabelReading decodeLabel(String raw) {

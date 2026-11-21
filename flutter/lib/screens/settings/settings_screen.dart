@@ -460,10 +460,23 @@ class _AISectionState extends State<_AISection> {
         const SectionLabel('AI photo estimates'),
         DropdownButtonFormField<String>(
           initialValue: AiModel.byId(state.visionModel).id,
-          decoration: const InputDecoration(labelText: 'Model'),
+          decoration: InputDecoration(
+            labelText: 'Model',
+            helperText: AiModel.byId(state.visionModel).isSmart
+                ? 'Each photo goes to Haiku first, and to Opus only when Haiku is unsure. Uses your Anthropic key.'
+                : null,
+            helperMaxLines: 3,
+          ),
           borderRadius: BorderRadius.circular(S.radiusControl),
           dropdownColor: t.raised,
-          items: [for (final m in AiModel.all) DropdownMenuItem(value: m.id, child: Text(m.label))],
+          isExpanded: true,
+          items: [
+            for (final m in AiModel.all)
+              DropdownMenuItem(
+                value: m.id,
+                child: Text(m.label, overflow: TextOverflow.ellipsis),
+              ),
+          ],
           onChanged: (id) {
             if (id == null) return;
             state.setVisionModel(id);

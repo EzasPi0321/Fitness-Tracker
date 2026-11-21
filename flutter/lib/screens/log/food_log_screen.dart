@@ -223,22 +223,33 @@ class _FoodLogScreenState extends State<FoodLogScreen> {
             left: 0,
             right: 0,
             bottom: 0,
-            child: SafeArea(
-              top: false,
-              child: Padding(
-                padding: EdgeInsets.fromLTRB(gutter, S.sm, gutter, S.md),
-                child: Center(
-                  child: ConstrainedBox(
-                    constraints: const BoxConstraints(maxWidth: 820),
-                    child: _SearchBar(
-                      controller: _search,
-                      focus: _searchFocus,
-                      pendingAt: _pendingAt,
-                      onClose: _closeSearch,
-                      onBarcode: () => PlatformCaps.hasCamera
-                          ? openBarcodeScanner(context, day: _day, at: _pendingAt)
-                          : openBarcodeEntry(context, day: _day, at: _pendingAt),
-                      onPhoto: () => openSnapMeal(context, day: _day, at: _pendingAt),
+            // The timeline fades out behind the search bar instead of showing through around it.
+            child: DecoratedBox(
+              decoration: BoxDecoration(
+                gradient: LinearGradient(
+                  begin: Alignment.topCenter,
+                  end: Alignment.bottomCenter,
+                  colors: [t.bg.withValues(alpha: 0), t.bg, t.bg],
+                  stops: const [0, 0.4, 1],
+                ),
+              ),
+              child: SafeArea(
+                top: false,
+                child: Padding(
+                  padding: EdgeInsets.fromLTRB(gutter, S.xl, gutter, S.md),
+                  child: Center(
+                    child: ConstrainedBox(
+                      constraints: const BoxConstraints(maxWidth: 820),
+                      child: _SearchBar(
+                        controller: _search,
+                        focus: _searchFocus,
+                        pendingAt: _pendingAt,
+                        onClose: _closeSearch,
+                        onBarcode: () => PlatformCaps.hasCamera
+                            ? openBarcodeScanner(context, day: _day, at: _pendingAt)
+                            : openBarcodeEntry(context, day: _day, at: _pendingAt),
+                        onPhoto: () => openSnapMeal(context, day: _day, at: _pendingAt),
+                      ),
                     ),
                   ),
                 ),
@@ -447,11 +458,12 @@ class _LogCard extends StatelessWidget {
     final n = entry.nutrients;
     final grams = entry.grams;
     const radius = 18.0;
+    // Two short lines instead of one long one, so nothing is cut off on a phone.
     final detail = [
       Energy.format(n.calories),
-      '${whole(n.protein)}P ${whole(n.fat)}F ${whole(n.carbs)}C',
       if (grams != null) '${whole(grams)} g' else entry.portionDescription,
     ].join('  ·  ');
+    final macros = '${whole(n.protein)}P  ${whole(n.fat)}F  ${whole(n.carbs)}C';
 
     return Material(
       color: t.surface,
@@ -502,6 +514,12 @@ class _LogCard extends StatelessWidget {
                     Text(
                       detail,
                       style: tt.bodySmall!.copyWith(fontFeatures: tabular),
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                    ),
+                    Text(
+                      macros,
+                      style: tt.labelSmall!.copyWith(color: t.muted, fontFeatures: tabular),
                       maxLines: 1,
                       overflow: TextOverflow.ellipsis,
                     ),

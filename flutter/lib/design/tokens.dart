@@ -250,20 +250,32 @@ ThemeData buildTheme(FT t) {
       selectedLabelTextStyle: s(12.5, FontWeight.w600),
       unselectedLabelTextStyle: s(12.5, FontWeight.w500, color: t.muted),
     ),
+    // Filled fields with the floating label kept inside the box (an underline-style border):
+    // an outline border would lift the label onto the box's top edge, where it collides with
+    // dividers and the content above.
     inputDecorationTheme: InputDecorationTheme(
       filled: true,
       fillColor: t.inset,
       isDense: true,
-      contentPadding: const EdgeInsets.symmetric(horizontal: 12, vertical: 12),
-      border: OutlineInputBorder(borderRadius: BorderRadius.circular(S.radiusControl - 2), borderSide: BorderSide.none),
-      enabledBorder: OutlineInputBorder(
+      contentPadding: const EdgeInsets.fromLTRB(14, 10, 14, 10),
+      border: UnderlineInputBorder(
         borderRadius: BorderRadius.circular(S.radiusControl - 2),
         borderSide: BorderSide.none,
       ),
-      focusedBorder: OutlineInputBorder(
+      enabledBorder: UnderlineInputBorder(
+        borderRadius: BorderRadius.circular(S.radiusControl - 2),
+        borderSide: BorderSide.none,
+      ),
+      disabledBorder: UnderlineInputBorder(
+        borderRadius: BorderRadius.circular(S.radiusControl - 2),
+        borderSide: BorderSide.none,
+      ),
+      focusedBorder: UnderlineInputBorder(
         borderRadius: BorderRadius.circular(S.radiusControl - 2),
         borderSide: BorderSide(color: t.fg.withValues(alpha: 0.6), width: 1.4),
       ),
+      floatingLabelStyle: s(12.5, FontWeight.w500, color: t.muted),
+      labelStyle: s(14.5, FontWeight.w400, color: t.muted),
       hintStyle: s(14.5, FontWeight.w400, color: t.muted),
     ),
     filledButtonTheme: FilledButtonThemeData(
