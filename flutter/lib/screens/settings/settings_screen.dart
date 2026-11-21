@@ -3,7 +3,6 @@ import 'package:material_symbols_icons/symbols.dart';
 
 import '../../data/app_state.dart';
 import '../../design/motion.dart';
-import '../../design/oklch.dart';
 import '../../design/tokens.dart';
 import '../../models/nutrients.dart';
 import '../../models/profile.dart';
@@ -176,7 +175,7 @@ class TargetsSection extends StatelessWidget {
           leading: Container(
             width: 10,
             height: 10,
-            decoration: BoxDecoration(color: const Oklch(0.68, 0.13, 235).toColor(), shape: BoxShape.circle),
+            decoration: BoxDecoration(color: t.bodyO.toColor(), shape: BoxShape.circle),
           ),
           label: 'Water',
           sub: state.waterGoalOverride == null ? 'From your weight (35 ml per kg)' : 'Your own goal',

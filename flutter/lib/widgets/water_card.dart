@@ -50,7 +50,7 @@ class WaterCard extends StatelessWidget {
     final goal = state.waterGoal;
     final frac = goal > 0 ? total / goal : 0.0;
     final hasAny = state.waterOn(day).isNotEmpty;
-    const water = Oklch(0.68, 0.13, 235);
+    final water = t.bodyO;
 
     Widget add(double ml) => Expanded(
       child: Squishy(

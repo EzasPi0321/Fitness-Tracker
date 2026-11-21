@@ -92,7 +92,8 @@ class FT extends ThemeExtension<FT> {
       raised: const Oklch(0.24, 0, 0).toColor(),
       inset: const Oklch(0.27, 0, 0).toColor(),
       fg: const Oklch(0.97, 0, 0).toColor(),
-      muted: const Oklch(0.68, 0, 0).toColor(),
+      // Secondary text: Lc ≥60 (APCA) on every dark surface, from the background to input fields.
+      muted: const Oklch(0.78, 0, 0).toColor(),
       border: const Color.from(alpha: 0.12, red: 1, green: 1, blue: 1),
       accent: const Oklch(0.97, 0, 0).toColor(),
       onAccent: Colors.black,
@@ -108,6 +109,9 @@ class FT extends ThemeExtension<FT> {
       shadow: const [], // shadows barely read on black; lighter surfaces carry the depth
     );
   }
+
+  /// Body measures (weight and water) share one teal, kept clear of protein's blue.
+  Oklch get bodyO => dark ? const Oklch(0.74, 0.10, 205) : const Oklch(0.58, 0.11, 205);
 
   Color macro(Macro m) => switch (m) {
     Macro.protein => protein,
@@ -207,7 +211,7 @@ ThemeData buildTheme(FT t) {
     bodySmall: s(12.5, FontWeight.w400, height: 1.35, color: t.muted),
     labelLarge: s(14.5, FontWeight.w600),
     labelMedium: s(12.5, FontWeight.w500, color: t.muted),
-    labelSmall: s(11.5, FontWeight.w500, ls: 0.1, color: t.muted),
+    labelSmall: s(12, FontWeight.w500, ls: 0.1, color: t.muted),
   );
 
   final controlShape = RoundedRectangleBorder(borderRadius: BorderRadius.circular(S.radiusControl));
