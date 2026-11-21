@@ -61,7 +61,12 @@ void main() {
 
     await tester.tap(find.text('Settings').last);
     await tester.pumpAndSettle();
-    expect(find.text('Daily targets'.toUpperCase()), findsOneWidget);
+    expect(find.text('PROFILE'), findsOneWidget);
+    expect(find.text('Cut'), findsOneWidget);
+    await tester.tap(find.text('Cut'));
+    await tester.pumpAndSettle();
+    expect(s.profile!.goal.name, 'lose');
+    await tester.scrollUntilVisible(find.text('Phone only'), 300, scrollable: find.byType(Scrollable).last);
     expect(find.text('Phone only'), findsOneWidget);
   }, variant: desktop);
 

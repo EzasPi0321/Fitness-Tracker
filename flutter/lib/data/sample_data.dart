@@ -110,6 +110,7 @@ class SampleData {
       heightCm: 170,
       weightKg: weights.last.kilograms,
     );
+    profile.targets = profile.plan.targets;
 
     final custom = [
       CustomFood(

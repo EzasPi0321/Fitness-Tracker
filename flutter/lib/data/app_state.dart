@@ -108,6 +108,15 @@ class AppState extends ChangeNotifier {
     _changed();
   }
 
+  /// Changes a profile field and recalculates the daily targets from it (Mifflin–St Jeor).
+  void updateProfileAndPlan(void Function(UserProfile p) change) {
+    final p = profile;
+    if (p == null) return;
+    change(p);
+    if (p.isBodyValid) p.targets = p.plan.targets;
+    _changed();
+  }
+
   void updateProfile(void Function(UserProfile p) change) {
     final p = profile;
     if (p == null) return;

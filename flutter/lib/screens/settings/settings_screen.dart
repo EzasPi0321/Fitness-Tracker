@@ -9,7 +9,7 @@ import '../../models/util.dart';
 import '../../services/ai_vision.dart';
 import '../../services/platform_caps.dart';
 import '../../widgets/common.dart';
-import '../onboarding/onboarding_screen.dart';
+import 'profile_section.dart';
 
 class SettingsScreen extends StatelessWidget {
   const SettingsScreen({super.key});
@@ -23,6 +23,8 @@ class SettingsScreen extends StatelessWidget {
     final twoCol = width >= 1000;
 
     final left = [
+      const ProfileSection(),
+      const SizedBox(height: S.xl),
       const _TargetsSection(),
       const SizedBox(height: S.xl),
       const _UnitsSection(),
@@ -162,10 +164,13 @@ class _TargetsSection extends StatelessWidget {
             ),
           ),
         FRow(
-          label: 'Recalculate from my profile',
-          trailing: FIcon(Symbols.chevron_right, color: t.muted),
-          onTap: () =>
-              Navigator.of(context).push(MaterialPageRoute(builder: (_) => OnboardingScreen(existing: state.profile))),
+          label: "Reset to my profile's plan",
+          sub: 'Undo manual changes to these numbers',
+          trailing: FIcon(Symbols.restart_alt, color: t.muted),
+          onTap: () {
+            state.updateProfileAndPlan((_) {});
+            showToast(context, 'Targets reset to your plan');
+          },
         ),
       ],
     );

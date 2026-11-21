@@ -413,4 +413,27 @@ void main() {
     };
     expected.forEach((level, kcal) => expect(NutritionCalculator.tdee(bmr, level), kcal, reason: level.name));
   });
+
+  test('changing the profile goal recalculates targets', () async {
+    final s = AppState(store: MemoryStore(), health: UnsupportedHealthService());
+    await s.load();
+    s.completeOnboarding(UserProfile(
+      sex: BiologicalSex.male,
+      birthDate: DateTime(DateTime.now().year - 30, 1, 1),
+      heightCm: 180,
+      weightKg: 80,
+      activity: ActivityLevel.moderate,
+      goal: WeightGoal.maintain,
+    ));
+    s.updateProfileAndPlan((p) => p.goal = WeightGoal.maintain);
+    final maintain = s.targets.calories;
+    s.updateProfileAndPlan((p) => p.goal = WeightGoal.lose);
+    expect(s.targets.calories, maintain - 500);
+    s.updateProfileAndPlan((p) => p.goal = WeightGoal.gain);
+    expect(s.targets.calories, maintain + 300);
+    // Out-of-range input doesn't wreck the targets.
+    final before = s.targets;
+    s.updateProfileAndPlan((p) => p.weightKg = 5);
+    expect(s.targets, before);
+  });
 }
