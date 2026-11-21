@@ -460,10 +460,23 @@ class _AISectionState extends State<_AISection> {
         const SectionLabel('AI photo estimates'),
         DropdownButtonFormField<String>(
           initialValue: AiModel.byId(state.visionModel).id,
-          decoration: const InputDecoration(labelText: 'Model'),
+          decoration: InputDecoration(
+            labelText: 'Model',
+            helperText: AiModel.byId(state.visionModel).isSmart
+                ? 'Each photo goes to Haiku first, and to Opus only when Haiku is unsure. Uses your Anthropic key.'
+                : null,
+            helperMaxLines: 3,
+          ),
           borderRadius: BorderRadius.circular(S.radiusControl),
           dropdownColor: t.raised,
-          items: [for (final m in AiModel.all) DropdownMenuItem(value: m.id, child: Text(m.label))],
+          isExpanded: true,
+          items: [
+            for (final m in AiModel.all)
+              DropdownMenuItem(
+                value: m.id,
+                child: Text(m.label, overflow: TextOverflow.ellipsis),
+              ),
+          ],
           onChanged: (id) {
             if (id == null) return;
             state.setVisionModel(id);
@@ -569,7 +582,7 @@ class _DataSectionState extends State<_DataSection> {
           const SizedBox.shrink()
         else if (!state.isSample)
           FRow(
-            leading: FIcon(Symbols.auto_awesome, color: t.muted),
+            leading: FIcon(Symbols.dataset, color: t.muted),
             label: 'Load sample data',
             sub: 'Replaces your log with 90 days of examples',
             onTap: () => state.loadSampleData(),

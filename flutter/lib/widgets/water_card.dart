@@ -188,23 +188,7 @@ class _GlassPainter extends CustomPainter {
       canvas.save();
       canvas.clipPath(glass);
       final rect = Rect.fromLTRB(0, top, w, h);
-      canvas.drawRect(
-        rect,
-        Paint()
-          ..shader = LinearGradient(
-            begin: Alignment.topCenter,
-            end: Alignment.bottomCenter,
-            colors: oklchStops([water.withL(water.l + 0.08), water.withL(water.l - 0.06)], steps: 6),
-          ).createShader(rect),
-      );
-      // A soft highlight on the surface gives the water a little depth.
-      canvas.drawLine(
-        Offset(w * 0.12, top + 1.5),
-        Offset(w * 0.88, top + 1.5),
-        Paint()
-          ..color = Colors.white.withValues(alpha: 0.35)
-          ..strokeWidth = 1.5,
-      );
+      canvas.drawRect(rect, Paint()..color = water.toColor());
       canvas.restore();
     }
     canvas.drawPath(
@@ -213,15 +197,6 @@ class _GlassPainter extends CustomPainter {
         ..style = PaintingStyle.stroke
         ..strokeWidth = 1.5
         ..color = t.border,
-    );
-    // Gloss along the left wall.
-    canvas.drawLine(
-      Offset(w * 0.12, h * 0.1),
-      Offset(w * 0.2, h * 0.85),
-      Paint()
-        ..color = Colors.white.withValues(alpha: t.dark ? 0.12 : 0.5)
-        ..strokeWidth = 2
-        ..strokeCap = StrokeCap.round,
     );
   }
 

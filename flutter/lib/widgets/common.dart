@@ -37,7 +37,7 @@ IconData mealIcon(MealType m) => switch (m) {
 
 IconData sourceIcon(EntrySource s) => switch (s) {
   EntrySource.barcode => Symbols.barcode_scanner,
-  EntrySource.photoAI => Symbols.auto_awesome,
+  EntrySource.photoAI => Symbols.photo_camera,
   EntrySource.manual => Symbols.edit_note,
   EntrySource.customFood => Symbols.star,
 };
@@ -76,7 +76,7 @@ class SectionLabel extends StatelessWidget {
       padding: const EdgeInsets.fromLTRB(4, 0, 4, S.sm),
       child: Row(
         children: [
-          Expanded(child: Text(text.toUpperCase(), style: Theme.of(context).textTheme.labelSmall)),
+          Expanded(child: Text(text, style: Theme.of(context).textTheme.labelMedium)),
           ?trailing,
         ],
       ),
@@ -104,7 +104,7 @@ class MacroInline extends StatelessWidget {
             for (final m in Macro.values) ...[
               TextSpan(
                 text: m.short,
-                style: TextStyle(color: t.macro(m), fontWeight: FontWeight.w700),
+                style: TextStyle(color: t.macro(m), fontWeight: FontWeight.w600),
               ),
               TextSpan(text: ' ${whole(n.of(m))}${m == Macro.fat ? '' : '   '}'),
             ],
@@ -174,14 +174,12 @@ class FGroup extends StatelessWidget {
             color: t.surface,
             borderRadius: BorderRadius.circular(S.radiusCard - 4),
             border: Border.all(color: t.border),
-            boxShadow: t.shadow,
           ),
+          padding: const EdgeInsets.symmetric(vertical: S.xs),
           child: Column(
             children: [
-              for (var i = 0; i < children.length; i++) ...[
-                if (i > 0) Divider(indent: S.lg, color: t.border),
-                children[i],
-              ],
+              // No hairlines between rows: each row's own height already separates them.
+              for (var i = 0; i < children.length; i++) children[i],
             ],
           ),
         ),
@@ -322,7 +320,7 @@ class StatusPill extends StatelessWidget {
   Widget build(BuildContext context) {
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
-      decoration: BoxDecoration(color: color.withValues(alpha: 0.14), borderRadius: BorderRadius.circular(99)),
+      decoration: BoxDecoration(color: color.withValues(alpha: 0.14), borderRadius: BorderRadius.circular(6)),
       child: Row(
         mainAxisSize: MainAxisSize.min,
         children: [

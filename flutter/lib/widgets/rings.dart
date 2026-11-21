@@ -18,6 +18,7 @@ class CalorieRing extends StatefulWidget {
     this.pulse,
     this.size = 180,
     this.stroke = 18,
+    this.showCenter = true,
   });
 
   final double consumed;
@@ -25,6 +26,9 @@ class CalorieRing extends StatefulWidget {
   final Listenable? pulse;
   final double size;
   final double stroke;
+
+  /// False when the number is shown beside the ring instead of inside it.
+  final bool showCenter;
 
   @override
   State<CalorieRing> createState() => _CalorieRingState();
@@ -89,28 +93,30 @@ class _CalorieRingState extends State<CalorieRing> with SingleTickerProviderStat
                   : 1 - Curves.easeInOut.transform((v - 0.3) / 0.7);
               return CustomPaint(
                 painter: _RingPainter(progress: p, stroke: widget.stroke * (1 + 0.1 * swell), flare: swell, t: t),
-                child: Center(
-                  child: Transform.scale(
-                    scale: 1 + 0.05 * swell,
-                    child: Column(
-                      mainAxisSize: MainAxisSize.min,
-                      children: [
-                        CountUp(
-                          value: remaining.abs(),
-                          format: (v) => whole(Energy.toDisplay(v)),
-                          style: tt.displaySmall!.copyWith(fontFeatures: tabular, fontSize: widget.size * 0.2),
-                        ),
-                        BlurSwitcher(
-                          child: Text(
-                            remaining >= 0 ? '${Energy.label} left' : '${Energy.label} over',
-                            key: ValueKey(remaining >= 0),
-                            style: tt.labelMedium!.copyWith(color: remaining >= 0 ? t.muted : t.over),
+                child: !widget.showCenter
+                    ? null
+                    : Center(
+                        child: Transform.scale(
+                          scale: 1 + 0.05 * swell,
+                          child: Column(
+                            mainAxisSize: MainAxisSize.min,
+                            children: [
+                              CountUp(
+                                value: remaining.abs(),
+                                format: (v) => whole(Energy.toDisplay(v)),
+                                style: tt.displaySmall!.copyWith(fontFeatures: tabular, fontSize: widget.size * 0.2),
+                              ),
+                              BlurSwitcher(
+                                child: Text(
+                                  remaining >= 0 ? '${Energy.label} left' : '${Energy.label} over',
+                                  key: ValueKey(remaining >= 0),
+                                  style: tt.labelMedium!.copyWith(color: remaining >= 0 ? t.muted : t.over),
+                                ),
+                              ),
+                            ],
                           ),
                         ),
-                      ],
-                    ),
-                  ),
-                ),
+                      ),
               );
             },
           ),
@@ -185,19 +191,6 @@ class _RingPainter extends CustomPainter {
       ..strokeWidth = stroke
       ..strokeCap = StrokeCap.round;
     canvas.drawArc(rect, start, sweep, false, body);
-
-    // The tip glows briefly when food is logged.
-    final a = start + sweep;
-    final tip = Offset(c.dx + r * math.cos(a), c.dy + r * math.sin(a));
-    if (flare > 0.01) {
-      canvas.drawCircle(
-        tip,
-        stroke * (0.6 + 0.9 * flare),
-        Paint()
-          ..color = (body.shader == null ? body.color : t.calories).withValues(alpha: 0.35 * flare)
-          ..maskFilter = MaskFilter.blur(BlurStyle.normal, stroke * 0.6),
-      );
-    }
   }
 
   @override

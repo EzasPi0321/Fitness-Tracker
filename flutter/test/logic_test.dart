@@ -15,6 +15,10 @@ import 'package:fittrack/services/open_food_facts.dart';
 import 'package:fittrack/services/updates.dart';
 import 'package:flutter/foundation.dart' show TargetPlatform;
 import 'package:flutter_test/flutter_test.dart';
+import 'package:http/http.dart' as http;
+import 'package:http/testing.dart';
+
+import 'dart:typed_data';
 
 void main() {
   group('NutritionCalculator (same cases as the iOS tests)', () {
@@ -448,7 +452,7 @@ void main() {
       s.setVisionModel('gpt-4o');
       expect(s.visionProvider, VisionProvider.openAI);
       expect(s.visionProvider.keyLabel, 'OpenAI API key');
-      expect(AiModel.byId('unknown').id, 'claude-opus-5-5');
+      expect(AiModel.byId('unknown').id, AiModel.smartId);
     });
   });
 
@@ -494,6 +498,104 @@ void main() {
     expect(s.targets, before);
   });
 
+  group('Smart model (Haiku, Opus when unsure)', () {
+    DetectedFood food(double kcal, double conf) =>
+        DetectedFood(name: 'x', grams: 100, calories: kcal, protein: 0, carbs: 0, fat: 0, confidence: conf);
+
+    test('escalates when nothing was found or the meal is uncertain', () {
+      expect(MealAnalysis(items: []).needsCarefulLook, isTrue);
+      expect(MealAnalysis(items: [food(300, 0.9), food(100, 0.85)]).needsCarefulLook, isFalse);
+      expect(MealAnalysis(items: [food(300, 0.9), food(50, 0.5)]).needsCarefulLook, isTrue); // one item unsure
+      expect(MealAnalysis(items: [food(500, 0.65), food(50, 0.95)]).needsCarefulLook, isTrue); // main item shaky
+    });
+
+    String reply(double conf) => jsonEncode({
+      'stop_reason': 'end_turn',
+      'content': [
+        {
+          'type': 'text',
+          'text': jsonEncode({
+            'items': [
+              {
+                'name': 'rice',
+                'estimated_grams': 150,
+                'calories': 195,
+                'protein_g': 4,
+                'carbs_g': 42,
+                'fat_g': 0.4,
+                'confidence': conf,
+              },
+            ],
+            'notes': '',
+          }),
+        },
+      ],
+    });
+
+    Future<(MealAnalysis, List<String>)> run(double haikuConfidence, {int haikuStatus = 200}) async {
+      final asked = <String>[];
+      final client = MockClient((req) async {
+        final model = (jsonDecode(req.body) as Map)['model'] as String;
+        asked.add(model);
+        if (model == AiModel.quickModel && haikuStatus != 200) {
+          return http.Response(
+            jsonEncode({
+              'error': {'message': 'nope'},
+            }),
+            haikuStatus,
+          );
+        }
+        return http.Response(reply(model == AiModel.quickModel ? haikuConfidence : 0.9), 200);
+      });
+      final a = await AIVisionService(
+        provider: VisionProvider.claude,
+        apiKey: 'k',
+        model: AiModel.smartId,
+        client: client,
+      ).analyzeMeal(Uint8List(4));
+      return (a, asked);
+    }
+
+    test('a confident Haiku answer is used as is', () async {
+      final (a, asked) = await run(0.92);
+      expect(asked, [AiModel.quickModel]);
+      expect(a.answeredBy, AiModel.quickModel);
+      expect(a.escalated, isFalse);
+    });
+
+    test('an unsure Haiku answer goes to Opus', () async {
+      final (a, asked) = await run(0.4);
+      expect(asked, [AiModel.quickModel, AiModel.carefulModel]);
+      expect(a.answeredBy, AiModel.carefulModel);
+      expect(a.escalated, isTrue);
+    });
+
+    test('a Haiku server error goes to Opus, a bad key does not', () async {
+      final (a, asked) = await run(0.9, haikuStatus: 500);
+      expect(asked, [AiModel.quickModel, AiModel.carefulModel]);
+      expect(a.escalated, isTrue);
+      expect(() => run(0.9, haikuStatus: 401), throwsA(isA<VisionException>()));
+    });
+
+    test('Smart is the default, and replaces the old untouched Opus default', () async {
+      expect(VisionProvider.claude.defaultModel, AiModel.smartId);
+      final store = MemoryStore();
+      await store.write(
+        jsonEncode({
+          'settings': {'model': 'claude-opus-5-5', 'provider': 'claude'},
+        }),
+      );
+      final s = AppState(store: store, health: UnsupportedHealthService());
+      await s.load();
+      expect(s.visionModel, AiModel.smartId);
+      s.setVisionModel('claude-opus-5-5'); // chosen on purpose: kept
+      await s.flush();
+      final again = AppState(store: store, health: UnsupportedHealthService());
+      await again.load();
+      expect(again.visionModel, 'claude-opus-5-5');
+    });
+  });
+
   group('Water', () {
     test('goal follows body weight until set, entries add up per day, undo removes the last', () async {
       final store = MemoryStore();
@@ -524,10 +626,9 @@ void main() {
     });
   });
 
-  test('greeting and initials come from the profile name', () {
-    expect(greeting(DateTime(2026, 1, 1, 8), 'Daniel'), 'Good morning, Daniel');
-    expect(greeting(DateTime(2026, 1, 1, 14), ''), 'Good afternoon');
-    expect(greeting(DateTime(2026, 1, 1, 21), ' Sam '), 'Good evening, Sam');
+  test('the name line and initials come from the profile name', () {
+    expect(nameAndDate(DateTime(2026, 11, 21), 'Daniel'), 'Daniel · Sat 21 Nov');
+    expect(nameAndDate(DateTime(2026, 11, 21), ' '), 'Sat 21 Nov');
     expect(UserProfile(name: 'Daniel Xie').initials, 'DX');
     expect(UserProfile(name: 'Daniel Xie').firstName, 'Daniel');
     expect(UserProfile().initials, '');
@@ -769,6 +870,9 @@ Carbohydrate 12.0g 4.8g
   });
 
   test('the live app removes old sample data but keeps what the user logged', () async {
+    // Act as a release build: tests run in debug mode, which allows sample data.
+    AppState.demoOverride = false;
+    addTearDown(() => AppState.demoOverride = null);
     // An older version saved sample data; the user also logged one real meal.
     final store = MemoryStore();
     final old = AppState(store: store, health: UnsupportedHealthService());
@@ -789,7 +893,7 @@ Carbohydrate 12.0g 4.8g
     await old.flush();
 
     final s = AppState(store: store, health: UnsupportedHealthService());
-    await s.load(); // not the web preview, so sample data isn't allowed
+    await s.load(); // a release phone build, so sample data isn't allowed
     expect(AppState.demoAllowed, isFalse);
     expect(s.isSample, isFalse);
     expect(s.profile, isNull); // back to setup

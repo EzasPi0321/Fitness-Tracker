@@ -190,7 +190,7 @@ class _TodayScreenState extends State<TodayScreen> {
                                           children: [
                                             if (isToday)
                                               Text(
-                                                greeting(DateTime.now(), state.profile?.firstName ?? ''),
+                                                nameAndDate(DateTime.now(), state.profile?.firstName ?? ''),
                                                 style: tt.titleMedium!.copyWith(color: t.muted),
                                               ),
                                             Text(dayTitle(_day), style: tt.headlineMedium),
@@ -394,21 +394,49 @@ class _SummaryCard extends StatelessWidget {
     final budget = targets.calories + (includeActive ? active : 0);
     final narrow = MediaQuery.sizeOf(context).width < 400;
 
-    final stats = Column(
+    final tt = Theme.of(context).textTheme;
+    final left = budget - consumed.calories;
+    // The day's answer, set like the Energy row of a nutrition panel: the number, then its unit.
+    final lead = Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        _Stat(icon: Symbols.flag, label: 'Goal', value: targets.calories, color: t.muted),
-        const SizedBox(height: S.lg),
-        _Stat(icon: Symbols.restaurant, label: 'Eaten', value: consumed.calories, color: t.calories),
-        if (showActive) ...[
-          const SizedBox(height: S.lg),
-          _Stat(
-            icon: Symbols.local_fire_department,
-            label: includeActive ? 'Active (+)' : 'Active',
-            value: active,
-            color: t.warn,
+        BlurSwitcher(
+          child: Text(
+            left >= 0 ? 'Energy left' : 'Over your goal',
+            key: ValueKey(left >= 0),
+            style: tt.bodyMedium!.copyWith(color: left >= 0 ? t.muted : t.over),
           ),
-        ],
+        ),
+        Row(
+          crossAxisAlignment: CrossAxisAlignment.baseline,
+          textBaseline: TextBaseline.alphabetic,
+          children: [
+            Flexible(
+              child: FittedBox(
+                fit: BoxFit.scaleDown,
+                alignment: Alignment.centerLeft,
+                child: CountUp(
+                  value: left.abs(),
+                  format: (v) => whole(Energy.toDisplay(v)),
+                  style: tt.displaySmall!.copyWith(fontSize: narrow ? 48 : 56, height: 1.05, fontFeatures: tabular),
+                ),
+              ),
+            ),
+            const SizedBox(width: 6),
+            Text(
+              Energy.label,
+              style: tt.titleMedium!.copyWith(color: t.muted, fontWeight: FontWeight.w500),
+            ),
+          ],
+        ),
+        const SizedBox(height: S.xs),
+        Text(
+          [
+            '${Energy.format(consumed.calories)} eaten of ${Energy.format(budget)}',
+            if (showActive) '${whole(Energy.toDisplay(active))} active${includeActive ? ' added' : ''}',
+          ].join(' · '),
+          style: tt.bodySmall!.copyWith(fontFeatures: tabular),
+        ),
       ],
     );
 
@@ -418,20 +446,19 @@ class _SummaryCard extends StatelessWidget {
         children: [
           Row(
             children: [
+              Expanded(child: lead),
+              const SizedBox(width: S.lg),
               CalorieRing(
                 consumed: consumed.calories,
                 budget: budget,
                 pulse: pulse,
-                size: narrow ? 150 : 176,
-                stroke: narrow ? 11 : 12,
+                size: narrow ? 84 : 96,
+                stroke: 8,
+                showCenter: false,
               ),
-              const SizedBox(width: S.xl),
-              Expanded(child: stats),
             ],
           ),
-          const SizedBox(height: S.xl),
-          Divider(color: t.border),
-          const SizedBox(height: S.lg),
+          const SizedBox(height: S.xl + S.sm),
           Row(
             children: [
               for (final m in Macro.values)
@@ -439,40 +466,6 @@ class _SummaryCard extends StatelessWidget {
                   child: MacroGauge(label: m.title, consumed: consumed.of(m), target: targets.of(m), color: t.macro(m)),
                 ),
             ],
-          ),
-        ],
-      ),
-    );
-  }
-}
-
-class _Stat extends StatelessWidget {
-  const _Stat({required this.icon, required this.label, required this.value, required this.color});
-  final IconData icon;
-  final String label;
-  final double value;
-  final Color color;
-
-  @override
-  Widget build(BuildContext context) {
-    final tt = Theme.of(context).textTheme;
-    return MergeSemantics(
-      child: Row(
-        children: [
-          FIcon(icon, size: 20, color: color, weight: FontWeight.w600, fill: true),
-          const SizedBox(width: S.md),
-          Flexible(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text(label, style: tt.bodySmall),
-                CountUp(
-                  value: value,
-                  format: (v) => Energy.format(v),
-                  style: tt.titleMedium!.copyWith(fontFeatures: tabular),
-                ),
-              ],
-            ),
           ),
         ],
       ),
@@ -559,7 +552,6 @@ class _MealCard extends StatelessWidget {
                 : Column(
                     crossAxisAlignment: CrossAxisAlignment.stretch,
                     children: [
-                      Divider(color: t.border),
                       if (entries.isEmpty)
                         Squishy(
                           onTap: onAdd,
@@ -578,10 +570,7 @@ class _MealCard extends StatelessWidget {
                             ),
                           ),
                         ),
-                      for (final (i, e) in entries.indexed) ...[
-                        if (i > 0) Divider(indent: 56, color: t.border),
-                        _EntryRow(entry: e),
-                      ],
+                      for (final e in entries) _EntryRow(entry: e),
                     ],
                   ),
           ),

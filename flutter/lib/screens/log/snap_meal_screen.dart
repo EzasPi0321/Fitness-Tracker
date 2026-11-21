@@ -225,8 +225,12 @@ class _SnapMealScreenState extends State<SnapMealScreen> {
         const SizedBox(height: S.xl),
         FilledButton.icon(
           onPressed: _photo == null ? null : _analyze,
-          icon: const FIcon(Symbols.auto_awesome, size: 20, weight: FontWeight.w600),
-          label: Text('Estimate with ${AiModel.byId(state.visionModel).label}'),
+          icon: const FIcon(Symbols.scale, size: 20, weight: FontWeight.w600),
+          label: Text(
+            AiModel.byId(state.visionModel).isSmart
+                ? 'Estimate with AI'
+                : 'Estimate with ${AiModel.byId(state.visionModel).label}',
+          ),
         ),
         const SizedBox(height: S.sm),
         Text(
@@ -276,6 +280,16 @@ class _SnapMealScreenState extends State<SnapMealScreen> {
                 Padding(
                   padding: const EdgeInsets.only(top: 4),
                   child: Text(a.notes, style: tt.bodySmall),
+                ),
+              if (a.answeredBy.isNotEmpty)
+                Padding(
+                  padding: const EdgeInsets.only(top: 4),
+                  child: Text(
+                    a.escalated
+                        ? 'Checked by ${AiModel.nameOf(a.answeredBy)}: the quick model wasn\'t sure about this one.'
+                        : 'Estimated by ${AiModel.nameOf(a.answeredBy)}.',
+                    style: tt.bodySmall!.copyWith(color: FT.of(context).muted),
+                  ),
                 ),
               const SizedBox(height: S.lg),
               for (final (i, item) in a.items.indexed) ...[

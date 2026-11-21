@@ -2,7 +2,7 @@ import 'dart:async';
 import 'dart:convert';
 import 'dart:math';
 
-import 'package:flutter/foundation.dart' show kIsWeb;
+import 'package:flutter/foundation.dart' show kDebugMode, kIsWeb;
 import 'package:flutter/material.dart' show ThemeMode;
 import 'package:flutter/widgets.dart';
 
@@ -19,7 +19,8 @@ import 'storage.dart';
 
 String newId() {
   final r = Random();
-  return DateTime.now().microsecondsSinceEpoch.toRadixString(36) + r.nextInt(1 << 32).toRadixString(36);
+  // Not 1 << 32: on the web shifts are 32-bit, so that is 0 and nextInt throws.
+  return DateTime.now().microsecondsSinceEpoch.toRadixString(36) + r.nextInt(0x3fffffff).toRadixString(36);
 }
 
 /// The single source of truth. Every write goes through here so the local log and the
@@ -97,6 +98,7 @@ class AppState extends ChangeNotifier {
   bool addActiveEnergy = false;
   VisionProvider visionProvider = VisionProvider.claude;
   String visionModel = VisionProvider.claude.defaultModel;
+  bool _modelChosen = false;
 
   /// True while the log holds generated sample data.
   bool isSample = false;
@@ -395,6 +397,7 @@ class AppState extends ChangeNotifier {
   /// Picking a model also picks its provider (and so which API key is used).
   void setVisionModel(String id) {
     final m = AiModel.byId(id);
+    _modelChosen = true;
     visionModel = m.id;
     visionProvider = m.provider;
     _changed();
@@ -404,8 +407,13 @@ class AppState extends ChangeNotifier {
 
   // ---- Sample data ----
 
-  /// Sample data is for the web preview only.
-  static bool get demoAllowed => kIsWeb;
+  /// Sample data is offered in the web preview, in debug builds (`flutter run`), and in any
+  /// build made with `--dart-define=FITTRACK_DEMO=true`. Release builds from CI never have it.
+  static bool get demoAllowed => demoOverride ?? (kIsWeb || kDebugMode || const bool.fromEnvironment('FITTRACK_DEMO'));
+
+  /// Lets tests act as a release build (tests themselves run in debug mode).
+  @visibleForTesting
+  static bool? demoOverride;
 
   /// Drops the generated examples (their ids start with "sample-") but keeps anything the
   /// user logged themselves, then sends them to onboarding to set up their own plan.
@@ -486,6 +494,7 @@ class AppState extends ChangeNotifier {
       'addActive': addActiveEnergy,
       'provider': visionProvider.name,
       'model': visionModel,
+      'modelChosen': _modelChosen,
       'sample': isSample,
       'appearance': appearance.name,
       'energy': Energy.unit.name,
@@ -524,7 +533,11 @@ class AppState extends ChangeNotifier {
       (v) => v.name == s['provider'],
       orElse: () => VisionProvider.gemini,
     );
-    final model = AiModel.byId((s['model'] as String?) ?? AiModel.all.first.id);
+    // Installs that never chose a model were on the old default (Opus): move them to Smart.
+    var savedModel = (s['model'] as String?) ?? AiModel.smartId;
+    if (s['modelChosen'] != true && savedModel == AiModel.carefulModel) savedModel = AiModel.smartId;
+    _modelChosen = s['modelChosen'] == true;
+    final model = AiModel.byId(savedModel);
     visionModel = model.id;
     visionProvider = model.provider;
     isSample = (s['sample'] as bool?) ?? false;
