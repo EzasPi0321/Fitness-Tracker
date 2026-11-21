@@ -451,10 +451,20 @@ class _CalorieCard extends StatelessWidget {
             children: [
               Expanded(child: _Tile('Days logged', '${logged.length}', suffix: '/${range.days}')),
               Expanded(
-                child: _Tile('On target', '$onTarget', suffix: onTarget == 1 ? ' day' : ' days', valueColor: onTarget > 0 ? t.good : null),
+                child: _Tile(
+                  'On target',
+                  '$onTarget',
+                  suffix: onTarget == 1 ? ' day' : ' days',
+                  valueColor: onTarget > 0 ? t.good : null,
+                ),
               ),
               Expanded(
-                child: _Tile('Over goal', '$over', suffix: over == 1 ? ' day' : ' days', valueColor: over > 0 ? t.over : null),
+                child: _Tile(
+                  'Over goal',
+                  '$over',
+                  suffix: over == 1 ? ' day' : ' days',
+                  valueColor: over > 0 ? t.over : null,
+                ),
               ),
             ],
           ),

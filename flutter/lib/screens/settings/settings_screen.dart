@@ -6,6 +6,7 @@ import '../../design/motion.dart';
 import '../../design/oklch.dart';
 import '../../design/tokens.dart';
 import '../../models/nutrients.dart';
+import '../../models/profile.dart';
 import '../../models/util.dart';
 import '../../services/ai_vision.dart';
 import '../../services/platform_caps.dart';
@@ -107,6 +108,15 @@ class TargetsSection extends StatelessWidget {
     final macroKcal = tg.protein * 4 + tg.carbs * 4 + tg.fat * 9;
     final diff = macroKcal - tg.calories;
 
+    // Guidelines for adjusting: the recommended range for each macro at today's calorie goal.
+    final ranges = NutritionCalculator.ranges(tg.calories);
+    String rangeText(Macro m) {
+      final r = ranges[m]!;
+      final v = tg.of(m);
+      final where = v < r.low ? ' · below range' : (v > r.high ? ' · above range' : '');
+      return 'Range ${whole(r.low)}–${whole(r.high)} g$where';
+    }
+
     void set(Nutrients Function(Nutrients n, double v) f, double? v) {
       if (v == null || v < 0) return;
       state.updateProfile((p) => p.targets = f(p.targets, v.roundToDouble()));
@@ -145,6 +155,7 @@ class TargetsSection extends StatelessWidget {
               decoration: BoxDecoration(color: t.macro(m), shape: BoxShape.circle),
             ),
             label: m.title,
+            sub: rangeText(m),
             trailing: NumberInput(
               value: tg.of(m),
               unit: 'g',

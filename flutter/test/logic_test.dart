@@ -43,9 +43,33 @@ void main() {
       );
       expect(plan.tdee, closeTo(1780 * 1.55, 0.01));
       expect(plan.targets.calories, 2260);
-      expect(plan.targets.protein, 160);
+      // Balanced: 25 % protein, 30 % fat, carbs fill the rest.
+      expect(plan.targets.protein, 141); // 2260 × 0.25 / 4
+      expect(plan.targets.fat, 75); // 2260 × 0.30 / 9
       final macroKcal = plan.targets.protein * 4 + plan.targets.carbs * 4 + plan.targets.fat * 9;
       expect(macroKcal, closeTo(plan.targets.calories, 15));
+    });
+
+    test('diet styles change the split and ranges follow calories', () {
+      final high = NutritionCalculator.plan(
+        sex: BiologicalSex.male,
+        age: 26,
+        heightCm: 194,
+        weightKg: 84,
+        activity: ActivityLevel.moderate,
+        goal: WeightGoal.maintain,
+        diet: DietStyle.highProtein,
+      );
+      final cal = high.targets.calories;
+      expect(high.targets.protein, (cal * 0.35 / 4).roundToDouble());
+      final r = NutritionCalculator.ranges(2000);
+      expect(r[Macro.protein]!.low, 50);
+      expect(r[Macro.protein]!.high, 175);
+      expect(r[Macro.carbs]!.low, 225);
+      expect(r[Macro.carbs]!.high, 325);
+      expect(r[Macro.fat]!.low, 44);
+      expect(r[Macro.fat]!.high, 78);
+      expect(r[Macro.fat]!.contains(60), isTrue);
     });
 
     test('plan respects the calorie floor', () {

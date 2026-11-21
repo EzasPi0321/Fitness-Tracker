@@ -22,15 +22,38 @@ enum ActivityLevel {
 }
 
 enum WeightGoal {
-  lose('Lose Weight', 'About 0.5 kg (1 lb) per week', -500, 2.0),
-  maintain('Maintain Weight', 'Stay where you are', 0, 1.6),
-  gain('Build Muscle', 'Lean surplus of ~300 kcal', 300, 1.8);
+  lose('Lose Weight', 'About 0.5 kg (1 lb) per week', -500),
+  maintain('Maintain Weight', 'Stay where you are', 0),
+  gain('Build Muscle', 'Lean surplus of ~300 kcal', 300);
 
-  const WeightGoal(this.title, this.detail, this.calorieAdjustment, this.proteinPerKg);
+  const WeightGoal(this.title, this.detail, this.calorieAdjustment);
   final String title;
   final String detail;
   final double calorieAdjustment;
-  final double proteinPerKg;
+}
+
+/// How daily calories are split between protein, carbs and fat (shares of energy),
+/// in the style of common macro calculators.
+enum DietStyle {
+  balanced('Balanced', 'Protein 25% · Carbs 45% · Fat 30%', 0.25, 0.45, 0.30),
+  lowFat('Low fat', 'Protein 25% · Carbs 55% · Fat 20%', 0.25, 0.55, 0.20),
+  lowCarb('Low carb', 'Protein 30% · Carbs 25% · Fat 45%', 0.30, 0.25, 0.45),
+  highProtein('High protein', 'Protein 35% · Carbs 40% · Fat 25%', 0.35, 0.40, 0.25);
+
+  const DietStyle(this.title, this.detail, this.protein, this.carbs, this.fat);
+  final String title;
+  final String detail;
+  final double protein;
+  final double carbs;
+  final double fat;
+}
+
+/// A recommended range of grams for one macro.
+class MacroRange {
+  const MacroRange(this.low, this.high);
+  final double low;
+  final double high;
+  bool contains(double g) => g >= low && g <= high;
 }
 
 class EnergyPlan {
@@ -43,8 +66,8 @@ class EnergyPlan {
 const poundsPerKilogram = 2.20462262;
 const centimetersPerInch = 2.54;
 
-/// Same rules as the iOS NutritionCalculator: Mifflin–St Jeor BMR × activity, goal adjustment,
-/// safe minimums, protein by body weight, fat at 25 % of energy, carbs fill the rest.
+/// Mifflin–St Jeor BMR × activity, goal adjustment and safe minimums; macros split by the
+/// chosen [DietStyle].
 class NutritionCalculator {
   static double bmr({
     required BiologicalSex sex,
@@ -67,19 +90,15 @@ class NutritionCalculator {
     required double weightKg,
     required ActivityLevel activity,
     required WeightGoal goal,
+    DietStyle diet = DietStyle.balanced,
   }) {
     final resting = bmr(sex: sex, weightKg: weightKg, heightCm: heightCm, age: age);
     final tdee = NutritionCalculator.tdee(resting, activity);
     final minimum = sex == BiologicalSex.male ? 1500.0 : 1200.0;
     final calories = _round(_max(minimum, tdee + goal.calorieAdjustment) / 10) * 10;
 
-    var protein = _round(weightKg * goal.proteinPerKg);
-    var fat = _round(_max(calories * 0.25 / 9, weightKg * 0.6));
-    if (protein * 4 + fat * 9 > calories) {
-      final scale = calories * 0.9 / (protein * 4 + fat * 9);
-      protein = _round(protein * scale);
-      fat = _round(fat * scale);
-    }
+    final protein = _round(calories * diet.protein / 4);
+    final fat = _round(calories * diet.fat / 9);
     final carbs = _round(_max(0, (calories - protein * 4 - fat * 9) / 4));
     return EnergyPlan(
       bmr: resting,
@@ -87,6 +106,14 @@ class NutritionCalculator {
       targets: Nutrients(calories: calories, protein: protein, carbs: carbs, fat: fat),
     );
   }
+
+  /// Recommended ranges for a day's [calories] (the Acceptable Macronutrient Distribution
+  /// Ranges): protein 10–35 %, carbs 45–65 %, fat 20–35 % of energy.
+  static Map<Macro, MacroRange> ranges(double calories) => {
+    Macro.protein: MacroRange(_round(calories * 0.10 / 4), _round(calories * 0.35 / 4)),
+    Macro.carbs: MacroRange(_round(calories * 0.45 / 4), _round(calories * 0.65 / 4)),
+    Macro.fat: MacroRange(_round(calories * 0.20 / 9), _round(calories * 0.35 / 9)),
+  };
 
   // Swift's .rounded() rounds half away from zero; Dart's round() does the same.
   static double _round(double v) => v.roundToDouble();
@@ -102,6 +129,7 @@ class UserProfile {
     this.weightKg = 70,
     this.activity = ActivityLevel.moderate,
     this.goal = WeightGoal.maintain,
+    this.diet = DietStyle.balanced,
     this.usesMetric = true,
     this.targets = const Nutrients(calories: 2000, protein: 140, carbs: 220, fat: 65),
   }) : birthDate = birthDate ?? DateTime(DateTime.now().year - 30, 1, 1);
@@ -114,6 +142,7 @@ class UserProfile {
   double weightKg;
   ActivityLevel activity;
   WeightGoal goal;
+  DietStyle diet;
   bool usesMetric;
   Nutrients targets;
 
@@ -141,6 +170,7 @@ class UserProfile {
     weightKg: weightKg,
     activity: activity,
     goal: goal,
+    diet: diet,
   );
 
   bool get isBodyValid =>
@@ -154,6 +184,7 @@ class UserProfile {
     weightKg: weightKg,
     activity: activity,
     goal: goal,
+    diet: diet,
     usesMetric: usesMetric,
     targets: targets,
   );
@@ -166,6 +197,7 @@ class UserProfile {
     'weight': weightKg,
     'activity': activity.name,
     'goal': goal.name,
+    'diet': diet.name,
     'metric': usesMetric,
     'targets': targets.toJson(),
   };
@@ -178,6 +210,7 @@ class UserProfile {
     weightKg: ((j['weight'] as num?) ?? 70).toDouble(),
     activity: ActivityLevel.values.firstWhere((v) => v.name == j['activity'], orElse: () => ActivityLevel.moderate),
     goal: WeightGoal.values.firstWhere((v) => v.name == j['goal'], orElse: () => WeightGoal.maintain),
+    diet: DietStyle.values.firstWhere((v) => v.name == j['diet'], orElse: () => DietStyle.balanced),
     usesMetric: (j['metric'] as bool?) ?? true,
     targets: j['targets'] is Map
         ? Nutrients.fromJson((j['targets'] as Map).cast<String, dynamic>())
