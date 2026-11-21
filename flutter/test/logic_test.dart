@@ -477,4 +477,31 @@ void main() {
     final back = UserProfile.fromJson(UserProfile(name: 'Kai').toJson());
     expect(back.name, 'Kai');
   });
+
+  test('portions read naturally', () {
+    FoodEntry e(double q, String unit) => FoodEntry(
+      id: 'p',
+      name: 'x',
+      meal: MealType.snack,
+      source: EntrySource.manual,
+      consumedAt: DateTime(2025),
+      quantity: q,
+      unit: unit,
+      nutrients: Nutrients.zero,
+    );
+    expect(e(1, 'serving').portionDescription, '1 serving');
+    expect(e(2, 'serving').portionDescription, '2 servings');
+    expect(e(150, 'g').portionDescription, '150 g');
+    expect(e(1.5, 'cup').portionDescription, '1.5 × cup');
+  });
+
+  test('step goal and sample steps', () async {
+    final s = AppState(store: MemoryStore(), health: UnsupportedHealthService());
+    await s.load(seedSampleIfEmpty: true);
+    expect(s.sampleSteps[startOfDay(DateTime.now())], 6240);
+    s.setStepGoal(8000);
+    expect(s.stepGoal, 8000);
+    s.setStepGoal(0); // ignored
+    expect(s.stepGoal, 8000);
+  });
 }

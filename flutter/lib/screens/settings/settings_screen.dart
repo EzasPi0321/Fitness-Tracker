@@ -176,6 +176,20 @@ class TargetsSection extends StatelessWidget {
           ),
         ),
         FRow(
+          leading: FIcon(Symbols.directions_walk, size: 16, color: t.muted, weight: FontWeight.w600),
+          label: 'Steps',
+          sub: 'From Apple Health or Samsung Health',
+          trailing: NumberInput(
+            value: state.stepGoal.toDouble(),
+            unit: 'steps',
+            maxDigits: 0,
+            width: 140,
+            onChanged: (v) {
+              if (v != null && v >= 500) state.setStepGoal(v.round());
+            },
+          ),
+        ),
+        FRow(
           label: "Reset to my profile's plan",
           sub: 'Undo manual changes to these numbers',
           trailing: FIcon(Symbols.restart_alt, color: t.muted),
@@ -269,7 +283,10 @@ class _HealthSection extends StatelessWidget {
       label: name,
       footer: state.healthError != null
           ? StatusPill(text: state.healthError!, color: t.warn, icon: Symbols.info)
-          : Text('Reads active energy, workouts and weight. Logged meals are saved as nutrition in $name.'),
+          : Text(
+              'Reads steps, active energy, workouts and weight; saves meals, water and weight. '
+              '${Theme.of(context).platform == TargetPlatform.android ? 'Samsung phones: in Samsung Health, open Settings › Health Connect and turn on sharing for steps, exercise, weight, water and nutrition. FitTrack reads and writes it from there.' : 'Manage access in Settings › Health › Data Access & Devices.'}',
+            ),
       children: [
         FRow(
           leading: FIcon(Symbols.favorite, color: t.over, fill: true),

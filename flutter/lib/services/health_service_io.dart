@@ -20,13 +20,15 @@ class _MobileHealthService implements HealthService {
     hc.HealthDataType.HEIGHT,
     hc.HealthDataType.NUTRITION,
     hc.HealthDataType.WATER,
+    hc.HealthDataType.STEPS,
   ];
 
   @override
   bool get isSupported => true;
 
+  // On Samsung phones, Samsung Health shares its data through Health Connect.
   @override
-  String get storeName => Platform.isIOS ? 'Apple Health' : 'Health Connect';
+  String get storeName => Platform.isIOS ? 'Apple Health' : 'Samsung Health / Health Connect';
 
   Future<void> _ensure() async {
     if (_configured) return;
@@ -67,6 +69,18 @@ class _MobileHealthService implements HealthService {
   static double _numeric(hc.HealthDataPoint p) {
     final v = p.value;
     return v is hc.NumericHealthValue ? v.numericValue.toDouble() : 0;
+  }
+
+  @override
+  Future<int?> steps(DateTime day) async {
+    await _ensure();
+    final start = startOfDay(day);
+    final end = sameDay(day, DateTime.now()) ? DateTime.now() : addDays(start, 1);
+    try {
+      return await _health.getTotalStepsInInterval(start, end);
+    } catch (_) {
+      return null;
+    }
   }
 
   @override

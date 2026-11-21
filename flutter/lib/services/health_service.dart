@@ -28,11 +28,14 @@ abstract class HealthService {
   /// Whether this platform has a health store at all.
   bool get isSupported;
 
-  /// "Apple Health" or "Health Connect".
+  /// "Apple Health" or "Samsung Health / Health Connect".
   String get storeName;
 
   Future<bool> requestAuthorization();
   Future<double> activeEnergy(DateTime day);
+
+  /// Steps for the day, or null when they can't be read.
+  Future<int?> steps(DateTime day);
   Future<Map<DateTime, double>> dailyActiveEnergy(DateTime from, DateTime to);
   Future<List<WorkoutSummary>> workouts(DateTime day);
   Future<List<WeightSample>> weightHistory(DateTime since);
@@ -60,6 +63,8 @@ class UnsupportedHealthService implements HealthService {
   Future<bool> requestAuthorization() async => false;
   @override
   Future<double> activeEnergy(DateTime day) async => 0;
+  @override
+  Future<int?> steps(DateTime day) async => null;
   @override
   Future<Map<DateTime, double>> dailyActiveEnergy(DateTime from, DateTime to) async => const {};
   @override

@@ -12,6 +12,7 @@ import '../../services/health_service.dart';
 import '../../services/platform_caps.dart';
 import '../../widgets/common.dart';
 import '../../widgets/rings.dart';
+import '../../widgets/steps_card.dart';
 import '../../widgets/water_card.dart';
 import '../log/log_flows.dart';
 import 'add_menu.dart';
@@ -28,6 +29,7 @@ class _TodayScreenState extends State<TodayScreen> {
   DateTime _day = startOfDay(DateTime.now());
   double _active = 0;
   List<WorkoutSummary> _workouts = const [];
+  int? _steps;
   final _collapsed = <MealType>{};
 
   @override
@@ -39,10 +41,13 @@ class _TodayScreenState extends State<TodayScreen> {
   Future<void> _loadHealth() async {
     final state = AppScope.read(context);
     if (!state.healthEnabled || !state.health.isSupported) {
-      if (_active != 0 || _workouts.isNotEmpty) {
+      // No health store: sample data still shows example steps on the desktop preview.
+      final sample = state.isSample ? state.sampleSteps[startOfDay(_day)] : null;
+      if (_active != 0 || _workouts.isNotEmpty || _steps != sample) {
         setState(() {
           _active = 0;
           _workouts = const [];
+          _steps = sample;
         });
       }
       return;
@@ -50,10 +55,12 @@ class _TodayScreenState extends State<TodayScreen> {
     final day = _day;
     final active = await state.health.activeEnergy(day);
     final workouts = await state.health.workouts(day);
+    final steps = await state.health.steps(day);
     if (mounted && day == _day) {
       setState(() {
         _active = active;
         _workouts = workouts;
+        _steps = steps;
       });
     }
   }
@@ -73,6 +80,10 @@ class _TodayScreenState extends State<TodayScreen> {
     final consumed = Nutrients.sum(entries.map((e) => e.nutrients));
     final width = MediaQuery.sizeOf(context).width;
     final wide = width >= 1000;
+    // Steps need a phone health store (or sample data on the preview).
+    final canConnect = state.health.isSupported && !state.healthEnabled;
+    final showSteps = _steps != null || state.health.isSupported;
+    final stepsCard = StepsCard(steps: _steps, canConnect: canConnect);
 
     final summary = _SummaryCard(
       consumed: consumed,
@@ -192,6 +203,10 @@ class _TodayScreenState extends State<TodayScreen> {
                                           delay: const Duration(milliseconds: 40),
                                           child: WaterCard(day: _day),
                                         ),
+                                        if (showSteps) ...[
+                                          const SizedBox(height: S.lg),
+                                          Rise(delay: const Duration(milliseconds: 60), child: stepsCard),
+                                        ],
                                       ],
                                     ),
                                   ),
@@ -206,6 +221,10 @@ class _TodayScreenState extends State<TodayScreen> {
                                 delay: const Duration(milliseconds: 40),
                                 child: WaterCard(day: _day),
                               ),
+                              if (showSteps) ...[
+                                const SizedBox(height: S.lg),
+                                Rise(delay: const Duration(milliseconds: 60), child: stepsCard),
+                              ],
                               const SizedBox(height: S.xl),
                               meals,
                             ],

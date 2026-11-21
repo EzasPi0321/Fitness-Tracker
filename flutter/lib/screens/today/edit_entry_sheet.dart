@@ -83,7 +83,7 @@ class _EditEntrySheetState extends State<_EditEntrySheet> {
               label: 'Portion',
               children: [
                 FRow(
-                  label: _grams ? 'Grams' : '× ${e.unit}',
+                  label: _grams ? 'Grams' : (e.unit == 'serving' ? 'Servings' : 'Servings · ${e.unit}'),
                   trailing: Row(
                     mainAxisSize: MainAxisSize.min,
                     children: [

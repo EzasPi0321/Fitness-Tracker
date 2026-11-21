@@ -151,7 +151,9 @@ class _ProductSheetState extends State<_ProductSheet> {
             FGroup(
               children: [
                 FRow(
-                  label: _unit == _Unit.servings ? p.servingLabel : 'Grams',
+                  label: _unit == _Unit.grams
+                      ? 'Grams'
+                      : (p.servingLabel == 'serving' ? 'Servings' : 'Servings · ${p.servingLabel}'),
                   trailing: Row(
                     mainAxisSize: MainAxisSize.min,
                     children: [

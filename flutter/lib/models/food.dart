@@ -93,7 +93,9 @@ class FoodEntry {
 
   String get portionDescription {
     final amount = formatAmount(quantity);
-    return unit == 'g' ? '$amount g' : '$amount × $unit';
+    if (unit == 'g') return '$amount g';
+    if (unit == 'serving') return '$amount ${quantity == 1 ? 'serving' : 'servings'}';
+    return '$amount × $unit'; // e.g. "2 × 1 cup (240 ml)"
   }
 
   /// Linearly rescales nutrition (and grams) to a new portion quantity.

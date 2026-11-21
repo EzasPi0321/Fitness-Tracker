@@ -43,6 +43,11 @@ class AppState extends ChangeNotifier {
   /// Set by the user; when null the goal follows body weight.
   double? waterGoalOverride;
 
+  int stepGoal = 10000;
+
+  /// Example step counts shown with sample data (no health store on desktop).
+  final Map<DateTime, int> sampleSteps = {};
+
   /// Black by default; light and system are options in Settings.
   ThemeMode appearance = ThemeMode.dark;
 
@@ -71,6 +76,7 @@ class AppState extends ChangeNotifier {
       }
     }
     if (profile == null && seedSampleIfEmpty) loadSampleData(save: false);
+    if (isSample && sampleSteps.isEmpty) sampleSteps.addAll(SampleData.generate().steps);
     loaded = true;
     notifyListeners();
   }
@@ -107,6 +113,7 @@ class AppState extends ChangeNotifier {
       weights.clear();
       customFoods.clear();
       water.clear();
+      sampleSteps.clear();
       isSample = false;
     }
     if (weights.isEmpty) weights.add(WeightEntry(id: newId(), date: DateTime.now(), kilograms: p.weightKg));
@@ -265,6 +272,12 @@ class AppState extends ChangeNotifier {
     return last;
   }
 
+  void setStepGoal(int steps) {
+    if (steps <= 0) return;
+    stepGoal = steps;
+    _changed();
+  }
+
   void setWaterGoal(double? ml) {
     waterGoalOverride = (ml == null || ml <= 0) ? null : ml;
     _changed();
@@ -338,6 +351,9 @@ class AppState extends ChangeNotifier {
     water
       ..clear()
       ..addAll(s.water);
+    sampleSteps
+      ..clear()
+      ..addAll(s.steps);
     isSample = true;
     if (save) {
       _changed();
@@ -351,6 +367,7 @@ class AppState extends ChangeNotifier {
     weights.clear();
     customFoods.clear();
     water.clear();
+    sampleSteps.clear();
     waterGoalOverride = null;
     isSample = false;
     _changed();
@@ -388,6 +405,7 @@ class AppState extends ChangeNotifier {
       'appearance': appearance.name,
       'energy': Energy.unit.name,
       'waterGoal': waterGoalOverride,
+      'stepGoal': stepGoal,
     },
   };
 
@@ -410,6 +428,7 @@ class AppState extends ChangeNotifier {
     final s = j['settings'] is Map ? (j['settings'] as Map).cast<String, dynamic>() : const <String, dynamic>{};
     healthEnabled = (s['health'] as bool?) ?? false;
     waterGoalOverride = (s['waterGoal'] as num?)?.toDouble();
+    stepGoal = ((s['stepGoal'] as num?) ?? 10000).toInt();
     addActiveEnergy = (s['addActive'] as bool?) ?? false;
     visionProvider = VisionProvider.values.firstWhere(
       (v) => v.name == s['provider'],
