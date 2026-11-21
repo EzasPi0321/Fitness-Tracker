@@ -19,7 +19,8 @@ import 'storage.dart';
 
 String newId() {
   final r = Random();
-  return DateTime.now().microsecondsSinceEpoch.toRadixString(36) + r.nextInt(1 << 32).toRadixString(36);
+  // Not 1 << 32: on the web shifts are 32-bit, so that is 0 and nextInt throws.
+  return DateTime.now().microsecondsSinceEpoch.toRadixString(36) + r.nextInt(0x3fffffff).toRadixString(36);
 }
 
 /// The single source of truth. Every write goes through here so the local log and the
