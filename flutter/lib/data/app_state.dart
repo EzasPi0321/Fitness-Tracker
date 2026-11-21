@@ -49,7 +49,9 @@ class AppState extends ChangeNotifier {
     if (!manual) {
       if (kIsWeb || appBuild == 0) return null;
       final last = _lastUpdateCheck;
-      if (last != null && DateTime.now().difference(last) < const Duration(hours: 20)) return availableUpdate;
+      // At most hourly: often enough that a new release shows up the same day, while
+      // staying far under GitHub's 60-requests-an-hour limit for unsigned calls.
+      if (last != null && DateTime.now().difference(last) < const Duration(hours: 1)) return availableUpdate;
     }
     AppUpdate? found;
     try {
