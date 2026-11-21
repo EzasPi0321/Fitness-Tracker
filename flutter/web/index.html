@@ -1,0 +1,41 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <base href="$FLUTTER_BASE_HREF">
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+  <meta name="description" content="FitTrack: daily calories, macros and weight, on any screen.">
+  <meta name="theme-color" content="#000000">
+  <meta name="mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-title" content="FitTrack">
+  <link rel="apple-touch-icon" href="icons/Icon-192.png">
+  <link rel="icon" type="image/png" href="favicon.png">
+  <link rel="manifest" href="manifest.json">
+  <title>FitTrack</title>
+  <style>
+    :root { --bg: #000000; --ring: #ffffff; --track: rgb(255 255 255 / 0.14); color-scheme: dark; }
+    /* 100dvh, not 100vh: Safari's toolbar makes 100vh taller than the visible page. */
+    html, body { margin: 0; height: 100dvh; background: var(--bg); overflow: hidden; }
+    #boot { position: fixed; inset: 0; display: grid; place-items: center; transition: opacity 200ms ease-out; }
+    #boot svg { width: 64px; height: 64px; animation: spin 900ms cubic-bezier(.45,.05,.55,.95) infinite; }
+    @keyframes spin { to { transform: rotate(360deg); } }
+    @media (prefers-reduced-motion: reduce) { #boot svg { animation: none; } }
+  </style>
+</head>
+<body>
+  <div id="boot" aria-label="Loading FitTrack">
+    <svg viewBox="0 0 64 64" aria-hidden="true">
+      <circle cx="32" cy="32" r="24" fill="none" stroke="var(--track)" stroke-width="8"/>
+      <path d="M32 8 a24 24 0 0 1 24 24" fill="none" stroke="var(--ring)" stroke-width="8" stroke-linecap="round"/>
+    </svg>
+  </div>
+  <script>
+    // Hide the loader once Flutter paints its first frame.
+    window.addEventListener('flutter-first-frame', function () {
+      var b = document.getElementById('boot');
+      if (b) { b.style.opacity = '0'; setTimeout(function () { b.remove(); }, 220); }
+    });
+  </script>
+  <script src="flutter_bootstrap.js" async></script>
+</body>
+</html>

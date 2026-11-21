@@ -1,0 +1,206 @@
+# Builds FitTrack (Flutter) for every platform from one codebase.
+#
+# Every push: analyze + tests, Android APK and web build.
+# Pushes to main (or a commit message containing [full-build]) also build iPhone and Windows.
+# Pushes to main publish a GitHub Release with:
+#   FitTrack.apk          – Android: open on the phone and install
+#   FitTrack.ipa          – iPhone: install with SideStore / AltStore (they sign it with your Apple ID)
+#   FitTrack-Windows.zip  – Windows desktop app: unzip and run FitTrack.exe
+#   FitTrack-Web.zip      – the web build
+#   source.json, icon.png – SideStore/AltStore source, so iPhone updates show up on their own
+#
+# SideStore source URL (add once in SideStore → Sources → +):
+#   https://github.com/<owner>/<repo>/releases/latest/download/source.json
+#
+# Android signing: set ANDROID_KEYSTORE_BASE64, ANDROID_KEYSTORE_PASSWORD and ANDROID_KEY_ALIAS
+# as repository secrets so every APK has the same key and updates install over each other.
+name: Build FitTrack
+
+on:
+  push:
+    branches: ["**"]
+    paths-ignore: ["**.md"]
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+concurrency:
+  group: build-${{ github.ref }}
+  cancel-in-progress: true
+
+env:
+  FLUTTER_VERSION: "3.47.9"
+  BUILD_NUMBER: ${{ github.run_number }}
+
+defaults:
+  run:
+    working-directory: flutter
+    shell: bash
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+      - uses: subosito/flutter-action@v2
+        with:
+          flutter-version: ${{ env.FLUTTER_VERSION }}
+          channel: stable
+          cache: true
+      - run: flutter pub get
+      - run: flutter analyze
+      - run: flutter test
+
+  android:
+    needs: test
+    runs-on: ubuntu-latest
+    timeout-minutes: 40
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: "17"
+      - uses: subosito/flutter-action@v2
+        with:
+          flutter-version: ${{ env.FLUTTER_VERSION }}
+          channel: stable
+          cache: true
+      - name: Signing key
+        env:
+          KEYSTORE_B64: ${{ secrets.ANDROID_KEYSTORE_BASE64 }}
+          KEYSTORE_PASSWORD: ${{ secrets.ANDROID_KEYSTORE_PASSWORD }}
+          KEY_ALIAS: ${{ secrets.ANDROID_KEY_ALIAS }}
+        run: |
+          if [ -n "$KEYSTORE_B64" ]; then
+            echo "$KEYSTORE_B64" | base64 -d > android/app/fittrack-release.jks
+            {
+              echo "storeFile=fittrack-release.jks"
+              echo "storePassword=$KEYSTORE_PASSWORD"
+              echo "keyAlias=${KEY_ALIAS:-fittrack}"
+              echo "keyPassword=$KEYSTORE_PASSWORD"
+            } > android/key.properties
+            echo "Signing with the release key from secrets."
+          else
+            echo "::warning::No ANDROID_KEYSTORE_BASE64 secret: this APK uses a temporary key and won't install over a differently signed one."
+          fi
+      - run: flutter build apk --release --build-number "$BUILD_NUMBER"
+      - name: Collect
+        run: |
+          mkdir -p ../dist
+          cp build/app/outputs/flutter-apk/app-release.apk ../dist/FitTrack.apk
+          rm -f android/key.properties android/app/fittrack-release.jks
+      - uses: actions/upload-artifact@v4
+        with:
+          name: android
+          path: dist/
+
+  web:
+    needs: test
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+      - uses: subosito/flutter-action@v2
+        with:
+          flutter-version: ${{ env.FLUTTER_VERSION }}
+          channel: stable
+          cache: true
+      - run: flutter build web --release --no-web-resources-cdn --base-href / --build-number "$BUILD_NUMBER"
+      - name: Collect
+        run: |
+          mkdir -p ../dist
+          (cd build/web && zip -qr ../../../dist/FitTrack-Web.zip .)
+      - uses: actions/upload-artifact@v4
+        with:
+          name: web
+          path: dist/
+
+  ios:
+    needs: test
+    if: github.ref == 'refs/heads/main' || github.event_name == 'workflow_dispatch' || contains(github.event.head_commit.message, '[full-build]')
+    runs-on: macos-latest
+    timeout-minutes: 45
+    steps:
+      - uses: actions/checkout@v4
+      - uses: subosito/flutter-action@v2
+        with:
+          flutter-version: ${{ env.FLUTTER_VERSION }}
+          channel: stable
+          cache: true
+      - run: flutter build ios --release --no-codesign --build-number "$BUILD_NUMBER"
+      - name: Package .ipa
+        run: |
+          mkdir -p ../dist/Payload
+          cp -R build/ios/iphoneos/Runner.app ../dist/Payload/
+          # Ad-hoc sign with the HealthKit entitlement so SideStore/AltStore keep it when
+          # they re-sign the app with your Apple ID.
+          codesign --force --sign - --entitlements ios/Runner/Runner.entitlements ../dist/Payload/Runner.app
+          (cd ../dist && zip -qry FitTrack.ipa Payload && rm -rf Payload)
+          cp web/icons/Icon-512.png ../dist/icon.png
+          VERSION=$(/usr/libexec/PlistBuddy -c "Print :CFBundleShortVersionString" build/ios/iphoneos/Runner.app/Info.plist)
+          echo "$VERSION" > ../dist/version.txt
+          ls -la ../dist
+      - uses: actions/upload-artifact@v4
+        with:
+          name: ios
+          path: dist/
+
+  windows:
+    needs: test
+    if: github.ref == 'refs/heads/main' || github.event_name == 'workflow_dispatch' || contains(github.event.head_commit.message, '[full-build]')
+    runs-on: windows-latest
+    timeout-minutes: 40
+    steps:
+      - uses: actions/checkout@v4
+      - uses: subosito/flutter-action@v2
+        with:
+          flutter-version: ${{ env.FLUTTER_VERSION }}
+          channel: stable
+          cache: true
+      - run: flutter build windows --release --build-number "$BUILD_NUMBER"
+      - name: Collect
+        shell: pwsh
+        run: |
+          New-Item -ItemType Directory -Force -Path ..\dist | Out-Null
+          Compress-Archive -Path build\windows\x64\runner\Release\* -DestinationPath ..\dist\FitTrack-Windows.zip
+      - uses: actions/upload-artifact@v4
+        with:
+          name: windows
+          path: dist/
+
+  release:
+    needs: [android, web, ios, windows]
+    if: github.ref == 'refs/heads/main'
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: .
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/download-artifact@v4
+        with:
+          path: dist
+          merge-multiple: true
+      - name: Write SideStore source
+        run: |
+          VERSION=$(cat dist/version.txt)
+          TAG="v$VERSION-build$BUILD_NUMBER"
+          echo "VERSION=$VERSION" >> "$GITHUB_ENV"
+          echo "TAG=$TAG" >> "$GITHUB_ENV"
+          python3 .github/scripts/make_source.py \
+            --repo "${{ github.repository }}" --tag "$TAG" --version "$VERSION" --build "$BUILD_NUMBER" \
+            --ipa dist/FitTrack.ipa --notes "$(git log -1 --pretty=%s)" --out dist/source.json
+      - name: Publish release
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          gh release create "$TAG" \
+            dist/FitTrack.apk dist/FitTrack.ipa dist/FitTrack-Windows.zip dist/FitTrack-Web.zip \
+            dist/source.json dist/icon.png \
+            --title "FitTrack $VERSION (build $BUILD_NUMBER)" \
+            --notes "$(git log -1 --pretty=%B)" \
+            --target "$GITHUB_SHA" \
+            --latest

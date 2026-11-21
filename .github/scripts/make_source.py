@@ -31,7 +31,7 @@ version = {
     "localizedDescription": args.notes or f"Build {args.build}",
     "downloadURL": f"{download}/FitTrack.ipa",
     "size": size,
-    "minOSVersion": "17.0",
+    "minOSVersion": "16.0",
 }
 
 source = {
@@ -47,8 +47,9 @@ source = {
             "developerName": owner,
             "subtitle": "Calories, macros and Apple Health",
             "localizedDescription": (
-                "Track daily nutrition, scan food barcodes, estimate meals from a photo "
-                "with AI, and sync with Apple Health."
+                "Track daily calories and macros on an hourly food log. Scan barcodes "
+                "(with verified / unverified nutrition tags), photograph nutrition labels "
+                "or whole meals for AI estimates, and sync with Apple Health."
             ),
             "iconURL": f"{download}/icon.png",
             "tintColor": "34C759",

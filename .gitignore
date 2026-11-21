@@ -1,6 +1,10 @@
-# Xcode
-*.xcodeproj/
-xcuserdata/
-DerivedData/
-*.xcuserstate
-.build/
+# macOS / editors
+.DS_Store
+*.swp
+.idea/
+.vscode/
+
+# Signing material never goes in git (CI recreates it from secrets)
+*.jks
+*.keystore
+key.properties
