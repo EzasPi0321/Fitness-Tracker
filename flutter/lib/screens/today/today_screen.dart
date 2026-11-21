@@ -13,6 +13,7 @@ import '../../services/platform_caps.dart';
 import '../../widgets/common.dart';
 import '../../widgets/rings.dart';
 import '../../models/sleep.dart';
+import '../../widgets/gym_card.dart';
 import '../../widgets/sleep_card.dart';
 import '../../widgets/steps_card.dart';
 import '../../widgets/update_banner.dart';
@@ -243,6 +244,11 @@ class _TodayScreenState extends State<TodayScreen> {
                                           ],
                                           const SizedBox(height: S.lg),
                                           Rise(delay: const Duration(milliseconds: 80), child: sleepCard),
+                                          const SizedBox(height: S.lg),
+                                          Rise(
+                                            delay: const Duration(milliseconds: 100),
+                                            child: GymCard(day: _day),
+                                          ),
                                         ],
                                       ),
                                     ),
@@ -263,6 +269,11 @@ class _TodayScreenState extends State<TodayScreen> {
                                 ],
                                 const SizedBox(height: S.lg),
                                 Rise(delay: const Duration(milliseconds: 80), child: sleepCard),
+                                const SizedBox(height: S.lg),
+                                Rise(
+                                  delay: const Duration(milliseconds: 100),
+                                  child: GymCard(day: _day),
+                                ),
                                 const SizedBox(height: S.xl),
                                 meals,
                               ],

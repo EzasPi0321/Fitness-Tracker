@@ -8,6 +8,7 @@ import 'package:flutter/widgets.dart';
 
 import '../models/food.dart';
 import '../models/nutrients.dart';
+import '../models/gym.dart';
 import '../models/profile.dart';
 import '../models/sleep.dart';
 import '../models/util.dart';
@@ -83,6 +84,7 @@ class AppState extends ChangeNotifier {
   final List<WeightEntry> weights = [];
   final List<WaterEntry> water = [];
   final List<SleepEntry> sleep = [];
+  final List<GymSession> gym = [];
 
   /// Hours of sleep to aim for each night.
   double sleepGoalHours = 8;
@@ -166,6 +168,7 @@ class AppState extends ChangeNotifier {
       customFoods.clear();
       water.clear();
       sleep.clear();
+      gym.clear();
       sampleSteps.clear();
       isSample = false;
     }
@@ -368,6 +371,46 @@ class AppState extends ChangeNotifier {
     if (_syncHealth) unawaited(health.saveSleep(e.start, e.end));
   }
 
+  // ---- Gym ----
+
+  List<GymSession> gymOn(DateTime day) =>
+      gym.where((g) => sameDay(g.at, day)).toList()..sort((a, b) => a.at.compareTo(b.at));
+
+  /// Sessions in the Monday-to-Sunday week containing [day].
+  int gymThisWeek(DateTime day) {
+    final start = weekStart(day);
+    final end = addDays(start, 7);
+    return gym.where((g) => !g.at.isBefore(start) && g.at.isBefore(end)).length;
+  }
+
+  /// Logs a session, or replaces [replaceId] when editing one.
+  void logGym(TrainingType type, DateTime at, {int? minutes, String note = '', String? replaceId}) {
+    if (replaceId != null) gym.removeWhere((g) => g.id == replaceId);
+    gym.add(
+      GymSession(
+        id: newId(),
+        at: at,
+        type: type,
+        minutes: (minutes != null && minutes > 0) ? minutes.clamp(1, 600) : null,
+        note: note.trim(),
+      ),
+    );
+    _changed();
+  }
+
+  GymSession? removeGym(String id) {
+    final i = gym.indexWhere((g) => g.id == id);
+    if (i < 0) return null;
+    final removed = gym.removeAt(i);
+    _changed();
+    return removed;
+  }
+
+  void restoreGym(GymSession g) {
+    gym.add(g);
+    _changed();
+  }
+
   void setSleepGoal(double hours) {
     if (hours < 4 || hours > 12) return;
     sleepGoalHours = hours;
@@ -480,6 +523,7 @@ class AppState extends ChangeNotifier {
     weights.removeWhere((w) => generated(w.id));
     water.removeWhere((w) => generated(w.id));
     sleep.removeWhere((s) => generated(s.id));
+    gym.removeWhere((g) => generated(g.id));
     customFoods.removeWhere((f) => generated(f.id));
     sampleSteps.clear();
     profile = null;
@@ -505,6 +549,9 @@ class AppState extends ChangeNotifier {
     sleep
       ..clear()
       ..addAll(s.sleep);
+    gym
+      ..clear()
+      ..addAll(s.gym);
     sampleSteps
       ..clear()
       ..addAll(s.steps);
@@ -522,6 +569,7 @@ class AppState extends ChangeNotifier {
     customFoods.clear();
     water.clear();
     sleep.clear();
+    gym.clear();
     sampleSteps.clear();
     waterGoalOverride = null;
     isSample = false;
@@ -552,6 +600,7 @@ class AppState extends ChangeNotifier {
     'weights': weights.map((e) => e.toJson()).toList(),
     'water': water.map((e) => e.toJson()).toList(),
     'sleep': sleep.map((e) => e.toJson()).toList(),
+    'gym': gym.map((e) => e.toJson()).toList(),
     'settings': {
       'health': healthEnabled,
       'addActive': addActiveEnergy,
@@ -588,6 +637,9 @@ class AppState extends ChangeNotifier {
     sleep
       ..clear()
       ..addAll(list('sleep').map(SleepEntry.fromJson));
+    gym
+      ..clear()
+      ..addAll(list('gym').map(GymSession.fromJson));
     final s = j['settings'] is Map ? (j['settings'] as Map).cast<String, dynamic>() : const <String, dynamic>{};
     healthEnabled = (s['health'] as bool?) ?? false;
     waterGoalOverride = (s['waterGoal'] as num?)?.toDouble();

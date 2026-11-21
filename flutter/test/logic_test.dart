@@ -5,6 +5,7 @@ import 'package:fittrack/data/sample_data.dart';
 import 'package:fittrack/data/storage.dart';
 import 'package:fittrack/design/oklch.dart';
 import 'package:fittrack/models/food.dart';
+import 'package:fittrack/models/gym.dart';
 import 'package:fittrack/models/nutrients.dart';
 import 'package:fittrack/models/profile.dart';
 import 'package:fittrack/models/sleep.dart';
@@ -971,6 +972,47 @@ Carbohydrate 12.0g 4.8g
       expect(nights.first.asleep, const Duration(hours: 7)); // 3h + 1.5h + 2.5h, the gap isn't sleep
       final byDay = nightsByDay(nights);
       expect(byDay[DateTime(2026, 3, 3)]!.asleep, const Duration(hours: 7)); // the nap doesn't replace it
+    });
+  });
+  group('Gym', () {
+    test('the year summary counts sessions, days, types and the best run of weeks', () {
+      GymSession g(int m, int d, TrainingType t) => GymSession(id: '$m-$d-$t', at: DateTime(2026, m, d, 18), type: t);
+      final y = GymYear(2026, [
+        g(1, 5, TrainingType.push), // Mon, week 1
+        g(1, 5, TrainingType.cardio), // same day, second session
+        g(1, 14, TrainingType.pull), // week 2
+        g(1, 21, TrainingType.legs), // week 3
+        g(2, 16, TrainingType.push), // a gap, then week 8
+        GymSession(id: 'old', at: DateTime(2025, 12, 30), type: TrainingType.sport), // last year
+      ]);
+      expect(y.total, 5);
+      expect(y.daysTrained, 4);
+      expect(y.byType[TrainingType.push], 2);
+      expect(y.byType[TrainingType.sport], isNull);
+      expect(y.activeWeeks.length, 4);
+      expect(y.bestWeekStreak, 3);
+      expect(y.mostTrained, TrainingType.push);
+    });
+
+    test('sessions save, reload, edit and delete', () async {
+      final store = MemoryStore();
+      final s = AppState(store: store, health: UnsupportedHealthService());
+      await s.load();
+      final day = DateTime(2026, 3, 4, 18);
+      s.logGym(TrainingType.sport, day, minutes: 90, note: ' Basketball ');
+      expect(s.gymOn(day).single.summary, 'Sport · 90 min · Basketball');
+      await s.flush();
+      final again = AppState(store: store, health: UnsupportedHealthService());
+      await again.load();
+      final g = again.gym.single;
+      expect(g.type, TrainingType.sport);
+      again.logGym(TrainingType.cardio, g.at, note: '5 km run', replaceId: g.id);
+      expect(again.gym.single.summary, 'Cardio · 5 km run');
+      expect(again.gymThisWeek(day), 1);
+      final removed = again.removeGym(again.gym.single.id)!;
+      expect(again.gym, isEmpty);
+      again.restoreGym(removed);
+      expect(again.gym, hasLength(1));
     });
   });
 }

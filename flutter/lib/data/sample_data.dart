@@ -1,6 +1,7 @@
 import 'dart:math';
 
 import '../models/food.dart';
+import '../models/gym.dart';
 import '../models/nutrients.dart';
 import '../models/profile.dart';
 import '../models/sleep.dart';
@@ -9,7 +10,16 @@ import '../models/util.dart';
 /// Realistic example data for the desktop preview and "Try with sample data".
 /// Deterministic, so screenshots and the preview look the same every time.
 class SampleData {
-  SampleData._(this.profile, this.entries, this.weights, this.customFoods, this.water, this.steps, this.sleep);
+  SampleData._(
+    this.profile,
+    this.entries,
+    this.weights,
+    this.customFoods,
+    this.water,
+    this.steps,
+    this.sleep,
+    this.gym,
+  );
 
   final UserProfile profile;
   final List<FoodEntry> entries;
@@ -18,6 +28,7 @@ class SampleData {
   final List<WaterEntry> water;
   final Map<DateTime, int> steps;
   final List<SleepEntry> sleep;
+  final List<GymSession> gym;
 
   static SampleData generate({DateTime? now}) {
     final rnd = Random(20261121);
@@ -175,6 +186,41 @@ class SampleData {
       sleep.add(SleepEntry(id: id(), start: bed, end: wake));
     }
 
-    return SampleData._(profile, entries, weights, custom, water, steps, sleep);
+    // A push / pull / legs rotation most weeks, with a run or a game now and then, and a
+    // couple of quiet weeks (holidays happen).
+    final gym = <GymSession>[];
+    const split = [TrainingType.push, TrainingType.pull, TrainingType.legs];
+    var next = 0;
+    for (var d = 300; d >= 0; d--) {
+      final day = addDays(today, -d);
+      final week = d ~/ 7;
+      if (week == 9 || week == 23) continue;
+      final wd = day.weekday;
+      if (wd == DateTime.monday || wd == DateTime.wednesday || wd == DateTime.friday) {
+        if (rnd.nextInt(10) < 8) {
+          gym.add(
+            GymSession(
+              id: id(),
+              at: day.add(Duration(hours: 17, minutes: 30 + rnd.nextInt(60))),
+              type: split[next++ % 3],
+              minutes: 50 + rnd.nextInt(30),
+            ),
+          );
+        }
+      } else if (wd == DateTime.saturday && rnd.nextInt(10) < 5) {
+        final sport = rnd.nextBool();
+        gym.add(
+          GymSession(
+            id: id(),
+            at: day.add(const Duration(hours: 9)),
+            type: sport ? TrainingType.sport : TrainingType.cardio,
+            minutes: sport ? 90 : 35,
+            note: sport ? 'Basketball' : '5 km run',
+          ),
+        );
+      }
+    }
+
+    return SampleData._(profile, entries, weights, custom, water, steps, sleep, gym);
   }
 }

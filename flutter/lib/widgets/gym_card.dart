@@ -1,0 +1,309 @@
+import 'package:flutter/material.dart';
+import 'package:intl/intl.dart';
+import 'package:material_symbols_icons/symbols.dart';
+
+import '../data/app_state.dart';
+import '../design/motion.dart';
+import '../design/tokens.dart';
+import '../models/gym.dart';
+import '../models/util.dart';
+import 'common.dart';
+
+/// Today's training. One tap on a type logs it; the pencil adds duration and a note.
+class GymCard extends StatelessWidget {
+  const GymCard({super.key, required this.day});
+  final DateTime day;
+
+  @override
+  Widget build(BuildContext context) {
+    final state = AppScope.of(context);
+    final t = FT.of(context);
+    final tt = Theme.of(context).textTheme;
+    final sessions = state.gymOn(day);
+    final week = state.gymThisWeek(day);
+    final isToday = sameDay(day, DateTime.now());
+
+    void quickLog(TrainingType type) {
+      final now = DateTime.now();
+      // A past day logs at a plain 6 PM; today logs now.
+      final at = isToday ? now : DateTime(day.year, day.month, day.day, 18);
+      state.logGym(type, at);
+      final added = state.gymOn(day).lastWhere((g) => g.type == type);
+      showToast(context, '${type.label} logged', actionLabel: 'Undo', onAction: () => state.removeGym(added.id));
+    }
+
+    return FCard(
+      padding: const EdgeInsets.all(S.xl),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          Row(
+            children: [
+              Container(
+                width: 44,
+                height: 44,
+                decoration: BoxDecoration(
+                  color: t.inset,
+                  borderRadius: BorderRadius.circular(S.inner(S.radiusCard, S.xl) + 8),
+                ),
+                child: Center(
+                  child: FIcon(Symbols.fitness_center, size: 24, color: t.fg, weight: FontWeight.w600),
+                ),
+              ),
+              const SizedBox(width: S.lg),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text('Gym', style: tt.titleMedium),
+                    BlurSwitcher(
+                      child: Align(
+                        key: ValueKey(sessions.length),
+                        alignment: Alignment.centerLeft,
+                        child: Text(
+                          sessions.isEmpty
+                              ? (isToday ? 'Not trained yet today' : 'Rest day')
+                              : sessions.length == 1
+                              ? 'Trained today'
+                              : '${sessions.length} sessions',
+                          style: tt.bodySmall,
+                        ),
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+              Text.rich(
+                TextSpan(
+                  children: [
+                    TextSpan(
+                      text: '$week',
+                      style: tt.titleLarge!.copyWith(fontFeatures: tabular),
+                    ),
+                    TextSpan(text: ' this week', style: tt.bodySmall),
+                  ],
+                ),
+              ),
+            ],
+          ),
+          for (final s in sessions) ...[
+            const SizedBox(height: S.sm),
+            Row(
+              children: [
+                FIcon(Symbols.check, size: 18, color: t.fg, weight: FontWeight.w600),
+                const SizedBox(width: S.sm),
+                Expanded(
+                  child: Text(s.summary, style: tt.bodyMedium, maxLines: 1, overflow: TextOverflow.ellipsis),
+                ),
+                IconButton(
+                  constraints: const BoxConstraints.tightFor(width: 44, height: 44),
+                  padding: EdgeInsets.zero,
+                  tooltip: 'Edit ${s.type.label}',
+                  onPressed: () => showGymSheet(context, day: day, session: s),
+                  icon: FIcon(Symbols.edit, size: 20, color: t.muted, weight: FontWeight.w500),
+                ),
+              ],
+            ),
+          ],
+          const SizedBox(height: S.lg),
+          Text(sessions.isEmpty ? 'What did you train?' : 'Add another', style: tt.labelMedium),
+          const SizedBox(height: S.sm),
+          Wrap(
+            spacing: S.sm,
+            runSpacing: S.sm,
+            children: [
+              for (final type in TrainingType.values) _TypeButton(type: type, onTap: () => quickLog(type)),
+              _TypeButton(
+                label: 'Details…',
+                icon: Symbols.tune,
+                onTap: () => showGymSheet(context, day: day),
+              ),
+            ],
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _TypeButton extends StatelessWidget {
+  const _TypeButton({this.type, this.label, this.icon, required this.onTap});
+  final TrainingType? type;
+  final String? label;
+  final IconData? icon;
+  final VoidCallback onTap;
+
+  @override
+  Widget build(BuildContext context) {
+    final t = FT.of(context);
+    final tt = Theme.of(context).textTheme;
+    return Squishy(
+      onTap: onTap,
+      semanticLabel: type == null ? label : 'Log ${type!.label}',
+      child: Container(
+        height: 40,
+        padding: const EdgeInsets.symmetric(horizontal: 14),
+        decoration: BoxDecoration(
+          color: t.raised,
+          borderRadius: BorderRadius.circular(S.radiusControl),
+          border: Border.all(color: t.border),
+        ),
+        child: Row(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            if (icon != null) ...[FIcon(icon!, size: 18, color: t.muted), const SizedBox(width: 6)],
+            Text(type?.label ?? label!, style: tt.labelLarge),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+/// Log or edit a session: what you trained, for how long, and a note.
+Future<void> showGymSheet(BuildContext context, {required DateTime day, GymSession? session}) {
+  return showModalBottomSheet(
+    context: context,
+    isScrollControlled: true,
+    useSafeArea: true,
+    constraints: const BoxConstraints(maxWidth: 480),
+    builder: (_) => _GymSheet(day: startOfDay(day), session: session),
+  );
+}
+
+class _GymSheet extends StatefulWidget {
+  const _GymSheet({required this.day, this.session});
+  final DateTime day;
+  final GymSession? session;
+
+  @override
+  State<_GymSheet> createState() => _GymSheetState();
+}
+
+class _GymSheetState extends State<_GymSheet> {
+  late TrainingType _type = widget.session?.type ?? TrainingType.push;
+  late double? _minutes = widget.session?.minutes?.toDouble();
+  late final _note = TextEditingController(text: widget.session?.note ?? '');
+
+  @override
+  void dispose() {
+    _note.dispose();
+    super.dispose();
+  }
+
+  void _save() {
+    final state = AppScope.read(context);
+    final s = widget.session;
+    final now = DateTime.now();
+    final at =
+        s?.at ?? (sameDay(widget.day, now) ? now : DateTime(widget.day.year, widget.day.month, widget.day.day, 18));
+    state.logGym(_type, at, minutes: _minutes?.round(), note: _note.text, replaceId: s?.id);
+    Navigator.pop(context);
+    showToast(context, s == null ? '${_type.label} logged' : 'Workout updated');
+  }
+
+  void _delete() {
+    final state = AppScope.read(context);
+    final removed = state.removeGym(widget.session!.id);
+    Navigator.pop(context);
+    if (removed != null) {
+      showToast(context, 'Workout removed', actionLabel: 'Undo', onAction: () => state.restoreGym(removed));
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final t = FT.of(context);
+    final tt = Theme.of(context).textTheme;
+    final isToday = sameDay(widget.day, DateTime.now());
+
+    return Padding(
+      padding: EdgeInsets.only(bottom: MediaQuery.viewInsetsOf(context).bottom),
+      child: Padding(
+        padding: const EdgeInsets.fromLTRB(S.lg, 0, S.lg, S.xl),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: [
+            Text(widget.session == null ? 'Log workout' : 'Edit workout', style: tt.headlineSmall),
+            const SizedBox(height: S.xs),
+            Text(isToday ? 'Today' : DateFormat('EEEE d MMMM').format(widget.day), style: tt.bodyMedium),
+            const SizedBox(height: S.lg),
+            Wrap(
+              spacing: S.sm,
+              runSpacing: S.sm,
+              children: [
+                for (final type in TrainingType.values)
+                  Squishy(
+                    onTap: () => setState(() => _type = type),
+                    semanticLabel: type.label,
+                    child: AnimatedContainer(
+                      duration: Motion.of(context, Motion.fast),
+                      height: 40,
+                      padding: const EdgeInsets.symmetric(horizontal: 16),
+                      decoration: BoxDecoration(
+                        color: _type == type ? t.accent : t.raised,
+                        borderRadius: BorderRadius.circular(S.radiusControl),
+                        border: Border.all(color: _type == type ? t.accent : t.border),
+                      ),
+                      alignment: Alignment.center,
+                      child: Text(type.label, style: tt.labelLarge!.copyWith(color: _type == type ? t.onAccent : t.fg)),
+                    ),
+                  ),
+              ],
+            ),
+            const SizedBox(height: S.sm),
+            BlurSwitcher(
+              child: Align(
+                key: ValueKey(_type),
+                alignment: Alignment.centerLeft,
+                child: Text(_type.detail, style: tt.bodySmall),
+              ),
+            ),
+            const SizedBox(height: S.lg),
+            FGroup(
+              children: [
+                FRow(
+                  label: 'Duration',
+                  sub: 'Optional',
+                  trailing: NumberInput(
+                    value: _minutes,
+                    unit: 'min',
+                    maxDigits: 0,
+                    hint: '–',
+                    onChanged: (v) => setState(() => _minutes = v),
+                  ),
+                ),
+                Padding(
+                  padding: const EdgeInsets.fromLTRB(S.lg, S.xs, S.lg, S.md),
+                  child: TextField(
+                    controller: _note,
+                    textCapitalization: TextCapitalization.sentences,
+                    decoration: InputDecoration(
+                      labelText: 'Note',
+                      hintText: _type == TrainingType.sport
+                          ? 'e.g. Basketball'
+                          : _type == TrainingType.cardio
+                          ? 'e.g. 5 km run'
+                          : 'e.g. New bench PR',
+                    ),
+                    onSubmitted: (_) => _save(),
+                  ),
+                ),
+              ],
+            ),
+            const SizedBox(height: S.xl),
+            FilledButton(onPressed: _save, child: const Text('Save')),
+            if (widget.session != null) ...[
+              const SizedBox(height: S.sm),
+              TextButton(
+                onPressed: _delete,
+                child: Text('Remove this workout', style: TextStyle(color: t.over)),
+              ),
+            ],
+          ],
+        ),
+      ),
+    );
+  }
+}

@@ -9,6 +9,7 @@ import '../../data/app_state.dart';
 import '../../design/motion.dart';
 import '../../design/oklch.dart';
 import '../../design/tokens.dart';
+import '../../models/gym.dart';
 import '../../models/nutrients.dart';
 import '../../models/profile.dart';
 import '../../models/sleep.dart';
@@ -166,6 +167,11 @@ class _ProgressScreenState extends State<ProgressScreen> {
                     ],
                     const SizedBox(height: S.lg),
                     Rise(delay: const Duration(milliseconds: 120), child: sleepCard),
+                    const SizedBox(height: S.lg),
+                    Rise(
+                      delay: const Duration(milliseconds: 150),
+                      child: _GymYearCard(sessions: state.gym),
+                    ),
                   ],
                 ),
               ),
@@ -1174,6 +1180,292 @@ class _SleepTrendCard extends StatelessWidget {
               Expanded(child: _Tile('On goal', '$onGoal', suffix: onGoal == 1 ? ' night' : ' nights')),
               Expanded(child: _Tile('Usual bedtime', usualBed ?? '–')),
             ],
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+/// The gym year at a glance: how many sessions, every training day on a calendar, and the
+/// split between push, pull, legs, cardio and sport.
+class _GymYearCard extends StatefulWidget {
+  const _GymYearCard({required this.sessions});
+  final List<GymSession> sessions;
+
+  @override
+  State<_GymYearCard> createState() => _GymYearCardState();
+}
+
+class _GymYearCardState extends State<_GymYearCard> {
+  int _year = DateTime.now().year;
+
+  @override
+  Widget build(BuildContext context) {
+    final t = FT.of(context);
+    final tt = Theme.of(context).textTheme;
+    final y = GymYear(_year, widget.sessions);
+    final thisYear = DateTime.now().year;
+    final firstYear = widget.sessions.fold<int>(thisYear, (a, s) => math.min(a, s.at.year));
+    final maxType = y.byType.values.fold<int>(1, math.max);
+
+    return FCard(
+      padding: const EdgeInsets.all(S.xl),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: [
+              Expanded(child: Text('Gym', style: tt.titleLarge)),
+              IconButton(
+                tooltip: 'Previous year',
+                onPressed: _year > firstYear ? () => setState(() => _year--) : null,
+                icon: FIcon(Symbols.chevron_left, color: _year > firstYear ? t.fg : t.border),
+              ),
+              BlurSwitcher(
+                child: Text(
+                  '$_year',
+                  key: ValueKey(_year),
+                  style: tt.titleMedium!.copyWith(fontFeatures: tabular),
+                ),
+              ),
+              IconButton(
+                tooltip: 'Next year',
+                onPressed: _year < thisYear ? () => setState(() => _year++) : null,
+                icon: FIcon(Symbols.chevron_right, color: _year < thisYear ? t.fg : t.border),
+              ),
+            ],
+          ),
+          const SizedBox(height: S.xs),
+          if (y.total == 0)
+            Padding(
+              padding: const EdgeInsets.symmetric(vertical: S.lg),
+              child: Text(
+                _year == thisYear
+                    ? 'No workouts logged yet this year. Log one from the Gym card on Today.'
+                    : 'No workouts logged in $_year.',
+                style: tt.bodyMedium!.copyWith(color: t.muted),
+              ),
+            )
+          else ...[
+            // The answer first: one number for the year, its unit small beside it.
+            Row(
+              crossAxisAlignment: CrossAxisAlignment.baseline,
+              textBaseline: TextBaseline.alphabetic,
+              children: [
+                CountUp(
+                  value: y.total.toDouble(),
+                  format: whole,
+                  style: tt.displaySmall!.copyWith(fontSize: 48, height: 1.05, fontFeatures: tabular),
+                ),
+                const SizedBox(width: 6),
+                Text(y.total == 1 ? 'session' : 'sessions', style: tt.titleMedium!.copyWith(color: t.muted)),
+              ],
+            ),
+            const SizedBox(height: S.xs),
+            Text(
+              '${y.daysTrained} days trained  ·  ${y.activeWeeks.length} active weeks  ·  '
+              'best run ${y.bestWeekStreak} ${y.bestWeekStreak == 1 ? 'week' : 'weeks'} in a row',
+              style: tt.bodySmall!.copyWith(fontFeatures: tabular),
+            ),
+            const SizedBox(height: S.xl),
+            _YearGrid(year: _year, byDay: y.byDay, sessions: y.sessions),
+            const SizedBox(height: S.xl),
+            for (final (i, type) in TrainingType.values.indexed) ...[
+              if (i > 0) const SizedBox(height: S.md),
+              _TypeRow(type: type, count: y.byType[type] ?? 0, total: y.total, max: maxType),
+            ],
+          ],
+        ],
+      ),
+    );
+  }
+}
+
+/// One square per day, a column per week (Monday on top), like a training diary's year page.
+/// Empty days are the inset grey; one session fills the square, two or more fill it brighter.
+class _YearGrid extends StatelessWidget {
+  const _YearGrid({required this.year, required this.byDay, required this.sessions});
+  final int year;
+  final Map<DateTime, int> byDay;
+  final List<GymSession> sessions;
+
+  static const _cell = 11.0, _gap = 3.0;
+
+  @override
+  Widget build(BuildContext context) {
+    final t = FT.of(context);
+    final tt = Theme.of(context).textTheme;
+    final first = weekStart(DateTime(year, 1, 1));
+    final today = startOfDay(DateTime.now());
+    final lastDay = year == today.year ? today : DateTime(year, 12, 31);
+    final weeks = (lastDay.difference(first).inDays ~/ 7) + 1;
+    final summaries = <DateTime, String>{};
+    for (final s in sessions) {
+      summaries[s.day] = summaries[s.day] == null ? s.summary : '${summaries[s.day]}\n${s.summary}';
+    }
+    final date = DateFormat('EEE d MMM');
+
+    final columns = [
+      for (var w = 0; w < weeks; w++)
+        Padding(
+          padding: EdgeInsets.only(right: w == weeks - 1 ? 0 : _gap),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              // Month label above the week the month starts in.
+              // Fixed width: in a sideways scroll the label would otherwise be unbounded.
+              SizedBox(
+                width: _cell,
+                height: 16,
+                child: () {
+                  final ws = addDays(first, w * 7);
+                  for (var d = 0; d < 7; d++) {
+                    final day = addDays(ws, d);
+                    if (day.year == year && day.day == 1) {
+                      return OverflowBox(
+                        alignment: Alignment.topLeft,
+                        maxWidth: 40,
+                        child: Text(DateFormat('MMM').format(day), style: tt.labelSmall),
+                      );
+                    }
+                  }
+                  return const SizedBox(width: _cell);
+                }(),
+              ),
+              for (var d = 0; d < 7; d++)
+                Builder(
+                  builder: (context) {
+                    final day = addDays(first, w * 7 + d);
+                    final inYear = day.year == year && !day.isAfter(lastDay);
+                    final n = byDay[day] ?? 0;
+                    final color = !inYear
+                        ? Colors.transparent
+                        : n == 0
+                        ? t.inset
+                        : t.fg.withValues(alpha: n >= 2 ? 1 : 0.72);
+                    final cell = Container(
+                      width: _cell,
+                      height: _cell,
+                      margin: const EdgeInsets.only(bottom: _gap),
+                      decoration: BoxDecoration(
+                        color: color,
+                        borderRadius: BorderRadius.circular(2.5),
+                        border: day == today ? Border.all(color: t.fg, width: 1.2) : null,
+                      ),
+                    );
+                    if (!inYear || n == 0) return cell;
+                    return Tooltip(message: '${date.format(day)}\n${summaries[day]}', child: cell);
+                  },
+                ),
+            ],
+          ),
+        ),
+    ];
+
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        // Fits on a wide screen. On a phone it scrolls sideways, opens on the latest weeks, and
+        // fades only the earlier side that runs off the edge (never the current week).
+        LayoutBuilder(
+          builder: (context, c) {
+            final grid = Row(crossAxisAlignment: CrossAxisAlignment.start, children: columns);
+            if (weeks * (_cell + _gap) <= c.maxWidth) return grid;
+            return ShaderMask(
+              blendMode: BlendMode.dstIn,
+              shaderCallback: (rect) => const LinearGradient(
+                colors: [Color(0x00000000), Color(0xFF000000)],
+                stops: [0, 0.08],
+              ).createShader(rect),
+              child: SingleChildScrollView(scrollDirection: Axis.horizontal, reverse: true, child: grid),
+            );
+          },
+        ),
+        const SizedBox(height: S.sm),
+        Row(
+          children: [
+            Text('Rest', style: tt.labelSmall),
+            const SizedBox(width: 6),
+            for (final c in [t.inset, t.fg.withValues(alpha: 0.72), t.fg]) ...[
+              Container(
+                width: _cell,
+                height: _cell,
+                decoration: BoxDecoration(color: c, borderRadius: BorderRadius.circular(2.5)),
+              ),
+              const SizedBox(width: 3),
+            ],
+            const SizedBox(width: 3),
+            Text('Two sessions', style: tt.labelSmall),
+          ],
+        ),
+      ],
+    );
+  }
+}
+
+/// One training type: name, a slim bar against the most-trained type, the count and its share.
+class _TypeRow extends StatelessWidget {
+  const _TypeRow({required this.type, required this.count, required this.total, required this.max});
+  final TrainingType type;
+  final int count;
+  final int total;
+  final int max;
+
+  @override
+  Widget build(BuildContext context) {
+    final t = FT.of(context);
+    final tt = Theme.of(context).textTheme;
+    final pct = total == 0 ? 0 : (count / total * 100).round();
+    return Semantics(
+      label: type.label,
+      value: '$count sessions, $pct percent',
+      excludeSemantics: true,
+      child: Row(
+        children: [
+          SizedBox(width: 64, child: Text(type.label, style: tt.bodyMedium)),
+          Expanded(
+            child: LayoutBuilder(
+              builder: (context, c) => Stack(
+                alignment: Alignment.centerLeft,
+                children: [
+                  Container(
+                    height: 6,
+                    decoration: BoxDecoration(color: t.inset, borderRadius: BorderRadius.circular(3)),
+                  ),
+                  TweenAnimationBuilder<double>(
+                    tween: Tween(end: max == 0 ? 0 : count / max),
+                    duration: Motion.of(context, Motion.slow),
+                    curve: Motion.settle,
+                    builder: (context, f, _) => Container(
+                      width: c.maxWidth * f.clamp(0.0, 1.0),
+                      height: 6,
+                      decoration: BoxDecoration(
+                        color: t.fg.withValues(alpha: t.dark ? 0.86 : 0.78),
+                        borderRadius: BorderRadius.circular(3),
+                      ),
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ),
+          const SizedBox(width: S.md),
+          SizedBox(
+            width: 36,
+            child: Text(
+              '$count',
+              textAlign: TextAlign.right,
+              style: tt.titleSmall!.copyWith(fontFeatures: tabular),
+            ),
+          ),
+          SizedBox(
+            width: 44,
+            child: Text(
+              '$pct%',
+              textAlign: TextAlign.right,
+              style: tt.labelSmall!.copyWith(fontFeatures: tabular),
+            ),
           ),
         ],
       ),
