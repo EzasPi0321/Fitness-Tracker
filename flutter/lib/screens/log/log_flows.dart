@@ -51,6 +51,8 @@ Future<void> logAndCelebrate(BuildContext context, List<FoodEntry> entries) asyn
           ],
         ],
       ),
+      duration: const Duration(seconds: 3),
+      persist: false, // closes on its own, Undo or not
       action: SnackBarAction(
         label: 'Undo',
         onPressed: () {

@@ -88,6 +88,7 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
           content: Text(
             _draft.name.isEmpty ? 'Welcome to FitTrack' : 'Welcome, ${_draft.firstName}. Your plan is ready.',
           ),
+          duration: const Duration(milliseconds: 2500),
         ),
       );
     }
@@ -266,7 +267,8 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
         Text('Connect $name?', style: tt.headlineMedium),
         const SizedBox(height: S.md),
         Text(
-          'FitTrack can fill in your height and weight, add exercise to your budget, and save meals to $name.',
+          'FitTrack can fill in your height and weight, add exercise to your budget, read your steps and sleep, '
+          'and save meals, water, weight and body fat to $name.',
           style: tt.bodyLarge!.copyWith(color: t.muted),
         ),
         const SizedBox(height: S.xl),
@@ -289,7 +291,7 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
           const SizedBox(height: S.md),
           StatusPill(
             text: state.healthMissing.isEmpty
-                ? 'Connected to $name. Tap Continue.'
+                ? 'Connected to $name.'
                 : 'Connected. Not allowed: ${state.healthMissing.join(', ')}',
             color: state.healthMissing.isEmpty ? t.good : t.warn,
             icon: Symbols.check,
@@ -300,7 +302,12 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
           StatusPill(text: state.healthError!, color: t.warn, icon: Symbols.info),
         ],
         const SizedBox(height: S.sm),
-        Text('You can change this later in Settings. Tap Continue to skip.', style: tt.bodySmall),
+        Text(
+          state.healthEnabled
+              ? 'You can change what’s shared later in Settings.'
+              : 'You can change this later in Settings. Tap Continue to skip.',
+          style: tt.bodySmall,
+        ),
       ],
     );
   }
