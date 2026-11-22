@@ -660,7 +660,14 @@ class AppState extends ChangeNotifier {
   Future<void> addWeight(double kilograms, DateTime date, {String? id}) async {
     final latest = weights.isEmpty ? null : weightsByDate.last.date;
     weights.add(WeightEntry(id: id ?? newId(), date: date, kilograms: kilograms));
-    if (latest == null || !date.isBefore(latest)) profile?.weightKg = kilograms;
+    final p = profile;
+    if (p != null && (latest == null || !date.isBefore(latest))) {
+      // With a target and date, each weigh-in re-plans the pace from where you are now, unless
+      // the targets were set by hand.
+      final followsPlan = p.isBodyValid && p.targets == p.plan.targets;
+      p.weightKg = kilograms;
+      if (followsPlan && p.targetWeightKg != null && p.isBodyValid) p.targets = p.plan.targets;
+    }
     _changed();
     if (_syncHealth) await health.saveWeight(kilograms, date);
   }

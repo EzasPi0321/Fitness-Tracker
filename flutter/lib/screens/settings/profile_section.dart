@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:intl/intl.dart';
 import 'package:material_symbols_icons/symbols.dart';
 
 import '../../data/app_state.dart';
@@ -101,17 +102,14 @@ class ProfileSection extends StatelessWidget {
           showSelectedIcon: false,
           onSelectionChanged: (s) => update((p) => p.goal = s.first),
         ),
+        if (p.goal != WeightGoal.maintain) ...[const SizedBox(height: S.md), _TargetGroup(profile: p, update: update)],
         Padding(
           padding: const EdgeInsets.fromLTRB(6, S.sm, 6, S.md),
           child: BlurSwitcher(
             child: Align(
-              key: ValueKey(p.goal),
+              key: ValueKey('${p.goal}${p.targetWeightKg}${p.targetDate}${p.weightKg}'),
               alignment: Alignment.centerLeft,
-              child: Text(switch (p.goal) {
-                WeightGoal.lose => 'Cut: TDEE − 500 kcal, about 0.5 kg (1 lb) a week.',
-                WeightGoal.maintain => 'Maintain: eat your TDEE.',
-                WeightGoal.gain => 'Gain: TDEE + 300 kcal, a lean surplus.',
-              }, style: tt.bodySmall),
+              child: Text(goalLine(p, plan.targets.calories, tdee), style: tt.bodySmall),
             ),
           ),
         ),
@@ -258,6 +256,106 @@ class ProfileSection extends StatelessWidget {
                   style: tt.bodySmall,
                 ),
               ),
+            ],
+          ),
+        ),
+      ],
+    );
+  }
+}
+
+/// What the goal does to the daily target, in one or two sentences.
+String goalLine(UserProfile p, double calories, double tdee) {
+  final metric = p.usesMetric;
+  String kg(double v) => metric ? '${oneDecimal(v)} kg' : '${oneDecimal(v * poundsPerKilogram)} lb';
+  String kcal(double v) => '${v >= 0 ? '+' : '−'}\u00A0${Energy.format(v.abs())}'; // never split from its sign
+  final floor = calories <= NutritionCalculator.minimumCalories(p.sex) + 5 && p.goal == WeightGoal.lose
+      ? ' Held at the ${Energy.format(NutritionCalculator.minimumCalories(p.sex))} minimum, so it may take longer.'
+      : '';
+  if (p.goal == WeightGoal.maintain) return 'Maintain: eat your TDEE.';
+  if (p.targetReached) {
+    return 'You’ve reached ${kg(p.targetWeightKg!)}. Eating your TDEE to hold it; switch to Maintain, or set a new target.';
+  }
+  final pace = p.pace;
+  if (pace == null) {
+    return p.goal == WeightGoal.lose
+        ? 'Cut: TDEE − 500 kcal, about 0.5 kg (1 lb) a week. Add a target weight and date to set the pace.'
+        : 'Gain: TDEE + 300 kcal, a lean surplus. Add a target weight and date to set the pace.';
+  }
+  final verb = pace.kgToGo < 0 ? 'Lose' : 'Gain';
+  final weeks = pace.weeks.round();
+  final perWeek = kg(pace.kgPerWeek.abs());
+  final adj = kcal(calories - tdee);
+  if (pace.limited) {
+    return '$verb ${kg(pace.kgToGo.abs())} in $weeks week${weeks == 1 ? '' : 's'} is faster than the safe '
+        '${kg(pace.safeKgPerWeek)} a week. Planned at that pace instead: TDEE $adj, reaching it around '
+        '${DateFormat('d MMM').format(pace.reachBy)}.$floor';
+  }
+  return '$verb ${kg(pace.kgToGo.abs())} in $weeks week${weeks == 1 ? '' : 's'}: about $perWeek a week, '
+      'so TDEE $adj.$floor Updates each time you weigh in.';
+}
+
+/// Target weight and the date to reach it, for a cut or gain.
+class _TargetGroup extends StatelessWidget {
+  const _TargetGroup({required this.profile, required this.update});
+  final UserProfile profile;
+  final void Function(void Function(UserProfile p) change) update;
+
+  @override
+  Widget build(BuildContext context) {
+    final t = FT.of(context);
+    final tt = Theme.of(context).textTheme;
+    final p = profile;
+    final metric = p.usesMetric;
+    final target = p.targetWeightKg;
+    final date = p.targetDate;
+    final today = DateTime.now();
+    final weeks = date == null ? null : (date.difference(DateTime(today.year, today.month, today.day)).inHours / 168);
+
+    Future<void> pickDate() async {
+      final first = DateTime(today.year, today.month, today.day + 7);
+      final picked = await showDatePicker(
+        context: context,
+        initialDate: date != null && date.isAfter(first) ? date : DateTime(today.year, today.month + 3, today.day),
+        firstDate: first,
+        lastDate: DateTime(today.year + 3, today.month, today.day),
+        helpText: 'Reach it by',
+      );
+      if (picked != null) update((p) => p.targetDate = picked);
+    }
+
+    return FGroup(
+      children: [
+        FRow(
+          label: 'Target weight',
+          sub: p.goal == WeightGoal.lose ? 'Where the cut ends' : 'Where the gain ends',
+          trailing: NumberInput(
+            key: ValueKey('tw$metric'),
+            value: target == null ? null : ((metric ? target : target * poundsPerKilogram) * 10).round() / 10,
+            unit: metric ? 'kg' : 'lb',
+            hint: metric
+                ? oneDecimal(p.weightKg + (p.goal == WeightGoal.lose ? -5 : 3))
+                : oneDecimal((p.weightKg + (p.goal == WeightGoal.lose ? -5 : 3)) * poundsPerKilogram),
+            onChanged: (v) {
+              if (v == null) return update((p) => p.targetWeightKg = null);
+              final kg = metric ? v : v / poundsPerKilogram;
+              if (kg >= 30 && kg <= 350) update((p) => p.targetWeightKg = kg);
+            },
+          ),
+        ),
+        FRow(
+          label: 'Reach it by',
+          sub: weeks == null ? 'Pick a date' : '${weeks.round()} weeks from today',
+          onTap: pickDate,
+          trailing: Row(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Text(
+                date == null ? 'Set date' : DateFormat('d MMM yyyy').format(date),
+                style: tt.bodyLarge!.copyWith(color: date == null ? t.muted : null, fontFeatures: tabular),
+              ),
+              const SizedBox(width: S.xs),
+              FIcon(Symbols.calendar_month, size: 20, color: t.muted),
             ],
           ),
         ),
