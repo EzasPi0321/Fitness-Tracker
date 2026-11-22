@@ -1,3 +1,6 @@
+import 'dart:async';
+
+import 'package:app_links/app_links.dart';
 import 'package:flutter/foundation.dart' show kIsWeb;
 import 'package:flutter/material.dart';
 import 'package:material_symbols_icons/symbols.dart';
@@ -11,6 +14,7 @@ import 'screens/profile/profile_screen.dart';
 import 'screens/progress/progress_screen.dart';
 import 'screens/settings/settings_screen.dart';
 import 'screens/today/today_screen.dart';
+import 'services/platform_caps.dart';
 import 'widgets/common.dart';
 
 class FitTrackApp extends StatefulWidget {
@@ -22,10 +26,17 @@ class FitTrackApp extends StatefulWidget {
 }
 
 class _FitTrackAppState extends State<FitTrackApp> with WidgetsBindingObserver {
+  StreamSubscription<Uri>? _links;
+
   @override
   void initState() {
     super.initState();
     WidgetsBinding.instance.addObserver(this);
+    // fittrack://steps?count=… from a Shortcuts automation that reads Apple Health. The
+    // stream also delivers the link that opened the app.
+    if (PlatformCaps.isPhone) {
+      _links = AppLinks().uriLinkStream.listen(widget.state.handleLink, onError: (_) {});
+    }
   }
 
   @override
@@ -41,6 +52,7 @@ class _FitTrackAppState extends State<FitTrackApp> with WidgetsBindingObserver {
 
   @override
   void dispose() {
+    _links?.cancel();
     WidgetsBinding.instance.removeObserver(this);
     super.dispose();
   }

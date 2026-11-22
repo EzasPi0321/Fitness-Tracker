@@ -6,9 +6,12 @@ import '../models/nutrients.dart';
 import '../models/sleep.dart';
 import '../models/util.dart';
 import 'health_service.dart';
+import 'platform_caps.dart';
 
-HealthService createHealthService() =>
-    (Platform.isIOS || Platform.isAndroid) ? _MobileHealthService() : UnsupportedHealthService();
+// iPhone only with a build allowed to use Apple Health (see PlatformCaps.iosHealthAllowed).
+HealthService createHealthService() => (Platform.isAndroid || (Platform.isIOS && PlatformCaps.iosHealthAllowed))
+    ? _MobileHealthService()
+    : UnsupportedHealthService();
 
 class _MobileHealthService implements HealthService {
   final _health = hc.Health();

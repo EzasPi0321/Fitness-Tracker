@@ -116,8 +116,11 @@ class _TodayScreenState extends State<TodayScreen> {
     final wide = width >= 1000;
     // Steps need a phone health store (or sample data on the preview).
     final canConnect = state.health.isSupported && !state.healthEnabled;
-    final showSteps = _steps != null || state.health.isSupported;
-    final stepsCard = StepsCard(steps: _steps, canConnect: canConnect);
+    // Without a health store (iPhone), steps come from the Shortcuts link or are typed in.
+    final manualSteps = PlatformCaps.hideHealth;
+    final steps = manualSteps ? state.loggedSteps[startOfDay(_day)] : _steps;
+    final showSteps = steps != null || state.health.isSupported || manualSteps;
+    final stepsCard = StepsCard(steps: steps, canConnect: canConnect, day: _day, manual: manualSteps);
     final sleepCard = SleepCard(day: _day, healthNight: _sleep, canConnect: canConnect);
 
     final summary = _SummaryCard(

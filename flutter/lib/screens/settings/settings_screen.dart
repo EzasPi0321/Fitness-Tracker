@@ -29,8 +29,7 @@ class SettingsScreen extends StatelessWidget {
 
     final left = [const _UnitsSection(), const SizedBox(height: S.xl), const _DataSection()];
     final right = [
-      const _HealthSection(),
-      const SizedBox(height: S.xl),
+      if (!PlatformCaps.hideHealth) ...[const _HealthSection(), const SizedBox(height: S.xl)],
       const _AISection(),
       const SizedBox(height: S.xl),
       FGroup(
@@ -202,7 +201,11 @@ class TargetsSection extends StatelessWidget {
         FRow(
           leading: dot(neutral),
           label: 'Steps',
-          sub: 'From Apple Health or Samsung Health',
+          sub: Theme.of(context).platform == TargetPlatform.android
+              ? 'From Samsung Health'
+              : PlatformCaps.hideHealth
+              ? 'From Apple Health via Shortcuts, or typed in'
+              : 'From Apple Health or Samsung Health',
           trailing: NumberInput(
             value: state.stepGoal.toDouble(),
             unit: 'steps',
