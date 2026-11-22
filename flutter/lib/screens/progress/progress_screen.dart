@@ -245,6 +245,20 @@ String _compact(double v) {
 }
 
 /// Grid lines: hairline, dashed and quiet, so data carries the weight.
+/// Which days get a date under the axis. Every chart uses the same rule, so their dates line
+/// up: each day for a week, otherwise four evenly spaced dates from the first day to today.
+bool isAxisTick(int i, int days) {
+  if (i < 0 || i >= days) return false;
+  if (days <= 7) return true;
+  for (var k = 0; k <= 3; k++) {
+    if (i == ((days - 1) * k / 3).round()) return true;
+  }
+  return false;
+}
+
+/// Width of the value labels on the left of every chart.
+const _axisW = 36.0;
+
 FlLine _gridLine(FT t) => FlLine(color: t.border.withValues(alpha: 0.5), strokeWidth: 0.6);
 
 class _CalorieCard extends StatelessWidget {
@@ -256,7 +270,6 @@ class _CalorieCard extends StatelessWidget {
 
   static const _chartH = 220.0;
   static const _bottomH = 26.0;
-  static const _goalGutter = 54.0;
 
   double _step(double max) {
     for (final s in [250.0, 500.0, 1000.0, 2000.0, 2500.0, 5000.0]) {
@@ -317,12 +330,10 @@ class _CalorieCard extends StatelessWidget {
             height: _chartH,
             child: LayoutBuilder(
               builder: (context, c) {
-                final plotH = _chartH - _bottomH;
                 // Bars take about a third of their slot: slim, but sized to the screen.
-                final slot = (c.maxWidth - 36 - _goalGutter) / days.length;
+                final slot = (c.maxWidth - _axisW) / days.length;
                 final barW = (slot * 0.36).clamp(2.0, 24.0);
                 final radius = math.min(barW / 2, 4.0);
-                final goalY = (plotH * (1 - (target * k / maxY))).clamp(0.0, plotH);
                 return Stack(
                   clipBehavior: Clip.none,
                   children: [
@@ -346,18 +357,11 @@ class _CalorieCard extends StatelessWidget {
                             ),
                             titlesData: FlTitlesData(
                               topTitles: const AxisTitles(),
-                              // Empty gutter on the right: the goal tag lives there, clear of the bars.
-                              rightTitles: AxisTitles(
-                                sideTitles: SideTitles(
-                                  showTitles: true,
-                                  reservedSize: _goalGutter,
-                                  getTitlesWidget: (_, _) => const SizedBox.shrink(),
-                                ),
-                              ),
+                              rightTitles: const AxisTitles(),
                               leftTitles: AxisTitles(
                                 sideTitles: SideTitles(
                                   showTitles: true,
-                                  reservedSize: 36,
+                                  reservedSize: _axisW,
                                   interval: step,
                                   getTitlesWidget: (v, meta) => SideTitleWidget(
                                     meta: meta,
@@ -374,14 +378,7 @@ class _CalorieCard extends StatelessWidget {
                                   reservedSize: _bottomH,
                                   getTitlesWidget: (v, meta) {
                                     final i = v.toInt();
-                                    final every = switch (range) {
-                                      TrendRange.week => 1,
-                                      TrendRange.month => 7,
-                                      TrendRange.quarter => 15,
-                                    };
-                                    if (i < 0 || i >= days.length || (days.length - 1 - i) % every != 0) {
-                                      return const SizedBox.shrink();
-                                    }
+                                    if (!isAxisTick(i, days.length)) return const SizedBox.shrink();
                                     final d = days[i].date;
                                     final isToday = d == today;
                                     final label = range == TrendRange.week
@@ -389,6 +386,7 @@ class _CalorieCard extends StatelessWidget {
                                         : DateFormat('d MMM').format(d);
                                     return SideTitleWidget(
                                       meta: meta,
+                                      fitInside: SideTitleFitInsideData.fromTitleMeta(meta),
                                       child: Text(
                                         label,
                                         style: tt.labelSmall!.copyWith(
@@ -460,33 +458,6 @@ class _CalorieCard extends StatelessWidget {
                                   ],
                                 ),
                             ],
-                          ),
-                        ),
-                      ),
-                    ),
-                    // Goal tag, in its own gutter so it never sits on a bar.
-                    Positioned(
-                      right: 0,
-                      width: _goalGutter - 6,
-                      top: goalY - 11,
-                      height: 22,
-                      child: IgnorePointer(
-                        child: Container(
-                          alignment: Alignment.center,
-                          decoration: BoxDecoration(color: goalColor, borderRadius: BorderRadius.circular(6)),
-                          child: FittedBox(
-                            fit: BoxFit.scaleDown,
-                            child: Padding(
-                              padding: const EdgeInsets.symmetric(horizontal: 5),
-                              child: Text(
-                                whole(target * k),
-                                style: tt.labelSmall!.copyWith(
-                                  color: t.dark ? Colors.black : Colors.white,
-                                  fontWeight: FontWeight.w700,
-                                  fontFeatures: tabular,
-                                ),
-                              ),
-                            ),
                           ),
                         ),
                       ),
@@ -774,6 +745,8 @@ class _WeightCard extends StatelessWidget {
       sub = '${oneDecimal(_d(points.last.kilograms))} $unit';
     }
     final now = DateTime.now();
+    final today = startOfDay(now);
+    final days = (today.difference(start).inHours / 24).round() + 1;
     double x(DateTime d) => d.difference(start).inMinutes / 1440;
 
     Widget body;
@@ -821,21 +794,33 @@ class _WeightCard extends StatelessWidget {
                   sideTitles: SideTitles(
                     showTitles: true,
                     reservedSize: 24,
-                    interval: math.max(1, x(now) / 3),
-                    getTitlesWidget: (v, meta) => SideTitleWidget(
-                      meta: meta,
-                      fitInside: SideTitleFitInsideData.fromTitleMeta(meta),
-                      child: Text(
-                        DateFormat('d MMM').format(start.add(Duration(minutes: (v * 1440).round()))),
-                        style: tt.labelSmall!.copyWith(color: t.muted),
-                      ),
-                    ),
+                    // One title per day, kept only on the same dates as the other charts.
+                    interval: 1,
+                    getTitlesWidget: (v, meta) {
+                      final i = v.round();
+                      if (v != i || !isAxisTick(i, days)) return const SizedBox.shrink();
+                      final d = addDays(start, i);
+                      final label = days <= 7
+                          ? (d == today ? 'Today' : DateFormat('EEE').format(d))
+                          : DateFormat('d MMM').format(d);
+                      return SideTitleWidget(
+                        meta: meta,
+                        fitInside: SideTitleFitInsideData.fromTitleMeta(meta),
+                        child: Text(
+                          label,
+                          style: tt.labelSmall!.copyWith(
+                            color: d == today ? t.fg : t.muted,
+                            fontWeight: d == today ? FontWeight.w600 : null,
+                          ),
+                        ),
+                      );
+                    },
                   ),
                 ),
                 leftTitles: AxisTitles(
                   sideTitles: SideTitles(
                     showTitles: true,
-                    reservedSize: 36,
+                    reservedSize: _axisW,
                     interval: interval,
                     getTitlesWidget: (v, meta) => SideTitleWidget(
                       meta: meta,
@@ -1040,7 +1025,6 @@ class _SleepTrendCard extends StatelessWidget {
 
   static const _chartH = 200.0;
   static const _bottomH = 26.0;
-  static const _goalGutter = 54.0;
 
   @override
   Widget build(BuildContext context) {
@@ -1097,9 +1081,7 @@ class _SleepTrendCard extends StatelessWidget {
             height: _chartH,
             child: LayoutBuilder(
               builder: (context, c) {
-                final plotH = _chartH - _bottomH;
-                final goalY = (plotH * (1 - goalHours / maxH)).clamp(0.0, plotH);
-                final slot = (c.maxWidth - 36 - _goalGutter) / days.length;
+                final slot = (c.maxWidth - _axisW) / days.length;
                 final barW = (slot * 0.36).clamp(2.0, 24.0);
                 final radius = math.min(barW / 2, 4.0);
                 return Stack(
@@ -1125,17 +1107,11 @@ class _SleepTrendCard extends StatelessWidget {
                             ),
                             titlesData: FlTitlesData(
                               topTitles: const AxisTitles(),
-                              rightTitles: AxisTitles(
-                                sideTitles: SideTitles(
-                                  showTitles: true,
-                                  reservedSize: _goalGutter,
-                                  getTitlesWidget: (_, _) => const SizedBox.shrink(),
-                                ),
-                              ),
+                              rightTitles: const AxisTitles(),
                               leftTitles: AxisTitles(
                                 sideTitles: SideTitles(
                                   showTitles: true,
-                                  reservedSize: 36,
+                                  reservedSize: _axisW,
                                   interval: 2,
                                   getTitlesWidget: (v, meta) => SideTitleWidget(
                                     meta: meta,
@@ -1152,14 +1128,7 @@ class _SleepTrendCard extends StatelessWidget {
                                   reservedSize: _bottomH,
                                   getTitlesWidget: (v, meta) {
                                     final i = v.toInt();
-                                    final every = switch (range) {
-                                      TrendRange.week => 1,
-                                      TrendRange.month => 7,
-                                      TrendRange.quarter => 15,
-                                    };
-                                    if (i < 0 || i >= days.length || (days.length - 1 - i) % every != 0) {
-                                      return const SizedBox.shrink();
-                                    }
+                                    if (!isAxisTick(i, days.length)) return const SizedBox.shrink();
                                     final d = days[i];
                                     final isToday = d == today;
                                     final label = range == TrendRange.week
@@ -1167,6 +1136,7 @@ class _SleepTrendCard extends StatelessWidget {
                                         : DateFormat('d MMM').format(d);
                                     return SideTitleWidget(
                                       meta: meta,
+                                      fitInside: SideTitleFitInsideData.fromTitleMeta(meta),
                                       child: Text(
                                         label,
                                         style: tt.labelSmall!.copyWith(
@@ -1232,26 +1202,6 @@ class _SleepTrendCard extends StatelessWidget {
                                   ],
                                 ),
                             ],
-                          ),
-                        ),
-                      ),
-                    ),
-                    Positioned(
-                      right: 0,
-                      width: _goalGutter - 6,
-                      top: goalY - 11,
-                      height: 22,
-                      child: IgnorePointer(
-                        child: Container(
-                          alignment: Alignment.center,
-                          decoration: BoxDecoration(color: goalColor, borderRadius: BorderRadius.circular(6)),
-                          child: Text(
-                            '${goalHours % 1 == 0 ? goalHours.toStringAsFixed(0) : goalHours.toStringAsFixed(1)} h',
-                            style: tt.labelSmall!.copyWith(
-                              color: t.dark ? Colors.black : Colors.white,
-                              fontWeight: FontWeight.w700,
-                              fontFeatures: tabular,
-                            ),
                           ),
                         ),
                       ),
