@@ -99,19 +99,20 @@ class FT extends ThemeExtension<FT> {
       onAccent: Colors.black,
       calories: cal.toColor(),
       caloriesO: cal,
-      over: const Oklch(0.72, 0.17, 28).toColor(),
+      over: const Oklch(0.78, 0.14, 28).toColor(), // Lc 61 on cards (0.72 was 50)
       warn: const Oklch(0.80, 0.14, 80).toColor(),
       good: cal.toColor(),
-      protein: const Oklch(0.74, 0.14, 255).toColor(),
-      carbs: const Oklch(0.74, 0.14, 55).toColor(),
-      fat: const Oklch(0.74, 0.14, 318).toColor(),
-      weight: const Oklch(0.74, 0.10, 205).toColor(),
+      // Macro peers share one L and C. L 0.78 keeps their small labels above Lc 60 on cards.
+      protein: const Oklch(0.78, 0.125, 255).toColor(),
+      carbs: const Oklch(0.78, 0.125, 55).toColor(),
+      fat: const Oklch(0.78, 0.125, 318).toColor(),
+      weight: const Oklch(0.78, 0.095, 205).toColor(),
       shadow: const [], // shadows barely read on black; lighter surfaces carry the depth
     );
   }
 
   /// Body measures (weight and water) share one teal, kept clear of protein's blue.
-  Oklch get bodyO => dark ? const Oklch(0.74, 0.10, 205) : const Oklch(0.58, 0.11, 205);
+  Oklch get bodyO => dark ? const Oklch(0.78, 0.095, 205) : const Oklch(0.58, 0.11, 205);
 
   Color macro(Macro m) => switch (m) {
     Macro.protein => protein,

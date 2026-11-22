@@ -127,6 +127,15 @@ class TargetsSection extends StatelessWidget {
       state.updateProfile((p) => p.targets = f(p.targets, v.roundToDouble()));
     }
 
+    // Every target gets a dot in the colour it's drawn with in the charts (neutral for steps
+    // and sleep), so all the labels share one left edge.
+    Widget dot(Color c) => Container(
+      width: 10,
+      height: 10,
+      decoration: BoxDecoration(color: c, shape: BoxShape.circle),
+    );
+    final neutral = t.fg.withValues(alpha: t.dark ? 0.86 : 0.78);
+
     return FGroup(
       label: 'Daily targets',
       footer: diff.abs() > 50
@@ -139,6 +148,7 @@ class TargetsSection extends StatelessWidget {
           : Text('Macros add up to ${Energy.format(macroKcal)}.'),
       children: [
         FRow(
+          leading: dot(t.calories),
           label: Energy.fieldName,
           trailing: NumberInput(
             key: ValueKey(Energy.unit),
@@ -154,11 +164,7 @@ class TargetsSection extends StatelessWidget {
         ),
         for (final m in Macro.values)
           FRow(
-            leading: Container(
-              width: 10,
-              height: 10,
-              decoration: BoxDecoration(color: t.macro(m), shape: BoxShape.circle),
-            ),
+            leading: dot(t.macro(m)),
             label: m.title,
             sub: rangeText(m),
             trailing: NumberInput(
@@ -178,11 +184,7 @@ class TargetsSection extends StatelessWidget {
             ),
           ),
         FRow(
-          leading: Container(
-            width: 10,
-            height: 10,
-            decoration: BoxDecoration(color: t.bodyO.toColor(), shape: BoxShape.circle),
-          ),
+          leading: dot(t.bodyO.toColor()),
           label: 'Water',
           sub: state.waterGoalOverride == null ? 'From your weight (35 ml per kg)' : 'Your own goal',
           trailing: NumberInput(
@@ -198,7 +200,7 @@ class TargetsSection extends StatelessWidget {
           ),
         ),
         FRow(
-          leading: FIcon(Symbols.directions_walk, size: 16, color: t.muted, weight: FontWeight.w600),
+          leading: dot(neutral),
           label: 'Steps',
           sub: 'From Apple Health or Samsung Health',
           trailing: NumberInput(
@@ -212,7 +214,7 @@ class TargetsSection extends StatelessWidget {
           ),
         ),
         FRow(
-          leading: FIcon(Symbols.bed, size: 16, color: t.muted, weight: FontWeight.w600),
+          leading: dot(neutral),
           label: 'Sleep',
           sub: 'Hours asleep each night (7–9 suits most adults)',
           trailing: NumberInput(
@@ -226,6 +228,7 @@ class TargetsSection extends StatelessWidget {
           ),
         ),
         FRow(
+          leading: const SizedBox(width: 10), // same left edge as the dotted rows above
           label: "Reset to my profile’s plan",
           sub: 'Undo manual changes to these numbers',
           trailing: FIcon(Symbols.restart_alt, color: t.muted),
@@ -304,7 +307,6 @@ class _HealthSection extends StatelessWidget {
     if (!PlatformCaps.hasHealthStore) {
       return FGroup(
         label: 'Health sync',
-        footer: const Text('Apple Health and Health Connect sync run in the phone app.'),
         children: [
           FRow(
             leading: FIcon(Symbols.favorite, color: t.muted),
@@ -703,9 +705,8 @@ class _AiUsageGroup extends StatelessWidget {
       label: 'Usage',
       footer: Text(
         priced
-            ? 'Costs come from the tokens Claude reports with every answer, at Anthropic’s list prices. '
-                  'Your API key can’t read your balance, so type it in from the Anthropic Console (Billing) and FitTrack counts down from there.'
-            : 'Tokens are counted from every answer. FitTrack doesn’t track prices for this provider; check its console for your balance.',
+            ? 'At Anthropic’s list prices. Your key can’t read your balance, so copy it from the Console’s Billing page.'
+            : 'Prices for this provider aren’t tracked; its console shows your balance.',
       ),
       children: [
         FRow(
@@ -713,7 +714,8 @@ class _AiUsageGroup extends StatelessWidget {
           sub: month.isEmpty
               ? 'No photos sent yet'
               : '${month.length} ${month.length == 1 ? 'photo' : 'photos'} and labels',
-          trailing: value(priced ? (month.isEmpty ? '–' : formatUsd(monthUsd)) : '${whole(tokens.toDouble())} tokens'),
+          // Nothing on the right until there's something to count: the subtitle already says so.
+          trailing: month.isEmpty ? null : value(priced ? formatUsd(monthUsd) : '${whole(tokens.toDouble())} tokens'),
         ),
         if (priced && per != null)
           FRow(

@@ -270,19 +270,20 @@ class _TodayScreenState extends State<TodayScreen> {
                                   delay: const Duration(milliseconds: 40),
                                   child: WaterCard(day: _day),
                                 ),
+                                // Meals come before the other trackers: they're what's logged most.
+                                const SizedBox(height: S.xl),
+                                meals,
                                 if (showSteps) ...[
-                                  const SizedBox(height: S.lg),
+                                  const SizedBox(height: S.xl),
                                   Rise(delay: const Duration(milliseconds: 60), child: stepsCard),
                                 ],
-                                const SizedBox(height: S.lg),
+                                SizedBox(height: showSteps ? S.lg : S.xl),
                                 Rise(delay: const Duration(milliseconds: 80), child: sleepCard),
                                 const SizedBox(height: S.lg),
                                 Rise(
                                   delay: const Duration(milliseconds: 100),
                                   child: GymCard(day: _day),
                                 ),
-                                const SizedBox(height: S.xl),
-                                meals,
                               ],
                               const SizedBox(height: 120), // room so the add button never covers a row
                             ],
