@@ -22,13 +22,11 @@ void main() {
     expect(s.loggedSteps[today], 9120);
   });
 
-  test('an earlier, lower count from the shortcut never lowers today', () async {
+  test('the latest count from the shortcut replaces today, even when lower', () async {
     final s = await fresh();
-    s.handleLink(Uri.parse('fittrack://steps?count=9000'));
-    s.handleLink(Uri.parse('fittrack://steps?count=4000'));
-    expect(s.loggedSteps[today], 9000);
-    s.setLoggedSteps(today, 4000); // typing it in can still correct it
-    expect(s.loggedSteps[today], 4000);
+    s.handleLink(Uri.parse('fittrack://steps?count=1082')); // double-counted iPhone + Watch
+    s.handleLink(Uri.parse('fittrack://steps?count=792')); // fixed shortcut
+    expect(s.loggedSteps[today], 792);
   });
 
   test('a date can be given, and anything else is ignored', () async {

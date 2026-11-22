@@ -509,15 +509,14 @@ class AppState extends ChangeNotifier {
     _changed();
   }
 
-  /// Saves a day's steps. A shortcut only ever raises today's count, since steps only go up
-  /// during a day and an early run shouldn't undo a later one.
+  /// Saves a day's steps. The latest number always wins: each shortcut run reads Health's
+  /// current total, so a lower count is a correction (say, after fixing a double-counting
+  /// shortcut), not a stale reading.
   void setLoggedSteps(DateTime day, int? steps, {bool fromShortcut = false}) {
     final d = startOfDay(day);
     if (steps == null || steps < 0) {
       loggedSteps.remove(d);
     } else {
-      final current = loggedSteps[d];
-      if (fromShortcut && current != null && steps < current && sameDay(d, DateTime.now())) return;
       loggedSteps[d] = steps;
       if (fromShortcut) stepsFromShortcutAt = DateTime.now();
     }

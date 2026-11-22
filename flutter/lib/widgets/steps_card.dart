@@ -317,8 +317,9 @@ Future<void> showStepsShortcutGuide(BuildContext context) {
               'The first run asks to read your steps and to open FitTrack. Tap Allow. After that it’s automatic.',
             ),
             Text(
-              'Steps only go up during a day, so an earlier run never lowers today’s count. You can still type '
-              'steps in with the pencil on the Steps card.',
+              'If FitTrack shows more steps than Health, your iPhone and Apple Watch are both being counted: add '
+              'one filter, Source is your Apple Watch (or your iPhone if you have no Watch). Each run replaces '
+              'today’s count, and you can still type steps in with the pencil on the Steps card.',
               style: tt.bodySmall,
             ),
           ],
