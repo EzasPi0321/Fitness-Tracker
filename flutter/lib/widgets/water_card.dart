@@ -92,36 +92,38 @@ class WaterCard extends StatelessWidget {
     final water = t.bodyO;
 
     // Sized to their labels, not stretched: the row stays clear of the add button's corner.
-    Widget add(double ml) => ConstrainedBox(
-      constraints: const BoxConstraints(minWidth: 96),
-      child: Squishy(
-        onTap: () {
-          HapticFeedback.lightImpact();
-          _add(context, ml, metric);
-        },
-        feel: PressFeel.bold,
-        semanticLabel: 'Add ${Volume.format(ml, metric: metric)} of water',
-        child: Container(
-          height: S.minTarget,
-          decoration: BoxDecoration(
-            color: t.inset,
-            borderRadius: BorderRadius.circular(S.inner(S.radiusCard, S.lg) + 6),
-          ),
-          padding: const EdgeInsets.symmetric(horizontal: S.lg),
-          child: Center(
-            widthFactor: 1,
-            child: FittedBox(
-              fit: BoxFit.scaleDown,
-              child: Row(
-                mainAxisSize: MainAxisSize.min,
-                children: [
-                  FIcon(Symbols.add, size: 18, color: t.fg, weight: FontWeight.w600),
-                  const SizedBox(width: 4),
-                  Text(
-                    Volume.format(ml, metric: metric),
-                    style: tt.labelLarge!.copyWith(fontFeatures: tabular),
-                  ),
-                ],
+    Widget add(double ml) => Flexible(
+      child: ConstrainedBox(
+        constraints: const BoxConstraints(minWidth: 96),
+        child: Squishy(
+          onTap: () {
+            HapticFeedback.lightImpact();
+            _add(context, ml, metric);
+          },
+          feel: PressFeel.bold,
+          semanticLabel: 'Add ${Volume.format(ml, metric: metric)} of water',
+          child: Container(
+            height: S.minTarget,
+            decoration: BoxDecoration(
+              color: t.inset,
+              borderRadius: BorderRadius.circular(S.inner(S.radiusCard, S.lg) + 6),
+            ),
+            padding: const EdgeInsets.symmetric(horizontal: S.lg),
+            child: Center(
+              widthFactor: 1,
+              child: FittedBox(
+                fit: BoxFit.scaleDown,
+                child: Row(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    FIcon(Symbols.add, size: 18, color: t.fg, weight: FontWeight.w600),
+                    const SizedBox(width: 4),
+                    Text(
+                      Volume.format(ml, metric: metric),
+                      style: tt.labelLarge!.copyWith(fontFeatures: tabular),
+                    ),
+                  ],
+                ),
               ),
             ),
           ),
