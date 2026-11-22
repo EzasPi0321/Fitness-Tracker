@@ -77,48 +77,50 @@ class _CalorieRingState extends State<CalorieRing> with SingleTickerProviderStat
           '${whole(widget.consumed)} of ${whole(widget.budget)} kilocalories eaten, '
           '${whole(remaining.abs())} ${remaining >= 0 ? 'remaining' : 'over'}',
       excludeSemantics: true,
-      child: SizedBox.square(
-        dimension: widget.size,
-        child: TweenAnimationBuilder<double>(
-          tween: Tween(end: progress.isFinite ? progress.clamp(0, 2) : 0),
-          duration: Motion.of(context, Motion.slow),
-          curve: Motion.settle,
-          builder: (context, p, _) => AnimatedBuilder(
-            animation: _pulse,
-            builder: (context, _) {
-              // 0 → 1 → 0 swell with a quick attack and a soft release.
-              final v = _pulse.value;
-              final swell = v < 0.3
-                  ? Curves.easeOut.transform(v / 0.3)
-                  : 1 - Curves.easeInOut.transform((v - 0.3) / 0.7);
-              return CustomPaint(
-                painter: _RingPainter(progress: p, stroke: widget.stroke * (1 + 0.1 * swell), flare: swell, t: t),
-                child: !widget.showCenter
-                    ? null
-                    : Center(
-                        child: Transform.scale(
-                          scale: 1 + 0.05 * swell,
-                          child: Column(
-                            mainAxisSize: MainAxisSize.min,
-                            children: [
-                              CountUp(
-                                value: remaining.abs(),
-                                format: (v) => whole(Energy.toDisplay(v)),
-                                style: tt.displaySmall!.copyWith(fontFeatures: tabular, fontSize: widget.size * 0.2),
-                              ),
-                              BlurSwitcher(
-                                child: Text(
-                                  remaining >= 0 ? '${Energy.label} left' : '${Energy.label} over',
-                                  key: ValueKey(remaining >= 0),
-                                  style: tt.labelMedium!.copyWith(color: remaining >= 0 ? t.muted : t.over),
+      child: RepaintBoundary(
+        child: SizedBox.square(
+          dimension: widget.size,
+          child: TweenAnimationBuilder<double>(
+            tween: Tween(end: progress.isFinite ? progress.clamp(0, 2) : 0),
+            duration: Motion.of(context, Motion.slow),
+            curve: Motion.settle,
+            builder: (context, p, _) => AnimatedBuilder(
+              animation: _pulse,
+              builder: (context, _) {
+                // 0 → 1 → 0 swell with a quick attack and a soft release.
+                final v = _pulse.value;
+                final swell = v < 0.3
+                    ? Curves.easeOut.transform(v / 0.3)
+                    : 1 - Curves.easeInOut.transform((v - 0.3) / 0.7);
+                return CustomPaint(
+                  painter: _RingPainter(progress: p, stroke: widget.stroke * (1 + 0.1 * swell), flare: swell, t: t),
+                  child: !widget.showCenter
+                      ? null
+                      : Center(
+                          child: Transform.scale(
+                            scale: 1 + 0.05 * swell,
+                            child: Column(
+                              mainAxisSize: MainAxisSize.min,
+                              children: [
+                                CountUp(
+                                  value: remaining.abs(),
+                                  format: (v) => whole(Energy.toDisplay(v)),
+                                  style: tt.displaySmall!.copyWith(fontFeatures: tabular, fontSize: widget.size * 0.2),
                                 ),
-                              ),
-                            ],
+                                BlurSwitcher(
+                                  child: Text(
+                                    remaining >= 0 ? '${Energy.label} left' : '${Energy.label} over',
+                                    key: ValueKey(remaining >= 0),
+                                    style: tt.labelMedium!.copyWith(color: remaining >= 0 ? t.muted : t.over),
+                                  ),
+                                ),
+                              ],
+                            ),
                           ),
                         ),
-                      ),
-              );
-            },
+                );
+              },
+            ),
           ),
         ),
       ),
@@ -223,16 +225,19 @@ class MacroGauge extends StatelessWidget {
       child: Column(
         mainAxisSize: MainAxisSize.min,
         children: [
-          SizedBox.square(
-            dimension: 64,
-            child: TweenAnimationBuilder<double>(
-              tween: Tween(end: frac),
-              duration: Motion.of(context, Motion.slow),
-              curve: Motion.settle,
-              builder: (context, f, _) => CustomPaint(
-                painter: _GaugePainter(f, c, t),
-                child: Center(
-                  child: Text(whole(consumed), style: tt.titleSmall!.copyWith(fontFeatures: tabular)),
+          RepaintBoundary(
+            child: SizedBox.square(
+              dimension: 64,
+              child: TweenAnimationBuilder<double>(
+                tween: Tween(end: frac),
+                duration: Motion.of(context, Motion.slow),
+                curve: Motion.settle,
+                builder: (context, f, _) => CustomPaint(
+                  isComplex: true,
+                  painter: _GaugePainter(f, c, t),
+                  child: Center(
+                    child: Text(whole(consumed), style: tt.titleSmall!.copyWith(fontFeatures: tabular)),
+                  ),
                 ),
               ),
             ),

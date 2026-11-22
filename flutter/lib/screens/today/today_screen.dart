@@ -4,14 +4,20 @@ import 'package:material_symbols_icons/symbols.dart';
 
 import '../../data/app_state.dart';
 import '../../design/motion.dart';
+import '../../design/smooth_scroll.dart';
 import '../../design/tokens.dart';
 import '../../models/food.dart';
 import '../../models/nutrients.dart';
 import '../../models/util.dart';
 import '../../services/health_service.dart';
 import '../../services/platform_caps.dart';
+import '../../widgets/score.dart';
 import '../../widgets/common.dart';
 import '../../widgets/rings.dart';
+import '../../models/health_score.dart';
+import '../../models/sleep.dart';
+import '../../widgets/gym_card.dart';
+import '../../widgets/sleep_card.dart';
 import '../../widgets/steps_card.dart';
 import '../../widgets/update_banner.dart';
 import '../../widgets/water_card.dart';
@@ -28,9 +34,11 @@ class TodayScreen extends StatefulWidget {
 
 class _TodayScreenState extends State<TodayScreen> {
   DateTime _day = startOfDay(DateTime.now());
+  final _scroll = SmoothScrollController();
   double _active = 0;
   List<WorkoutSummary> _workouts = const [];
   int? _steps;
+  SleepNight? _sleep;
   final _collapsed = <MealType>{};
   String? _loadedKey;
   ValueNotifier<int>? _refresh;
@@ -57,6 +65,7 @@ class _TodayScreenState extends State<TodayScreen> {
   @override
   void dispose() {
     _refresh?.removeListener(_forceLoad);
+    _scroll.dispose();
     super.dispose();
   }
 
@@ -65,11 +74,12 @@ class _TodayScreenState extends State<TodayScreen> {
     if (!state.healthEnabled || !state.health.isSupported) {
       // No health store: sample data still shows example steps on the desktop preview.
       final sample = state.isSample ? state.sampleSteps[startOfDay(_day)] : null;
-      if (_active != 0 || _workouts.isNotEmpty || _steps != sample) {
+      if (_active != 0 || _workouts.isNotEmpty || _steps != sample || _sleep != null) {
         setState(() {
           _active = 0;
           _workouts = const [];
           _steps = sample;
+          _sleep = null;
         });
       }
       return;
@@ -78,11 +88,13 @@ class _TodayScreenState extends State<TodayScreen> {
     final active = await state.health.activeEnergy(day);
     final workouts = await state.health.workouts(day);
     final steps = await state.health.steps(day);
+    final nights = await state.health.sleep(day, addDays(day, 1));
     if (mounted && day == _day) {
       setState(() {
         _active = active;
         _workouts = workouts;
         _steps = steps;
+        _sleep = nightsByDay(nights)[day];
       });
     }
   }
@@ -106,6 +118,7 @@ class _TodayScreenState extends State<TodayScreen> {
     final canConnect = state.health.isSupported && !state.healthEnabled;
     final showSteps = _steps != null || state.health.isSupported;
     final stepsCard = StepsCard(steps: _steps, canConnect: canConnect);
+    final sleepCard = SleepCard(day: _day, healthNight: _sleep, canConnect: canConnect);
 
     final summary = _SummaryCard(
       consumed: consumed,
@@ -114,6 +127,7 @@ class _TodayScreenState extends State<TodayScreen> {
       showActive: state.healthEnabled && state.health.isSupported,
       includeActive: state.healthEnabled && state.addActiveEnergy,
       pulse: state.logPulse,
+      foodScore: HealthScore.average([for (final e in entries) (e.nutrients, e.grams)]),
     );
 
     final meals = Column(
@@ -163,6 +177,7 @@ class _TodayScreenState extends State<TodayScreen> {
             // Pull down to read steps and workouts again.
             onRefresh: _loadHealth,
             child: CustomScrollView(
+              controller: _scroll,
               physics: const AlwaysScrollableScrollPhysics(),
               slivers: [
                 SliverSafeArea(
@@ -234,6 +249,13 @@ class _TodayScreenState extends State<TodayScreen> {
                                             const SizedBox(height: S.lg),
                                             Rise(delay: const Duration(milliseconds: 60), child: stepsCard),
                                           ],
+                                          const SizedBox(height: S.lg),
+                                          Rise(delay: const Duration(milliseconds: 80), child: sleepCard),
+                                          const SizedBox(height: S.lg),
+                                          Rise(
+                                            delay: const Duration(milliseconds: 100),
+                                            child: GymCard(day: _day),
+                                          ),
                                         ],
                                       ),
                                     ),
@@ -252,6 +274,13 @@ class _TodayScreenState extends State<TodayScreen> {
                                   const SizedBox(height: S.lg),
                                   Rise(delay: const Duration(milliseconds: 60), child: stepsCard),
                                 ],
+                                const SizedBox(height: S.lg),
+                                Rise(delay: const Duration(milliseconds: 80), child: sleepCard),
+                                const SizedBox(height: S.lg),
+                                Rise(
+                                  delay: const Duration(milliseconds: 100),
+                                  child: GymCard(day: _day),
+                                ),
                                 const SizedBox(height: S.xl),
                                 meals,
                               ],
@@ -380,8 +409,11 @@ class _SummaryCard extends StatelessWidget {
     required this.showActive,
     required this.includeActive,
     required this.pulse,
+    this.foodScore,
   });
 
+  /// The day's health score: each food weighted by its calories.
+  final int? foodScore;
   final Nutrients consumed;
   final Nutrients targets;
   final double active;
@@ -438,6 +470,17 @@ class _SummaryCard extends StatelessWidget {
           ].join(' · '),
           style: tt.bodySmall!.copyWith(fontFeatures: tabular),
         ),
+        if (foodScore != null) ...[
+          const SizedBox(height: S.sm),
+          Wrap(
+            spacing: S.sm,
+            crossAxisAlignment: WrapCrossAlignment.center,
+            children: [
+              Text('Food score', style: tt.bodySmall),
+              ScoreBadge(foodScore!, size: 13, label: ScoreBand.of(foodScore!).label),
+            ],
+          ),
+        ],
       ],
     );
 
@@ -615,11 +658,25 @@ class _EntryRow extends StatelessWidget {
                       if (entry.trust != null) ...[const SizedBox(width: 4), TrustTag(entry.trust!, compact: true)],
                     ],
                   ),
-                  Text(
-                    [?entry.brand, entry.portionDescription].join(' · '),
-                    style: tt.bodySmall,
-                    maxLines: 1,
-                    overflow: TextOverflow.ellipsis,
+                  Row(
+                    children: [
+                      Flexible(
+                        child: Text(
+                          [?entry.brand, entry.portionDescription].join(' · '),
+                          style: tt.bodySmall,
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
+                        ),
+                      ),
+                      if (entry.healthScore case final score?) ...[
+                        const SizedBox(width: S.sm),
+                        ScoreBadge(
+                          score.score,
+                          size: 12,
+                          onTap: () => showScoreSheet(context, name: entry.name, score: score),
+                        ),
+                      ],
+                    ],
                   ),
                 ],
               ),

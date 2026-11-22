@@ -52,13 +52,19 @@ class _ManualEntryScreenState extends State<ManualEntryScreen> {
   late double? _cal = _label?.perServing.calories,
       _p = _label?.perServing.protein,
       _c = _label?.perServing.carbs,
-      _f = _label?.perServing.fat;
+      _f = _label?.perServing.fat,
+      _fi = _nz(_label?.perServing.fiber),
+      _su = _nz(_label?.perServing.sugar);
+
+  /// Optional extras start blank rather than 0 when the source didn't have them.
+  static double? _nz(double? v) => (v == null || v <= 0) ? null : v;
   late MealType _meal = widget.meal ?? MealType.suggested(widget.logTime);
   late bool _saveToMyFoods = widget.prefill?.barcode != null;
   CustomFood? _picked;
   int _formKey = 0; // rebuilds the number fields after picking a saved food
 
-  Nutrients get _perServing => Nutrients(calories: _cal ?? 0, protein: _p ?? 0, carbs: _c ?? 0, fat: _f ?? 0);
+  Nutrients get _perServing =>
+      Nutrients(calories: _cal ?? 0, protein: _p ?? 0, carbs: _c ?? 0, fat: _f ?? 0, fiber: _fi ?? 0, sugar: _su ?? 0);
 
   /// Numbers read from the label and checked by the user count as verified; if the photo was
   /// hard to read, or the numbers don't add up, they stay unverified.
@@ -94,6 +100,8 @@ class _ManualEntryScreenState extends State<ManualEntryScreen> {
       _p = food.perServing.protein;
       _c = food.perServing.carbs;
       _f = food.perServing.fat;
+      _fi = _nz(food.perServing.fiber);
+      _su = _nz(food.perServing.sugar);
       _saveToMyFoods = false;
       _formKey++;
     });
@@ -286,6 +294,26 @@ class _ManualEntryScreenState extends State<ManualEntryScreen> {
                         FRow(
                           label: 'Fat',
                           trailing: NumberInput(value: _f, unit: 'g', onChanged: (v) => setState(() => _f = v)),
+                        ),
+                        FRow(
+                          label: 'Fibre',
+                          sub: 'Optional · for the health score',
+                          trailing: NumberInput(
+                            value: _fi,
+                            unit: 'g',
+                            hint: '–',
+                            onChanged: (v) => setState(() => _fi = v),
+                          ),
+                        ),
+                        FRow(
+                          label: 'Sugars',
+                          sub: 'Optional',
+                          trailing: NumberInput(
+                            value: _su,
+                            unit: 'g',
+                            hint: '–',
+                            onChanged: (v) => setState(() => _su = v),
+                          ),
                         ),
                       ],
                     ),

@@ -3,6 +3,7 @@ import 'dart:io' show Platform;
 import 'package:health/health.dart' as hc;
 
 import '../models/nutrients.dart';
+import '../models/sleep.dart';
 import '../models/util.dart';
 import 'health_service.dart';
 
@@ -13,7 +14,7 @@ class _MobileHealthService implements HealthService {
   final _health = hc.Health();
   bool _configured = false;
 
-  static const _read = [
+  static const _common = [
     hc.HealthDataType.ACTIVE_ENERGY_BURNED,
     hc.HealthDataType.WORKOUT,
     hc.HealthDataType.WEIGHT,
@@ -22,6 +23,23 @@ class _MobileHealthService implements HealthService {
     hc.HealthDataType.WATER,
     hc.HealthDataType.STEPS,
   ];
+
+  // Sleep is stored differently: Apple Health keeps each stage as its own sample, while
+  // Health Connect (where Samsung Health shares sleep) keeps whole sessions.
+  static const _sleepIOS = [
+    hc.HealthDataType.SLEEP_ASLEEP,
+    hc.HealthDataType.SLEEP_LIGHT,
+    hc.HealthDataType.SLEEP_DEEP,
+    hc.HealthDataType.SLEEP_REM,
+  ];
+  static const _sleepAndroid = [hc.HealthDataType.SLEEP_SESSION];
+
+  /// The type a logged night is written as: a whole session in Health Connect (which
+  /// Samsung Health reads), plain "asleep" in Apple Health.
+  static hc.HealthDataType get _sleepWrite =>
+      Platform.isIOS ? hc.HealthDataType.SLEEP_ASLEEP : hc.HealthDataType.SLEEP_SESSION;
+
+  List<hc.HealthDataType> get _read => [..._common, ...(Platform.isIOS ? _sleepIOS : _sleepAndroid)];
 
   @override
   bool get isSupported => true;
@@ -44,10 +62,15 @@ class _MobileHealthService implements HealthService {
     hc.HealthDataType.HEIGHT: 'Height',
     hc.HealthDataType.NUTRITION: 'Nutrition',
     hc.HealthDataType.WATER: 'Water',
+    hc.HealthDataType.SLEEP_ASLEEP: 'Sleep',
+    hc.HealthDataType.SLEEP_LIGHT: 'Sleep',
+    hc.HealthDataType.SLEEP_DEEP: 'Sleep',
+    hc.HealthDataType.SLEEP_REM: 'Sleep',
+    hc.HealthDataType.SLEEP_SESSION: 'Sleep',
   };
 
   @override
-  List<String> get readNames => [for (final t in _read) _names[t]!];
+  List<String> get readNames => {for (final t in _read) _names[t]!}.toList();
 
   @override
   Future<bool> requestAuthorization() async {
@@ -61,7 +84,11 @@ class _MobileHealthService implements HealthService {
     }
     final permissions = _read
         .map(
-          (t) => (t == hc.HealthDataType.NUTRITION || t == hc.HealthDataType.WEIGHT || t == hc.HealthDataType.WATER)
+          (t) =>
+              (t == hc.HealthDataType.NUTRITION ||
+                  t == hc.HealthDataType.WEIGHT ||
+                  t == hc.HealthDataType.WATER ||
+                  t == _sleepWrite)
               ? hc.HealthDataAccess.READ_WRITE
               : hc.HealthDataAccess.READ,
         )
@@ -122,6 +149,32 @@ class _MobileHealthService implements HealthService {
     final points = await _points(hc.HealthDataType.STEPS, start, end);
     if (points.isEmpty) return total;
     return points.fold<double>(0, (a, p) => a + _numeric(p)).round();
+  }
+
+  @override
+  Future<List<SleepNight>> sleep(DateTime from, DateTime to) async {
+    // Nights can start the evening before [from], so look back half a day.
+    final since = from.subtract(const Duration(hours: 14));
+    if (Platform.isAndroid) {
+      final points = await _points(hc.HealthDataType.SLEEP_SESSION, since, to);
+      return [
+        for (final p in points)
+          if (p.dateTo.isAfter(p.dateFrom) && !p.dateTo.isBefore(from))
+            SleepNight(
+              start: p.dateFrom,
+              end: p.dateTo,
+              // The session's value is minutes asleep when the source records it.
+              asleep: _numeric(p) > 0 ? Duration(minutes: _numeric(p).round()) : p.dateTo.difference(p.dateFrom),
+            ),
+      ];
+    }
+    final segments = <({DateTime start, DateTime end})>[];
+    for (final t in _sleepIOS) {
+      for (final p in await _points(t, since, to)) {
+        segments.add((start: p.dateFrom, end: p.dateTo));
+      }
+    }
+    return mergeSegments(segments).where((n) => !n.end.isBefore(from)).toList();
   }
 
   @override
@@ -248,6 +301,30 @@ class _MobileHealthService implements HealthService {
     } catch (_) {
       return false;
     }
+  }
+
+  @override
+  Future<bool> saveSleep(DateTime start, DateTime end) async {
+    await _ensure();
+    try {
+      return await _health.writeHealthData(
+        value: end.difference(start).inMinutes.toDouble(),
+        type: _sleepWrite,
+        startTime: start,
+        endTime: end,
+        recordingMethod: hc.RecordingMethod.manual,
+      );
+    } catch (_) {
+      return false;
+    }
+  }
+
+  @override
+  Future<void> deleteSleep(DateTime start, DateTime end) async {
+    await _ensure();
+    try {
+      await _health.delete(type: _sleepWrite, startTime: start, endTime: end);
+    } catch (_) {}
   }
 
   @override

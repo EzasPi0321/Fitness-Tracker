@@ -1,4 +1,5 @@
 import '../models/nutrients.dart';
+import '../models/sleep.dart';
 import 'health_service_stub.dart' if (dart.library.io) 'health_service_io.dart' as impl;
 
 class WorkoutSummary {
@@ -46,6 +47,9 @@ abstract class HealthService {
   Future<Map<DateTime, double>> dailyActiveEnergy(DateTime from, DateTime to);
   Future<List<WorkoutSummary>> workouts(DateTime day);
   Future<List<WeightSample>> weightHistory(DateTime since);
+
+  /// Nights of sleep that ended between [from] and [to].
+  Future<List<SleepNight>> sleep(DateTime from, DateTime to);
   Future<HealthSnapshot> snapshot();
 
   /// Saves a logged food as a nutrition record. Returns true on success.
@@ -58,6 +62,12 @@ abstract class HealthService {
   Future<void> deleteFood(DateTime at);
   Future<bool> saveWeight(double kilograms, DateTime at);
   Future<bool> saveWater(double ml, DateTime at);
+
+  /// Saves a night logged in FitTrack, so Samsung Health / Apple Health has it too.
+  Future<bool> saveSleep(DateTime start, DateTime end);
+
+  /// Removes a night FitTrack saved earlier (when it's edited or deleted here).
+  Future<void> deleteSleep(DateTime start, DateTime end);
 }
 
 /// No health store (web, Windows, tests).
@@ -83,6 +93,8 @@ class UnsupportedHealthService implements HealthService {
   @override
   Future<List<WeightSample>> weightHistory(DateTime since) async => const [];
   @override
+  Future<List<SleepNight>> sleep(DateTime from, DateTime to) async => const [];
+  @override
   Future<HealthSnapshot> snapshot() async => const HealthSnapshot();
   @override
   Future<bool> saveFood({
@@ -97,4 +109,8 @@ class UnsupportedHealthService implements HealthService {
   Future<bool> saveWeight(double kilograms, DateTime at) async => false;
   @override
   Future<bool> saveWater(double ml, DateTime at) async => false;
+  @override
+  Future<bool> saveSleep(DateTime start, DateTime end) async => false;
+  @override
+  Future<void> deleteSleep(DateTime start, DateTime end) async {}
 }

@@ -5,8 +5,11 @@ import 'package:fittrack/data/sample_data.dart';
 import 'package:fittrack/data/storage.dart';
 import 'package:fittrack/design/oklch.dart';
 import 'package:fittrack/models/food.dart';
+import 'package:fittrack/models/gym.dart';
+import 'package:fittrack/models/health_score.dart';
 import 'package:fittrack/models/nutrients.dart';
 import 'package:fittrack/models/profile.dart';
+import 'package:fittrack/models/sleep.dart';
 import 'package:fittrack/models/util.dart';
 import 'package:fittrack/services/ai_vision.dart';
 import 'package:fittrack/services/health_service.dart';
@@ -746,6 +749,8 @@ Protein 7g
       expect(r.perServing.fat, 16);
       expect(r.perServing.carbs, 8);
       expect(r.perServing.protein, 7);
+      expect(r.perServing.fiber, 2);
+      expect(r.perServing.sugar, 3);
       expect(r.servingGrams, 32);
       expect(r.readable, isTrue);
     });
@@ -770,6 +775,7 @@ Protein
       expect(r.perServing.fat, closeTo(30.9, 1e-9));
       expect(r.perServing.carbs, closeTo(57.5, 1e-9));
       expect(r.perServing.protein, closeTo(6.3, 1e-9));
+      expect(r.perServing.sugar, closeTo(56.3, 1e-9));
       expect(r.servingGrams, 100);
       expect(r.servingDescription, '100 g');
     });
@@ -799,6 +805,8 @@ Sodium 95 mg 317 mg
       expect(r.perServing.protein, closeTo(3.2, 1e-9));
       expect(r.perServing.fat, closeTo(2.1, 1e-9));
       expect(r.perServing.carbs, closeTo(19.8, 1e-9));
+      expect(r.perServing.sugar, closeTo(4.5, 1e-9));
+      expect(r.perServing.fiber, closeTo(2.9, 1e-9));
       expect(r.servingGrams, 30);
       expect(r.readable, isTrue);
     });
@@ -902,6 +910,165 @@ Carbohydrate 12.0g 4.8g
     expect(s.water, isEmpty);
     expect(s.customFoods, isEmpty);
   });
+  group('Sleep', () {
+    test('a night belongs to the morning you woke up, and logged nights save and reload', () async {
+      final store = MemoryStore();
+      final s = AppState(store: store, health: UnsupportedHealthService());
+      await s.load();
+      final today = DateTime(2026, 1, 10); // a fixed past morning, so the test never depends on the clock
+      final bed = today.subtract(const Duration(minutes: 50)); // 11:10 PM the night before
+      final wake = today.add(const Duration(hours: 6, minutes: 35));
+      expect(s.logSleep(bed, wake), isNull);
+      final n = s.loggedNights[today]!;
+      expect(n.asleep, const Duration(hours: 7, minutes: 25));
+      expect(formatSleep(n.asleep), '7 h 25 min');
+      // Logging the same morning again replaces it.
+      expect(s.logSleep(bed.add(const Duration(minutes: 30)), wake), isNull);
+      expect(s.sleep, hasLength(1));
+      s.setSleepGoal(7.5);
+      await s.flush();
+      final again = AppState(store: store, health: UnsupportedHealthService());
+      await again.load();
+      expect(again.sleep, hasLength(1));
+      expect(again.sleepGoalHours, 7.5);
+    });
+
+    test('logged nights are mirrored to Samsung Health / Apple Health when sync is on', () async {
+      final h = _SleepHealth();
+      final s = AppState(store: MemoryStore(), health: h);
+      await s.load();
+      await s.setHealthEnabled(true);
+      final day = DateTime(2026, 1, 10);
+      s.logSleep(day.subtract(const Duration(hours: 1)), day.add(const Duration(hours: 7)));
+      await Future<void>.delayed(Duration.zero);
+      // Editing replaces what FitTrack wrote; deleting removes it.
+      s.logSleep(
+        day.subtract(const Duration(minutes: 30)),
+        day.add(const Duration(hours: 7)),
+        replaceId: s.sleep.single.id,
+      );
+      await Future<void>.delayed(Duration.zero);
+      s.removeSleep(s.sleep.single.id);
+      await Future<void>.delayed(Duration.zero);
+      expect(h.log, ['save 23:0-7:0', 'delete 23:0-7:0', 'save 23:30-7:0', 'delete 23:30-7:0']);
+    });
+
+    test('impossible nights are refused with a reason', () async {
+      final s = AppState(store: MemoryStore(), health: UnsupportedHealthService());
+      await s.load();
+      final t = DateTime(2026, 1, 10, 7);
+      expect(s.logSleep(t, t.subtract(const Duration(hours: 1))), contains('after bedtime'));
+      expect(s.logSleep(t.subtract(const Duration(hours: 18)), t), contains('16 hours'));
+      expect(s.sleep, isEmpty);
+    });
+
+    test('Apple Health stages merge into one night; a short nap stays separate', () {
+      final d = DateTime(2026, 3, 2);
+      ({DateTime start, DateTime end}) seg(int h1, int m1, int h2, int m2, [int dayOffset = 0]) => (
+        start: d.add(Duration(days: dayOffset, hours: h1, minutes: m1)),
+        end: d.add(Duration(days: dayOffset, hours: h2, minutes: m2)),
+      );
+      final nights = mergeSegments([
+        seg(23, 0, 24 + 2, 0), // light
+        seg(24 + 2, 0, 24 + 3, 30), // deep
+        seg(24 + 4, 0, 24 + 6, 30), // REM after 30 min awake
+        seg(24 + 14, 0, 24 + 14, 40), // afternoon nap
+      ]);
+      expect(nights, hasLength(2));
+      expect(nights.first.asleep, const Duration(hours: 7)); // 3h + 1.5h + 2.5h, the gap isn't sleep
+      final byDay = nightsByDay(nights);
+      expect(byDay[DateTime(2026, 3, 3)]!.asleep, const Duration(hours: 7)); // the nap doesn't replace it
+    });
+  });
+  group('Gym', () {
+    test('the year summary counts sessions, days, types and the best run of weeks', () {
+      GymSession g(int m, int d, TrainingType t) => GymSession(id: '$m-$d-$t', at: DateTime(2026, m, d, 18), type: t);
+      final y = GymYear(2026, [
+        g(1, 5, TrainingType.push), // Mon, week 1
+        g(1, 5, TrainingType.cardio), // same day, second session
+        g(1, 14, TrainingType.pull), // week 2
+        g(1, 21, TrainingType.legs), // week 3
+        g(2, 16, TrainingType.push), // a gap, then week 8
+        GymSession(id: 'old', at: DateTime(2025, 12, 30), type: TrainingType.sport), // last year
+      ]);
+      expect(y.total, 5);
+      expect(y.daysTrained, 4);
+      expect(y.byType[TrainingType.push], 2);
+      expect(y.byType[TrainingType.sport], isNull);
+      expect(y.activeWeeks.length, 4);
+      expect(y.bestWeekStreak, 3);
+      expect(y.mostTrained, TrainingType.push);
+    });
+
+    test('sessions save, reload, edit and delete', () async {
+      final store = MemoryStore();
+      final s = AppState(store: store, health: UnsupportedHealthService());
+      await s.load();
+      final day = DateTime(2026, 3, 4, 18);
+      s.logGym(TrainingType.sport, day, minutes: 90, note: ' Basketball ');
+      expect(s.gymOn(day).single.summary, 'Sport · 90 min · Basketball');
+      await s.flush();
+      final again = AppState(store: store, health: UnsupportedHealthService());
+      await again.load();
+      final g = again.gym.single;
+      expect(g.type, TrainingType.sport);
+      again.logGym(TrainingType.cardio, g.at, note: '5 km run', replaceId: g.id);
+      expect(again.gym.single.summary, 'Cardio · 5 km run');
+      expect(again.gymThisWeek(day), 1);
+      final removed = again.removeGym(again.gym.single.id)!;
+      expect(again.gym, isEmpty);
+      again.restoreGym(removed);
+      expect(again.gym, hasLength(1));
+    });
+  });
+  group('Health score', () {
+    int score(Nutrients n, [double? g]) => HealthScore.of(n, grams: g)!.score;
+
+    test('whole foods score high, snack foods low', () {
+      // per 100 g
+      final broccoli = score(
+        const Nutrients(calories: 34, protein: 2.8, carbs: 7, fat: 0.4, fiber: 2.6, sugar: 1.7),
+        100,
+      );
+      final chicken = score(const Nutrients(calories: 165, protein: 31, carbs: 0, fat: 3.6), 100);
+      final banana = score(
+        const Nutrients(calories: 105, protein: 1.3, carbs: 27, fat: 0.4, fiber: 3.1, sugar: 14),
+        118,
+      );
+      final rice = score(const Nutrients(calories: 130, protein: 2.7, carbs: 28, fat: 0.3, fiber: 0.4), 100);
+      final crisps = score(const Nutrients(calories: 536, protein: 7, carbs: 53, fat: 35, fiber: 4.4, sugar: 0.5), 100);
+      final cola = score(const Nutrients(calories: 140, carbs: 39, sugar: 39), 330);
+      expect(broccoli, greaterThanOrEqualTo(95));
+      expect(chicken, inInclusiveRange(65, 80));
+      expect(banana, inInclusiveRange(65, 80)); // fruit sugar comes with fibre, so it isn't punished
+      expect(rice, inInclusiveRange(40, 60));
+      expect(crisps, lessThan(25));
+      expect(cola, lessThan(35));
+      expect(ScoreBand.of(broccoli), ScoreBand.excellent);
+      expect(ScoreBand.of(crisps), ScoreBand.poor);
+    });
+
+    test('without a weight, density is left out instead of counted as zero', () {
+      final s = HealthScore.of(const Nutrients(calories: 480, protein: 42, carbs: 18, fat: 26))!;
+      expect(s.parts.first.counted, isFalse);
+      expect(s.score, inInclusiveRange(55, 70));
+    });
+
+    test('a meal is weighted by calories', () {
+      final avg = HealthScore.average([
+        (const Nutrients(calories: 34, protein: 2.8, fiber: 2.6, carbs: 7, fat: 0.4), 100.0), // ~100
+        (const Nutrients(calories: 536, protein: 7, carbs: 53, fat: 35, fiber: 4.4), 100.0), // low
+      ])!;
+      expect(avg, lessThan(30)); // the crisps carry most of the calories
+      expect(HealthScore.of(Nutrients.zero), isNull);
+    });
+
+    test('fibre and sugar survive saving', () {
+      const n = Nutrients(calories: 100, fiber: 3, sugar: 12);
+      expect(Nutrients.fromJson(n.toJson()), n);
+      expect(Nutrients.fromJson(const Nutrients(calories: 5).toJson()).fiber, 0);
+    });
+  });
 }
 
 class _PartialHealth extends UnsupportedHealthService {
@@ -923,4 +1090,22 @@ class _FakeUpdates extends UpdateService {
   @override
   Future<AppUpdate?> check({int currentBuild = appBuild}) async =>
       AppUpdate(version: '2.0.0', build: build, notes: 'notes', downloadUrl: null, pageUrl: 'https://example.test');
+}
+
+/// Records what FitTrack writes to the health store.
+class _SleepHealth extends UnsupportedHealthService {
+  final log = <String>[];
+  @override
+  bool get isSupported => true;
+  @override
+  Future<bool> requestAuthorization() async => true;
+  @override
+  Future<bool> saveSleep(DateTime start, DateTime end) async {
+    log.add('save ${start.hour}:${start.minute}-${end.hour}:${end.minute}');
+    return true;
+  }
+
+  @override
+  Future<void> deleteSleep(DateTime start, DateTime end) async =>
+      log.add('delete ${start.hour}:${start.minute}-${end.hour}:${end.minute}');
 }

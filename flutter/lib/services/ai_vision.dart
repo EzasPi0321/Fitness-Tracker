@@ -4,6 +4,7 @@ import 'dart:typed_data';
 import 'package:flutter/foundation.dart' show kIsWeb;
 import 'package:http/http.dart' as http;
 
+import '../models/ai_usage.dart';
 import '../models/nutrients.dart';
 import '../models/util.dart';
 import 'open_food_facts.dart' show lossyDouble;
@@ -69,6 +70,8 @@ class DetectedFood {
     required this.carbs,
     required this.fat,
     required this.confidence,
+    this.fiber = 0,
+    this.sugar = 0,
   });
 
   String name;
@@ -77,9 +80,12 @@ class DetectedFood {
   double protein;
   double carbs;
   double fat;
+  double fiber;
+  double sugar;
   double confidence;
 
-  Nutrients get nutrients => Nutrients(calories: calories, protein: protein, carbs: carbs, fat: fat);
+  Nutrients get nutrients =>
+      Nutrients(calories: calories, protein: protein, carbs: carbs, fat: fat, fiber: fiber, sugar: sugar);
 }
 
 class MealAnalysis {
@@ -162,8 +168,18 @@ class VisionException implements Exception {
 
 /// Sends a meal photo to a multimodal model and returns structured nutrition estimates.
 class AIVisionService {
-  AIVisionService({required this.provider, required this.apiKey, required this.model, http.Client? client})
-    : _client = client ?? http.Client();
+  AIVisionService({
+    required this.provider,
+    required this.apiKey,
+    required this.model,
+    http.Client? client,
+    List<AiCall>? calls,
+  }) : _client = client ?? http.Client(),
+       calls = calls ?? [];
+
+  /// Every request this service made, with the tokens the provider reported. Read it after a
+  /// photo to record what it cost (Smart mode's two requests land in the same list).
+  final List<AiCall> calls;
 
   final VisionProvider provider;
   final String apiKey;
@@ -175,7 +191,7 @@ You are a meticulous registered dietitian analysing a photo of a meal.
 Identify every distinct food or drink item that is visible. For each item provide:
 - name: a short, specific description (e.g. "grilled chicken breast", "steamed white rice").
 - estimated_grams: the edible portion weight in grams. Use the plate, cutlery, hands and packaging as scale references.
-- calories, protein_g, carbs_g, fat_g: values for that whole portion, based on standard food-composition data (e.g. USDA FoodData Central). Account for visible oils, sauces and dressings.
+- calories, protein_g, carbs_g, fat_g, fiber_g (dietary fibre), sugar_g (total sugars): values for that whole portion, based on standard food-composition data (e.g. USDA FoodData Central). Account for visible oils, sauces and dressings.
 - confidence: 0.0–1.0 for how sure you are about the identification and portion size.
 List the components of mixed dishes separately when they are visually distinguishable.
 Ignore plates, cutlery and inedible packaging. If no food is visible, return an empty items array.
@@ -195,7 +211,17 @@ Respond with JSON only.''';
     };
     final string = {'type': type('string')};
     final number = {'type': type('number')};
-    const itemKeys = ['name', 'estimated_grams', 'calories', 'protein_g', 'carbs_g', 'fat_g', 'confidence'];
+    const itemKeys = [
+      'name',
+      'estimated_grams',
+      'calories',
+      'protein_g',
+      'carbs_g',
+      'fat_g',
+      'fiber_g',
+      'sugar_g',
+      'confidence',
+    ];
     final item = object({
       'name': string,
       'estimated_grams': number,
@@ -203,6 +229,8 @@ Respond with JSON only.''';
       'protein_g': number,
       'carbs_g': number,
       'fat_g': number,
+      'fiber_g': number,
+      'sugar_g': number,
       'confidence': number,
     }, itemKeys);
     return object(
@@ -214,7 +242,8 @@ Respond with JSON only.''';
     );
   }
 
-  AIVisionService _as(String id) => AIVisionService(provider: provider, apiKey: apiKey, model: id, client: _client);
+  AIVisionService _as(String id) =>
+      AIVisionService(provider: provider, apiKey: apiKey, model: id, client: _client, calls: calls);
 
   Future<MealAnalysis> analyzeMeal(Uint8List jpeg, {String? hint}) async {
     if (apiKey.trim().isEmpty) throw VisionException.missingKey;
@@ -272,6 +301,15 @@ Respond with JSON only.''';
       {'x-goog-api-key': apiKey},
       body,
     );
+    final meta = json['usageMetadata'] as Map?;
+    calls.add(
+      AiCall(
+        model: model,
+        inputTokens: ((meta?['promptTokenCount'] as num?) ?? 0).toInt(),
+        outputTokens: (((meta?['candidatesTokenCount'] as num?) ?? 0) + ((meta?['thoughtsTokenCount'] as num?) ?? 0))
+            .toInt(),
+      ),
+    );
     final reason = (json['promptFeedback'] as Map?)?['blockReason'];
     if (reason != null) throw VisionException('The AI service declined this image ($reason).');
     final candidates = json['candidates'] as List?;
@@ -305,6 +343,14 @@ Respond with JSON only.''';
     final json = await _post(Uri.parse('https://api.openai.com/v1/chat/completions'), {
       'Authorization': 'Bearer $apiKey',
     }, body);
+    final u = json['usage'] as Map?;
+    calls.add(
+      AiCall(
+        model: model,
+        inputTokens: ((u?['prompt_tokens'] as num?) ?? 0).toInt(),
+        outputTokens: ((u?['completion_tokens'] as num?) ?? 0).toInt(),
+      ),
+    );
     final message = ((json['choices'] as List?)?.firstOrNull as Map?)?['message'] as Map?;
     if (message == null) throw VisionException.empty;
     final refusal = message['refusal'] as String?;
@@ -355,6 +401,19 @@ Respond with JSON only.''';
       },
       body,
       timeout: const Duration(seconds: 120),
+    );
+    // Recorded before reading the answer: a declined request is still billed.
+    final u = json['usage'] as Map?;
+    calls.add(
+      AiCall(
+        model: (json['model'] as String?) ?? model, // a fallback may have answered
+        inputTokens:
+            (((u?['input_tokens'] as num?) ?? 0) +
+                    ((u?['cache_creation_input_tokens'] as num?) ?? 0) +
+                    ((u?['cache_read_input_tokens'] as num?) ?? 0))
+                .toInt(),
+        outputTokens: ((u?['output_tokens'] as num?) ?? 0).toInt(),
+      ),
     );
     return claudeText(json);
   }
@@ -418,7 +477,7 @@ Return:
   then "per 100 g": use the per-serving column; their energy is usually in kJ, sometimes with Cal in brackets,
   and fat is written "Fat, total".
 - energy: the energy number exactly as printed, and energy_unit: "kcal" or "kJ". If both are printed, give the kcal figure.
-- protein_g, carbs_g (total carbohydrate), fat_g (total fat).
+- protein_g, carbs_g (total carbohydrate), fat_g (total fat), fiber_g (dietary fibre), sugar_g (total sugars; "sugars" on Australian panels). Use 0 for fibre or sugars only when the panel doesn't list them.
 - readable: true if the panel was legible, false if you had to guess.
 Never estimate from the look of the food. Use only the printed numbers. Respond with JSON only.''';
 
@@ -436,6 +495,8 @@ Never estimate from the look of the food. Use only the printed numbers. Respond 
       'protein_g',
       'carbs_g',
       'fat_g',
+      'fiber_g',
+      'sugar_g',
       'readable',
     ];
     final string = {'type': type('string')};
@@ -459,6 +520,8 @@ Never estimate from the look of the food. Use only the printed numbers. Respond 
         'protein_g': number,
         'carbs_g': number,
         'fat_g': number,
+        'fiber_g': number,
+        'sugar_g': number,
         'readable': {'type': type('boolean')},
       },
       'required': keys,
@@ -510,6 +573,8 @@ Never estimate from the look of the food. Use only the printed numbers. Respond 
       protein: lossyDouble(json['protein_g']) ?? 0,
       carbs: lossyDouble(json['carbs_g']) ?? 0,
       fat: lossyDouble(json['fat_g']) ?? 0,
+      fiber: lossyDouble(json['fiber_g']) ?? 0,
+      sugar: lossyDouble(json['sugar_g']) ?? 0,
     ).sanitized;
     final grams = lossyDouble(json['serving_grams']) ?? 0;
     final per100 = str('basis') == '100g';
@@ -555,6 +620,8 @@ Never estimate from the look of the food. Use only the printed numbers. Respond 
         protein: lossyDouble(it['protein_g']) ?? 0,
         carbs: lossyDouble(it['carbs_g']) ?? 0,
         fat: lossyDouble(it['fat_g']) ?? 0,
+        fiber: lossyDouble(it['fiber_g']) ?? 0,
+        sugar: lossyDouble(it['sugar_g']) ?? 0,
       ).sanitized;
       items.add(
         DetectedFood(
@@ -564,6 +631,8 @@ Never estimate from the look of the food. Use only the printed numbers. Respond 
           protein: n.protein,
           carbs: n.carbs,
           fat: n.fat,
+          fiber: n.fiber,
+          sugar: n.sugar,
           confidence: (lossyDouble(it['confidence']) ?? 0.5).clamp(0.0, 1.0),
         ),
       );

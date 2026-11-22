@@ -6,9 +6,12 @@ import 'package:flutter/foundation.dart' show kDebugMode, kIsWeb;
 import 'package:flutter/material.dart' show ThemeMode;
 import 'package:flutter/widgets.dart';
 
+import '../models/ai_usage.dart';
 import '../models/food.dart';
 import '../models/nutrients.dart';
+import '../models/gym.dart';
 import '../models/profile.dart';
+import '../models/sleep.dart';
 import '../models/util.dart';
 import '../services/ai_vision.dart';
 import '../services/health_service.dart';
@@ -81,6 +84,19 @@ class AppState extends ChangeNotifier {
   final List<CustomFood> customFoods = [];
   final List<WeightEntry> weights = [];
   final List<WaterEntry> water = [];
+  final List<SleepEntry> sleep = [];
+  final List<GymSession> gym = [];
+
+  /// Every photo or label sent to an AI model, with its tokens and cost (newest last).
+  final List<AiUsage> aiUsage = [];
+
+  /// The credit balance the user typed in from their provider's console, and when. The API
+  /// key can't read the balance itself, so FitTrack counts down from this.
+  double? aiBalanceUsd;
+  DateTime? aiBalanceAt;
+
+  /// Hours of sleep to aim for each night.
+  double sleepGoalHours = 8;
 
   /// Set by the user; when null the goal follows body weight.
   double? waterGoalOverride;
@@ -130,10 +146,29 @@ class AppState extends ChangeNotifier {
 
   // ---- Queries ----
 
+  /// Entries grouped by day, built once and reused until something changes. Screens ask for
+  /// many days at once (the day strip, a 90-day chart), so scanning the whole log for each day
+  /// was the main cost of a rebuild.
+  Map<DateTime, List<FoodEntry>>? _byDay;
+
   List<FoodEntry> entriesOn(DateTime day) {
-    final list = entries.where((e) => sameDay(e.consumedAt, day)).toList()
-      ..sort((a, b) => a.consumedAt.compareTo(b.consumedAt));
-    return list;
+    final index = _byDay ??= () {
+      final m = <DateTime, List<FoodEntry>>{};
+      for (final e in entries) {
+        m.putIfAbsent(startOfDay(e.consumedAt), () => []).add(e);
+      }
+      for (final l in m.values) {
+        l.sort((a, b) => a.consumedAt.compareTo(b.consumedAt));
+      }
+      return m;
+    }();
+    return List.of(index[startOfDay(day)] ?? const []);
+  }
+
+  @override
+  void notifyListeners() {
+    _byDay = null; // every change goes through here, so the index can never go stale
+    super.notifyListeners();
   }
 
   Nutrients consumedOn(DateTime day) => Nutrients.sum(entriesOn(day).map((e) => e.nutrients));
@@ -160,6 +195,8 @@ class AppState extends ChangeNotifier {
       weights.clear();
       customFoods.clear();
       water.clear();
+      sleep.clear();
+      gym.clear();
       sampleSteps.clear();
       isSample = false;
     }
@@ -319,6 +356,146 @@ class AppState extends ChangeNotifier {
     return last;
   }
 
+  // ---- Sleep ----
+
+  /// Nights logged by hand, by the day you woke up.
+  Map<DateTime, SleepNight> get loggedNights => nightsByDay(sleep.map(SleepNight.fromEntry));
+
+  /// Logs a night (or replaces [replaceId]). Returns an error to show, or null when saved.
+  String? logSleep(DateTime start, DateTime end, {String? replaceId}) {
+    if (!end.isAfter(start)) return 'Wake-up time must be after bedtime.';
+    final d = end.difference(start);
+    if (d > const Duration(hours: 16)) return 'That’s over 16 hours. Check the times.';
+    if (end.isAfter(DateTime.now().add(const Duration(minutes: 5)))) return 'Wake-up time is in the future.';
+    // One logged night per morning: a new one (or the edited one) replaces the old.
+    final replaced = sleep.where((s) => s.id == replaceId || sameDay(s.end, end)).toList();
+    sleep.removeWhere(replaced.contains);
+    sleep.add(SleepEntry(id: newId(), start: start, end: end));
+    _changed();
+    // Mirror it to Samsung Health / Apple Health, replacing what FitTrack wrote before.
+    if (_syncHealth) {
+      unawaited(() async {
+        for (final r in replaced) {
+          await health.deleteSleep(r.start, r.end);
+        }
+        await health.saveSleep(start, end);
+      }());
+    }
+    return null;
+  }
+
+  SleepEntry? removeSleep(String id) {
+    final i = sleep.indexWhere((s) => s.id == id);
+    if (i < 0) return null;
+    final removed = sleep.removeAt(i);
+    _changed();
+    if (_syncHealth) unawaited(health.deleteSleep(removed.start, removed.end));
+    return removed;
+  }
+
+  void restoreSleep(SleepEntry e) {
+    sleep.add(e);
+    _changed();
+    if (_syncHealth) unawaited(health.saveSleep(e.start, e.end));
+  }
+
+  // ---- AI usage ----
+
+  /// Records what a photo or label cost, from the requests the AI service made.
+  void recordAiUsage(String kind, List<AiCall> calls) {
+    if (calls.isEmpty) return;
+    aiUsage.add(AiUsage.ofCalls(kind, calls));
+    if (aiUsage.length > 1000) aiUsage.removeRange(0, aiUsage.length - 1000);
+    _changed();
+  }
+
+  void setAiBalance(double? usd) {
+    aiBalanceUsd = (usd == null || usd < 0) ? null : usd;
+    aiBalanceAt = aiBalanceUsd == null ? null : DateTime.now();
+    _changed();
+  }
+
+  double spentSince(DateTime since) => aiUsage.where((u) => !u.at.isBefore(since)).fold(0, (a, u) => a + (u.usd ?? 0));
+
+  Iterable<AiUsage> get aiUsageThisMonth {
+    final now = DateTime.now();
+    final start = DateTime(now.year, now.month);
+    return aiUsage.where((u) => !u.at.isBefore(start));
+  }
+
+  /// Average cost of a photo over the last 20 with a known price; before there are any,
+  /// an estimate for the chosen model.
+  double? get costPerPhotoUsd {
+    final priced = [
+      for (final u in aiUsage.reversed)
+        if (u.usd != null) u.usd!,
+    ].take(20).toList();
+    if (priced.isNotEmpty) return priced.reduce((a, b) => a + b) / priced.length;
+    return estimatedPhotoUsd(visionModel);
+  }
+
+  bool get costPerPhotoIsMeasured => aiUsage.any((u) => u.usd != null);
+
+  /// What's left of the typed-in balance after everything sent since.
+  double? get aiBalanceLeftUsd {
+    final b = aiBalanceUsd, at = aiBalanceAt;
+    if (b == null || at == null) return null;
+    return (b - spentSince(at)).clamp(0, double.infinity).toDouble();
+  }
+
+  /// About how many more photos the balance covers at the current cost per photo.
+  int? get photosLeft {
+    final left = aiBalanceLeftUsd, per = costPerPhotoUsd;
+    if (left == null || per == null || per <= 0) return null;
+    return (left / per).floor();
+  }
+
+  // ---- Gym ----
+
+  List<GymSession> gymOn(DateTime day) =>
+      gym.where((g) => sameDay(g.at, day)).toList()..sort((a, b) => a.at.compareTo(b.at));
+
+  /// Sessions in the Monday-to-Sunday week containing [day].
+  int gymThisWeek(DateTime day) {
+    final start = weekStart(day);
+    final end = addDays(start, 7);
+    return gym.where((g) => !g.at.isBefore(start) && g.at.isBefore(end)).length;
+  }
+
+  /// Logs a session, or replaces [replaceId] when editing one.
+  void logGym(TrainingType type, DateTime at, {int? minutes, String note = '', String? replaceId}) {
+    if (replaceId != null) gym.removeWhere((g) => g.id == replaceId);
+    gym.add(
+      GymSession(
+        id: newId(),
+        at: at,
+        type: type,
+        minutes: (minutes != null && minutes > 0) ? minutes.clamp(1, 600) : null,
+        note: note.trim(),
+      ),
+    );
+    _changed();
+  }
+
+  GymSession? removeGym(String id) {
+    final i = gym.indexWhere((g) => g.id == id);
+    if (i < 0) return null;
+    final removed = gym.removeAt(i);
+    _changed();
+    return removed;
+  }
+
+  void restoreGym(GymSession g) {
+    gym.add(g);
+    _changed();
+  }
+
+  void setSleepGoal(double hours) {
+    if (hours < 4 || hours > 12) return;
+    sleepGoalHours = hours;
+    _changed();
+  }
+
   void setStepGoal(int steps) {
     if (steps <= 0) return;
     stepGoal = steps;
@@ -424,6 +601,8 @@ class AppState extends ChangeNotifier {
     entries.removeWhere((e) => generated(e.id));
     weights.removeWhere((w) => generated(w.id));
     water.removeWhere((w) => generated(w.id));
+    sleep.removeWhere((s) => generated(s.id));
+    gym.removeWhere((g) => generated(g.id));
     customFoods.removeWhere((f) => generated(f.id));
     sampleSteps.clear();
     profile = null;
@@ -446,6 +625,12 @@ class AppState extends ChangeNotifier {
     water
       ..clear()
       ..addAll(s.water);
+    sleep
+      ..clear()
+      ..addAll(s.sleep);
+    gym
+      ..clear()
+      ..addAll(s.gym);
     sampleSteps
       ..clear()
       ..addAll(s.steps);
@@ -462,6 +647,8 @@ class AppState extends ChangeNotifier {
     weights.clear();
     customFoods.clear();
     water.clear();
+    sleep.clear();
+    gym.clear();
     sampleSteps.clear();
     waterGoalOverride = null;
     isSample = false;
@@ -491,6 +678,9 @@ class AppState extends ChangeNotifier {
     'customFoods': customFoods.map((e) => e.toJson()).toList(),
     'weights': weights.map((e) => e.toJson()).toList(),
     'water': water.map((e) => e.toJson()).toList(),
+    'sleep': sleep.map((e) => e.toJson()).toList(),
+    'gym': gym.map((e) => e.toJson()).toList(),
+    'aiUsage': aiUsage.map((e) => e.toJson()).toList(),
     'settings': {
       'health': healthEnabled,
       'addActive': addActiveEnergy,
@@ -502,6 +692,9 @@ class AppState extends ChangeNotifier {
       'energy': Energy.unit.name,
       'waterGoal': waterGoalOverride,
       'stepGoal': stepGoal,
+      'sleepGoal': sleepGoalHours,
+      'aiBalance': aiBalanceUsd,
+      'aiBalanceAt': aiBalanceAt?.millisecondsSinceEpoch,
       'lastUpdateCheck': _lastUpdateCheck?.millisecondsSinceEpoch,
       'dismissedUpdate': _dismissedUpdateBuild,
     },
@@ -523,10 +716,23 @@ class AppState extends ChangeNotifier {
     water
       ..clear()
       ..addAll(list('water').map(WaterEntry.fromJson));
+    sleep
+      ..clear()
+      ..addAll(list('sleep').map(SleepEntry.fromJson));
+    gym
+      ..clear()
+      ..addAll(list('gym').map(GymSession.fromJson));
+    aiUsage
+      ..clear()
+      ..addAll(list('aiUsage').map(AiUsage.fromJson));
     final s = j['settings'] is Map ? (j['settings'] as Map).cast<String, dynamic>() : const <String, dynamic>{};
     healthEnabled = (s['health'] as bool?) ?? false;
     waterGoalOverride = (s['waterGoal'] as num?)?.toDouble();
     stepGoal = ((s['stepGoal'] as num?) ?? 10000).toInt();
+    sleepGoalHours = ((s['sleepGoal'] as num?) ?? 8).toDouble().clamp(4, 12);
+    aiBalanceUsd = (s['aiBalance'] as num?)?.toDouble();
+    final balAt = s['aiBalanceAt'] as num?;
+    aiBalanceAt = balAt == null ? null : DateTime.fromMillisecondsSinceEpoch(balAt.toInt());
     final lastCheck = s['lastUpdateCheck'] as num?;
     _lastUpdateCheck = lastCheck == null ? null : DateTime.fromMillisecondsSinceEpoch(lastCheck.toInt());
     _dismissedUpdateBuild = (s['dismissedUpdate'] as num?)?.toInt();

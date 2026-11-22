@@ -90,7 +90,17 @@ class LabelOcr {
 
     // A panel with a serving size is read per serving; otherwise values are per 100 g.
     final per100 = servingText == null && RegExp(r'(per|/)\s*100\s*(g|ml)').hasMatch(all);
-    final n = Nutrients(calories: kcal ?? 0, protein: protein ?? 0, carbs: carbs ?? 0, fat: fat ?? 0).sanitized;
+    // Fibre and sugars help the health score; "– sugars" sits under carbohydrate on most panels.
+    final fiber = _valueAfter(lines, RegExp(r'^[-–•\s]*(dietary\s+)?fib(re|er)\b'));
+    final sugar = _valueAfter(lines, RegExp(r'^[-–•\s]*(of\s+which\s+)?(total\s+)?sugars?\b'));
+    final n = Nutrients(
+      calories: kcal ?? 0,
+      protein: protein ?? 0,
+      carbs: carbs ?? 0,
+      fat: fat ?? 0,
+      fiber: fiber ?? 0,
+      sugar: sugar ?? 0,
+    ).sanitized;
 
     return LabelReading(
       name: '',

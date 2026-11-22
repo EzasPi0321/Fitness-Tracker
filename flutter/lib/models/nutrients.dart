@@ -1,11 +1,17 @@
 /// Energy and macronutrients for an arbitrary amount of food.
 class Nutrients {
-  const Nutrients({this.calories = 0, this.protein = 0, this.carbs = 0, this.fat = 0});
+  const Nutrients({this.calories = 0, this.protein = 0, this.carbs = 0, this.fat = 0, this.fiber = 0, this.sugar = 0});
 
   final double calories;
   final double protein;
   final double carbs;
   final double fat;
+
+  /// Dietary fibre and sugars in grams. Not every source reports them, so 0 can mean "not
+  /// known": the health score only ever adds credit for fibre and takes it away for sugar,
+  /// so a missing value never counts against a food.
+  final double fiber;
+  final double sugar;
 
   static const zero = Nutrients();
 
@@ -14,16 +20,41 @@ class Nutrients {
     protein: protein + o.protein,
     carbs: carbs + o.carbs,
     fat: fat + o.fat,
+    fiber: fiber + o.fiber,
+    sugar: sugar + o.sugar,
   );
 
-  Nutrients operator *(double factor) =>
-      Nutrients(calories: calories * factor, protein: protein * factor, carbs: carbs * factor, fat: fat * factor);
+  Nutrients operator *(double factor) => Nutrients(
+    calories: calories * factor,
+    protein: protein * factor,
+    carbs: carbs * factor,
+    fat: fat * factor,
+    fiber: fiber * factor,
+    sugar: sugar * factor,
+  );
 
   /// Replaces negative or non-finite values (common in crowd-sourced / AI data) with zero.
   Nutrients get sanitized {
     double clean(double v) => v.isFinite ? (v < 0 ? 0 : v) : 0;
-    return Nutrients(calories: clean(calories), protein: clean(protein), carbs: clean(carbs), fat: clean(fat));
+    return Nutrients(
+      calories: clean(calories),
+      protein: clean(protein),
+      carbs: clean(carbs),
+      fat: clean(fat),
+      fiber: clean(fiber),
+      sugar: clean(sugar),
+    );
   }
+
+  /// The same food with fibre and sugar filled in (from a source that knows them).
+  Nutrients withExtras({double? fiber, double? sugar}) => Nutrients(
+    calories: calories,
+    protein: protein,
+    carbs: carbs,
+    fat: fat,
+    fiber: fiber ?? this.fiber,
+    sugar: sugar ?? this.sugar,
+  );
 
   double of(Macro macro) => switch (macro) {
     Macro.protein => protein,
@@ -33,10 +64,23 @@ class Nutrients {
 
   static Nutrients sum(Iterable<Nutrients> values) => values.fold(zero, (a, b) => a + b);
 
-  Map<String, dynamic> toJson() => {'cal': calories, 'p': protein, 'c': carbs, 'f': fat};
+  Map<String, dynamic> toJson() => {
+    'cal': calories,
+    'p': protein,
+    'c': carbs,
+    'f': fat,
+    if (fiber > 0) 'fi': fiber,
+    if (sugar > 0) 'su': sugar,
+  };
 
-  factory Nutrients.fromJson(Map<String, dynamic> j) =>
-      Nutrients(calories: _d(j['cal']), protein: _d(j['p']), carbs: _d(j['c']), fat: _d(j['f']));
+  factory Nutrients.fromJson(Map<String, dynamic> j) => Nutrients(
+    calories: _d(j['cal']),
+    protein: _d(j['p']),
+    carbs: _d(j['c']),
+    fat: _d(j['f']),
+    fiber: _d(j['fi']),
+    sugar: _d(j['su']),
+  );
 
   @override
   bool operator ==(Object other) =>
@@ -44,13 +88,15 @@ class Nutrients {
       other.calories == calories &&
       other.protein == protein &&
       other.carbs == carbs &&
-      other.fat == fat;
+      other.fat == fat &&
+      other.fiber == fiber &&
+      other.sugar == sugar;
 
   @override
-  int get hashCode => Object.hash(calories, protein, carbs, fat);
+  int get hashCode => Object.hash(calories, protein, carbs, fat, fiber, sugar);
 
   @override
-  String toString() => 'Nutrients($calories kcal, P$protein C$carbs F$fat)';
+  String toString() => 'Nutrients($calories kcal, P$protein C$carbs F$fat fibre$fiber sugar$sugar)';
 }
 
 enum Macro {

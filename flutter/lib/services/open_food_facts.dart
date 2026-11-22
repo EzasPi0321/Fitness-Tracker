@@ -74,6 +74,8 @@ class OpenFoodFactsService {
         protein: lossyDouble(n['proteins_$suffix']) ?? 0,
         carbs: lossyDouble(n['carbohydrates_$suffix']) ?? 0,
         fat: lossyDouble(n['fat_$suffix']) ?? 0,
+        fiber: lossyDouble(n['fiber_$suffix']) ?? 0,
+        sugar: lossyDouble(n['sugars_$suffix']) ?? 0,
       ).sanitized;
     }
 

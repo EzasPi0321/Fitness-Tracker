@@ -1,14 +1,25 @@
 import 'dart:math';
 
 import '../models/food.dart';
+import '../models/gym.dart';
 import '../models/nutrients.dart';
 import '../models/profile.dart';
+import '../models/sleep.dart';
 import '../models/util.dart';
 
 /// Realistic example data for the desktop preview and "Try with sample data".
 /// Deterministic, so screenshots and the preview look the same every time.
 class SampleData {
-  SampleData._(this.profile, this.entries, this.weights, this.customFoods, this.water, this.steps);
+  SampleData._(
+    this.profile,
+    this.entries,
+    this.weights,
+    this.customFoods,
+    this.water,
+    this.steps,
+    this.sleep,
+    this.gym,
+  );
 
   final UserProfile profile;
   final List<FoodEntry> entries;
@@ -16,6 +27,8 @@ class SampleData {
   final List<CustomFood> customFoods;
   final List<WaterEntry> water;
   final Map<DateTime, int> steps;
+  final List<SleepEntry> sleep;
+  final List<GymSession> gym;
 
   static SampleData generate({DateTime? now}) {
     final rnd = Random(20261121);
@@ -51,6 +64,27 @@ class SampleData {
         ('Cottage Cheese', 'Good Culture', 140, 19, 6, 4, EntrySource.barcode),
       ],
     };
+    // Typical fibre (g), sugars (g) and weight (g) per serving, so the preview shows a real
+    // spread of health scores.
+    const extras = <String, (double, double, double)>{
+      'Greek Yogurt': (0, 6, 170),
+      'Oatmeal with Berries': (8, 12, 350),
+      'Scrambled Eggs': (0, 1, 120),
+      'Banana': (3.1, 14, 118),
+      'Whole-Grain Toast': (5, 5, 56),
+      'Chicken Salad': (5, 6, 350),
+      'Turkey Wrap': (4, 5, 250),
+      'Salmon Rice Bowl': (4, 6, 450),
+      'Lentil Soup': (11, 6, 400),
+      'Spaghetti Bolognese': (7, 12, 450),
+      'Steak & Potatoes': (5, 3, 450),
+      'Chicken Stir-Fry': (6, 10, 420),
+      'Veggie Burrito': (13, 6, 380),
+      'Protein Bar': (14, 1, 60),
+      'Apple': (4.4, 19, 182),
+      'Almonds': (3.5, 1.2, 28),
+      'Cottage Cheese': (0, 4, 150),
+    };
     const hours = {MealType.breakfast: 8.0, MealType.lunch: 12.5, MealType.dinner: 19.0, MealType.snack: 15.5};
 
     FoodEntry make(
@@ -69,7 +103,17 @@ class SampleData {
         consumedAt: day.add(Duration(minutes: minutes)),
         quantity: qty,
         unit: 'serving',
-        nutrients: Nutrients(calories: f.$3, protein: f.$4, carbs: f.$5, fat: f.$6) * qty,
+        grams: extras[f.$1] == null ? null : extras[f.$1]!.$3 * qty,
+        nutrients:
+            Nutrients(
+              calories: f.$3,
+              protein: f.$4,
+              carbs: f.$5,
+              fat: f.$6,
+              fiber: extras[f.$1]?.$1 ?? 0,
+              sugar: extras[f.$1]?.$2 ?? 0,
+            ) *
+            qty,
       );
     }
 
@@ -157,6 +201,57 @@ class SampleData {
       steps[addDays(today, -d)] = 4000 + rnd.nextInt(9000);
     }
 
-    return SampleData._(profile, entries, weights, custom, water, steps);
+    // Bedtimes around 10:30 PM to midnight, waking 6:15 to 7:45, a few nights skipped.
+    final sleep = <SleepEntry>[
+      SleepEntry(
+        id: id(),
+        start: today.subtract(const Duration(minutes: 70)),
+        end: today.add(const Duration(hours: 6, minutes: 35)),
+      ),
+    ];
+    for (var d = 1; d <= 60; d++) {
+      if (d % 9 == 4) continue;
+      final day = addDays(today, -d);
+      final bed = day.subtract(Duration(minutes: 30 + rnd.nextInt(90)));
+      final wake = day.add(Duration(hours: 6, minutes: 15 + rnd.nextInt(90)));
+      sleep.add(SleepEntry(id: id(), start: bed, end: wake));
+    }
+
+    // A push / pull / legs rotation most weeks, with a run or a game now and then, and a
+    // couple of quiet weeks (holidays happen).
+    final gym = <GymSession>[];
+    const split = [TrainingType.push, TrainingType.pull, TrainingType.legs];
+    var next = 0;
+    for (var d = 300; d >= 0; d--) {
+      final day = addDays(today, -d);
+      final week = d ~/ 7;
+      if (week == 9 || week == 23) continue;
+      final wd = day.weekday;
+      if (wd == DateTime.monday || wd == DateTime.wednesday || wd == DateTime.friday) {
+        if (rnd.nextInt(10) < 8) {
+          gym.add(
+            GymSession(
+              id: id(),
+              at: day.add(Duration(hours: 17, minutes: 30 + rnd.nextInt(60))),
+              type: split[next++ % 3],
+              minutes: 50 + rnd.nextInt(30),
+            ),
+          );
+        }
+      } else if (wd == DateTime.saturday && rnd.nextInt(10) < 5) {
+        final sport = rnd.nextBool();
+        gym.add(
+          GymSession(
+            id: id(),
+            at: day.add(const Duration(hours: 9)),
+            type: sport ? TrainingType.sport : TrainingType.cardio,
+            minutes: sport ? 90 : 35,
+            note: sport ? 'Basketball' : '5 km run',
+          ),
+        );
+      }
+    }
+
+    return SampleData._(profile, entries, weights, custom, water, steps, sleep, gym);
   }
 }
