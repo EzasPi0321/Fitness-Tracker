@@ -29,8 +29,7 @@ class SettingsScreen extends StatelessWidget {
 
     final left = [const _UnitsSection(), const SizedBox(height: S.xl), const _DataSection()];
     final right = [
-      const _HealthSection(),
-      const SizedBox(height: S.xl),
+      if (!PlatformCaps.hideHealth) ...[const _HealthSection(), const SizedBox(height: S.xl)],
       const _AISection(),
       const SizedBox(height: S.xl),
       FGroup(
@@ -199,20 +198,23 @@ class TargetsSection extends StatelessWidget {
             },
           ),
         ),
-        FRow(
-          leading: dot(neutral),
-          label: 'Steps',
-          sub: 'From Apple Health or Samsung Health',
-          trailing: NumberInput(
-            value: state.stepGoal.toDouble(),
-            unit: 'steps',
-            maxDigits: 0,
-            width: 140,
-            onChanged: (v) {
-              if (v != null && v >= 500) state.setStepGoal(v.round());
-            },
+        if (!PlatformCaps.hideHealth)
+          FRow(
+            leading: dot(neutral),
+            label: 'Steps',
+            sub: Theme.of(context).platform == TargetPlatform.android
+                ? 'From Samsung Health'
+                : 'From Apple Health or Samsung Health',
+            trailing: NumberInput(
+              value: state.stepGoal.toDouble(),
+              unit: 'steps',
+              maxDigits: 0,
+              width: 140,
+              onChanged: (v) {
+                if (v != null && v >= 500) state.setStepGoal(v.round());
+              },
+            ),
           ),
-        ),
         FRow(
           leading: dot(neutral),
           label: 'Sleep',

@@ -59,7 +59,9 @@ Keep iloader installed. You only need it again if SideStore itself expires, or a
    ```
 2. Turn **LocalDevVPN** on.
 3. Open the FitTrack source and tap **Get**. It shows **7 DAYS** in **My Apps** when done.
-4. Open FitTrack and follow the setup. Allow Apple Health if you want sync.
+4. Open FitTrack and follow the setup.
+
+**Apple Health isn't available on iPhone this way.** Apple doesn't let apps signed with a free Apple ID use Health, so FitTrack doesn't offer it. Log sleep and weight in the app. Health would need a paid Apple Developer account and TestFlight.
 
 **Updates:** new versions appear in SideStore from the source. Installing one also renews the 7 days.
 
@@ -96,8 +98,10 @@ Meal photos, AI label reading and body fat estimates use your own Anthropic API 
 ### SideStore won't sign in
 
 - **"ADI native error":** in SideStore, **Settings › User Customizations › On-Device Anisette** › turn it **off**.
-- **"503 Service Temporarily Unavailable" from Apple:** in **Settings › Anisette Servers**, pick **#1 SideStore** (`ani.sidestore.io`), then **#8 SideStore (Windows ADI)** if that fails. Avoid servers that are a bare IP address with `http://`.
-- **Still 503 after trying both:** Apple has probably paused sign-ins after repeated tries. Wait an hour, or sign in through iloader on the computer instead.
+- **"503 Service Temporarily Unavailable" from Apple:** a change on Apple's side broke sign-in on SideStore **0.6.4 and earlier**. Install a newer one: download `SideStore.ipa` from SideStore's [latest release](https://github.com/SideStore/SideStore/releases/latest) (0.7.0-alpha or later), then in iloader use **Import IPA**, and **Manage Pairing File › Place** for SideStore.
+- **Which anisette server:** use the one iloader signs in with (for example **jkcoxson**, `mac-ani.jkcoxson.com`), or **#1 SideStore**. Avoid servers that are a bare IP address with `http://`.
+- **Still 503 on a new version:** Apple has probably paused sign-ins for your Apple ID after repeated tries. Stop for 12–24 hours, then try once.
+- **FitTrack meanwhile:** iloader can install FitTrack directly: download `FitTrack.ipa` from the latest FitTrack release and use **Import IPA**. Re-import it within 7 days to renew it.
 - **Experimental builds:** if SideStore says its build is experimental, switch its update channel to **Stable**.
 - **Leave alone:** SideJITServer and the Client Configuration screens. FitTrack doesn't need them.
 
@@ -111,4 +115,4 @@ Meal photos, AI label reading and body fat estimates use your own Anthropic API 
 ### Health data missing
 
 - **Android:** see the Samsung Health steps above. FitTrack lists anything not allowed under **Settings › Health**.
-- **iPhone:** **Settings › Health › Data Access & Devices › FitTrack**. Apple Health might not be available with a free Apple ID through SideStore; everything else still works.
+- **iPhone:** Apple Health isn't available with a free Apple ID (SideStore or iloader), so FitTrack hides it. Everything else works.
