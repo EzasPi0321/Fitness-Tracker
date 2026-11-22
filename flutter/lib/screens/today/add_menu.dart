@@ -1,5 +1,3 @@
-import 'dart:math' as math;
-
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:material_symbols_icons/symbols.dart';
@@ -18,8 +16,8 @@ class _Item {
 }
 
 /// The floating add button. Opening it: a quick wind-up (anticipation), the plus blurs into
-/// an × (icon swap), and three choices (Hick's law) fly out along curved paths (arcs) with a
-/// small stagger, overshooting and settling (follow-through). All in under 300 ms.
+/// an × (icon swap), and three choices (Hick's law) rise into a column above it with a small
+/// stagger, overshooting and settling (follow-through). All in under 300 ms.
 class AddMenu extends StatefulWidget {
   const AddMenu({super.key, required this.day});
   final DateTime day;
@@ -85,7 +83,7 @@ class _AddMenuState extends State<AddMenu> with SingleTickerProviderStateMixin {
     final t = FT.of(context);
     final pad = MediaQuery.paddingOf(context);
     final items = _items;
-    const fab = 64.0, radius = 124.0;
+    const fab = 64.0;
     final right = 20.0 + pad.right;
     final bottom = 20.0 + pad.bottom;
 
@@ -120,16 +118,14 @@ class _AddMenuState extends State<AddMenu> with SingleTickerProviderStateMixin {
                   final start = 0.18 + i * 0.11;
                   final raw = ((_c.value - start) / (1 - start)).clamp(0.0, 1.0);
                   final e = Motion.settle.transform(raw);
-                  // Fan from left (180°) to straight up (270°). The angle also sweeps while the item
-                  // travels, so its path is a curve rather than a straight line.
-                  final finalAngle = math.pi + (math.pi / 2) * (i / (items.length - 1));
-                  final angle = finalAngle + (1 - e) * 0.7;
-                  final dist = radius * e;
-                  final dx = math.cos(angle) * dist;
-                  final dy = math.sin(angle) * dist;
+                  // One column straight above the button: every circle centred on the +, with
+                  // its label right-aligned beside it, so nothing overlaps at any screen width.
+                  // Each rises out of the button to its slot, the nearest first.
+                  final slot = fab / 2 + S.md + 28 + i * (56 + S.md);
+                  final dy = slot * e;
                   return Positioned(
-                    right: right + fab / 2 - 28 - dx,
-                    bottom: bottom + fab / 2 - 28 - dy,
+                    right: right + fab / 2 - 28,
+                    bottom: bottom + fab / 2 - 28 + dy,
                     child: IgnorePointer(
                       ignoring: !_open,
                       child: Opacity(
