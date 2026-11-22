@@ -278,6 +278,40 @@ Respond with JSON only.''';
     return decodeAnalysis(raw).copyWith(answeredBy: model);
   }
 
+  /// Re-estimates a meal after the user corrects it ("that was a large bowl", "no dressing").
+  /// The photo goes again with the current items, so the model can re-judge portions against
+  /// the plate. Smart mode asks whichever model gave the estimate being corrected.
+  Future<MealAnalysis> refineMeal(Uint8List jpeg, {required MealAnalysis previous, required String correction}) async {
+    if (apiKey.trim().isEmpty) throw VisionException.missingKey;
+    if (model == AiModel.smartId) {
+      final id = previous.answeredBy.startsWith('claude-') ? previous.answeredBy : AiModel.quickModel;
+      return _as(id).refineMeal(jpeg, previous: previous, correction: correction);
+    }
+    final b64 = base64Encode(jpeg);
+    final userText = refinePrompt(previous, correction);
+    final raw = switch (provider) {
+      VisionProvider.gemini => await _gemini(b64, userText, instructions, responseSchema(provider)),
+      VisionProvider.openAI => await _openAI(b64, userText, instructions, responseSchema(provider), 'meal_analysis'),
+      VisionProvider.claude => await _claude(b64, userText, instructions, responseSchema(provider)),
+    };
+    return decodeAnalysis(raw).copyWith(answeredBy: model);
+  }
+
+  /// The earlier items, as the user may have edited them, plus their correction.
+  static String refinePrompt(MealAnalysis previous, String correction) {
+    final items = [
+      for (final i in previous.items)
+        '- ${i.name}: ${i.grams.round()} g, ${i.calories.round()} kcal, '
+            'P ${i.protein.round()} g, C ${i.carbs.round()} g, F ${i.fat.round()} g',
+    ].join('\n');
+    return 'Analyse this meal photo and return the nutrition estimate.\n'
+        'An earlier estimate listed:\n$items\n'
+        'The person who ate it says: "${correction.trim()}"\n'
+        'Re-estimate the whole meal with that in mind: change portion sizes, remove or add items, or '
+        'change ingredients or cooking method as they describe. Keep items they did not mention as they '
+        'were unless the correction affects them. Return every item in the meal, not only the changed ones.';
+  }
+
   /// Errors Opus would hit too (no connection, bad key, rate limit): don't pay for a second try.
   static bool _isConnection(VisionException e) =>
       e.message.startsWith("Couldn’t reach") || RegExp(r'failed \((401|403|429)\)').hasMatch(e.message);
