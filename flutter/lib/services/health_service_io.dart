@@ -18,6 +18,7 @@ class _MobileHealthService implements HealthService {
     hc.HealthDataType.ACTIVE_ENERGY_BURNED,
     hc.HealthDataType.WORKOUT,
     hc.HealthDataType.WEIGHT,
+    hc.HealthDataType.BODY_FAT_PERCENTAGE,
     hc.HealthDataType.HEIGHT,
     hc.HealthDataType.NUTRITION,
     hc.HealthDataType.WATER,
@@ -59,6 +60,7 @@ class _MobileHealthService implements HealthService {
     hc.HealthDataType.ACTIVE_ENERGY_BURNED: 'Active calories',
     hc.HealthDataType.WORKOUT: 'Exercise',
     hc.HealthDataType.WEIGHT: 'Weight',
+    hc.HealthDataType.BODY_FAT_PERCENTAGE: 'Body fat',
     hc.HealthDataType.HEIGHT: 'Height',
     hc.HealthDataType.NUTRITION: 'Nutrition',
     hc.HealthDataType.WATER: 'Water',
@@ -87,6 +89,7 @@ class _MobileHealthService implements HealthService {
           (t) =>
               (t == hc.HealthDataType.NUTRITION ||
                   t == hc.HealthDataType.WEIGHT ||
+                  t == hc.HealthDataType.BODY_FAT_PERCENTAGE ||
                   t == hc.HealthDataType.WATER ||
                   t == _sleepWrite)
               ? hc.HealthDataAccess.READ_WRITE
@@ -226,6 +229,32 @@ class _MobileHealthService implements HealthService {
   Future<List<WeightSample>> weightHistory(DateTime since) async {
     final points = await _points(hc.HealthDataType.WEIGHT, since, DateTime.now());
     return points.map((p) => WeightSample(p.dateFrom, _numeric(p))).toList()..sort((a, b) => a.date.compareTo(b.date));
+  }
+
+  // Health Connect stores body fat as 0–100; Apple Health as a fraction (0.2 for 20%).
+  @override
+  Future<List<WeightSample>> bodyFatHistory(DateTime since) async {
+    final points = await _points(hc.HealthDataType.BODY_FAT_PERCENTAGE, since, DateTime.now());
+    return points.map((p) {
+      final v = _numeric(p);
+      return WeightSample(p.dateFrom, v <= 1 ? v * 100 : v);
+    }).toList()..sort((a, b) => a.date.compareTo(b.date));
+  }
+
+  @override
+  Future<bool> saveBodyFat(double percent, DateTime at) async {
+    await _ensure();
+    try {
+      return await _health.writeHealthData(
+        value: Platform.isIOS ? percent / 100 : percent,
+        type: hc.HealthDataType.BODY_FAT_PERCENTAGE,
+        startTime: at,
+        endTime: at,
+        unit: hc.HealthDataUnit.PERCENT,
+      );
+    } catch (_) {
+      return false;
+    }
   }
 
   @override

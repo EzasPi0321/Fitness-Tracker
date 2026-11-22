@@ -7,6 +7,7 @@ import 'package:flutter/material.dart' show ThemeMode;
 import 'package:flutter/widgets.dart';
 
 import '../models/ai_usage.dart';
+import '../models/body_fat.dart';
 import '../models/food.dart';
 import '../models/nutrients.dart';
 import '../models/gym.dart';
@@ -86,6 +87,9 @@ class AppState extends ChangeNotifier {
   final List<WaterEntry> water = [];
   final List<SleepEntry> sleep = [];
   final List<GymSession> gym = [];
+
+  /// Body fat readings: typed, read from a report, or estimated from a photo.
+  final List<BodyFatEntry> bodyFat = [];
 
   /// Every photo or label sent to an AI model, with its tokens and cost (newest last).
   final List<AiUsage> aiUsage = [];
@@ -197,6 +201,7 @@ class AppState extends ChangeNotifier {
       water.clear();
       sleep.clear();
       gym.clear();
+      bodyFat.clear();
       sampleSteps.clear();
       isSample = false;
     }
@@ -509,12 +514,51 @@ class AppState extends ChangeNotifier {
 
   // ---- Weight ----
 
-  Future<void> addWeight(double kilograms, DateTime date) async {
+  Future<void> addWeight(double kilograms, DateTime date, {String? id}) async {
     final latest = weights.isEmpty ? null : weightsByDate.last.date;
-    weights.add(WeightEntry(id: newId(), date: date, kilograms: kilograms));
+    weights.add(WeightEntry(id: id ?? newId(), date: date, kilograms: kilograms));
     if (latest == null || !date.isBefore(latest)) profile?.weightKg = kilograms;
     _changed();
     if (_syncHealth) await health.saveWeight(kilograms, date);
+  }
+
+  // ---- Body fat ----
+
+  List<BodyFatEntry> get bodyFatByDate => [...bodyFat]..sort((a, b) => a.at.compareTo(b.at));
+
+  /// Saves a reading. A report's weight can come along, logged as a weigh-in at the same time.
+  Future<void> logBodyFat(BodyFatEntry e, {double? weightKg}) async {
+    bodyFat.add(e);
+    _changed();
+    if (weightKg != null) await addWeight(weightKg, e.at, id: 'bf-${e.id}');
+    // Estimates stay in FitTrack: Health has no way to mark a number as a rough guess.
+    if (_syncHealth && !e.source.isEstimate) await health.saveBodyFat(e.percent, e.at);
+  }
+
+  BodyFatEntry? removeBodyFat(String id) {
+    final i = bodyFat.indexWhere((b) => b.id == id);
+    if (i < 0) return null;
+    final removed = bodyFat.removeAt(i);
+    _changed();
+    return removed;
+  }
+
+  /// Takes back a reading just logged, with the weigh-in its report added.
+  void undoBodyFat(String id) {
+    bodyFat.removeWhere((b) => b.id == id);
+    weights.removeWhere((w) => w.id == 'bf-$id');
+    _changed();
+  }
+
+  void restoreBodyFat(BodyFatEntry e) {
+    bodyFat.add(e);
+    _changed();
+  }
+
+  /// The weigh-in nearest to [at], for lean mass; the profile weight when there are none.
+  double? weightNear(DateTime at) {
+    if (weights.isEmpty) return profile?.weightKg;
+    return weights.reduce((a, b) => (a.date.difference(at).abs() <= b.date.difference(at).abs()) ? a : b).kilograms;
   }
 
   // ---- Settings ----
@@ -603,6 +647,7 @@ class AppState extends ChangeNotifier {
     water.removeWhere((w) => generated(w.id));
     sleep.removeWhere((s) => generated(s.id));
     gym.removeWhere((g) => generated(g.id));
+    bodyFat.removeWhere((b) => generated(b.id));
     customFoods.removeWhere((f) => generated(f.id));
     sampleSteps.clear();
     profile = null;
@@ -631,6 +676,9 @@ class AppState extends ChangeNotifier {
     gym
       ..clear()
       ..addAll(s.gym);
+    bodyFat
+      ..clear()
+      ..addAll(s.bodyFat);
     sampleSteps
       ..clear()
       ..addAll(s.steps);
@@ -680,6 +728,7 @@ class AppState extends ChangeNotifier {
     'water': water.map((e) => e.toJson()).toList(),
     'sleep': sleep.map((e) => e.toJson()).toList(),
     'gym': gym.map((e) => e.toJson()).toList(),
+    'bodyFat': bodyFat.map((e) => e.toJson()).toList(),
     'aiUsage': aiUsage.map((e) => e.toJson()).toList(),
     'settings': {
       'health': healthEnabled,
@@ -722,6 +771,9 @@ class AppState extends ChangeNotifier {
     gym
       ..clear()
       ..addAll(list('gym').map(GymSession.fromJson));
+    bodyFat
+      ..clear()
+      ..addAll(list('bodyFat').map(BodyFatEntry.fromJson));
     aiUsage
       ..clear()
       ..addAll(list('aiUsage').map(AiUsage.fromJson));

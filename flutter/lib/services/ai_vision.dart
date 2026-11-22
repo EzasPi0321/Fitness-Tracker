@@ -5,6 +5,7 @@ import 'package:flutter/foundation.dart' show kIsWeb;
 import 'package:http/http.dart' as http;
 
 import '../models/ai_usage.dart';
+import '../models/body_fat.dart';
 import '../models/nutrients.dart';
 import '../models/util.dart';
 import 'open_food_facts.dart' show lossyDouble;
@@ -462,6 +463,202 @@ Respond with JSON only.''';
     }
     if (json == null) throw VisionException.empty;
     return json;
+  }
+
+  // ---- Body fat ----
+
+  static const reportInstructions = """
+You read a body composition report, or a screenshot of a body-composition app or smart scale (InBody, DEXA, BodPod,
+Tanita, Withings, Garmin, Samsung Health, Apple Health and similar), and transcribe the numbers exactly.
+Return:
+- body_fat_percent: percent body fat (PBF, Body Fat %, Total Body Fat %). For DEXA use the total-body figure, not a
+  region. 0 if no percentage is shown. Never return body fat MASS (kg or lb) here.
+- weight_kg: body weight in kg (convert from lb if printed in lb), or 0.
+- lean_mass_kg: lean body mass or fat-free mass in kg, or 0.
+- muscle_mass_kg: skeletal muscle mass in kg, or 0.
+- measured_on: the test date as YYYY-MM-DD, or "" if none is shown.
+- device: the device or app name as printed (e.g. "InBody 570"), or "".
+- readable: true if the body fat percentage was printed clearly.
+If a history of several tests is shown, use the most recent. Use only printed numbers; never estimate.
+Respond with JSON only.""";
+
+  static Map<String, dynamic> reportSchema(VisionProvider provider) {
+    final gemini = provider == VisionProvider.gemini;
+    String type(String n) => gemini ? n.toUpperCase() : n;
+    const keys = [
+      'body_fat_percent',
+      'weight_kg',
+      'lean_mass_kg',
+      'muscle_mass_kg',
+      'measured_on',
+      'device',
+      'readable',
+    ];
+    final string = {'type': type('string')};
+    final number = {'type': type('number')};
+    return {
+      'type': type('object'),
+      'properties': {
+        'body_fat_percent': number,
+        'weight_kg': number,
+        'lean_mass_kg': number,
+        'muscle_mass_kg': number,
+        'measured_on': string,
+        'device': string,
+        'readable': {'type': type('boolean')},
+      },
+      'required': keys,
+      if (gemini) 'propertyOrdering': keys else 'additionalProperties': false,
+    };
+  }
+
+  Future<BodyReportReading> readBodyReport(Uint8List jpeg) async {
+    if (apiKey.trim().isEmpty) throw VisionException.missingKey;
+    if (model == AiModel.smartId) {
+      // Transcribing printed numbers: Opus only if Haiku couldn't read the figure.
+      try {
+        final quick = await _as(AiModel.quickModel).readBodyReport(jpeg);
+        if (quick.readable) return quick;
+      } on VisionException catch (e) {
+        if (_isConnection(e)) rethrow;
+      }
+      return _as(AiModel.carefulModel).readBodyReport(jpeg);
+    }
+    final b64 = base64Encode(jpeg);
+    const text = 'Transcribe the body composition numbers from this report.';
+    final raw = switch (provider) {
+      VisionProvider.gemini => await _gemini(b64, text, reportInstructions, reportSchema(provider)),
+      VisionProvider.openAI => await _openAI(b64, text, reportInstructions, reportSchema(provider), 'body_report'),
+      VisionProvider.claude => await _claude(b64, text, reportInstructions, reportSchema(provider)),
+    };
+    return decodeReport(raw).withModel(model);
+  }
+
+  static Map _jsonObject(String raw) {
+    var text = raw.trim();
+    final start = text.indexOf('{');
+    final end = text.lastIndexOf('}');
+    if (start >= 0 && end > start) text = text.substring(start, end + 1);
+    final Object? json;
+    try {
+      json = jsonDecode(text);
+    } catch (_) {
+      throw VisionException.invalidJson;
+    }
+    if (json is! Map) throw VisionException.invalidJson;
+    return json;
+  }
+
+  static BodyReportReading decodeReport(String raw) {
+    final map = _jsonObject(raw);
+    double? positive(String k) {
+      final v = lossyDouble(map[k]);
+      return (v == null || v <= 0) ? null : v;
+    }
+
+    final pct = positive('body_fat_percent');
+    if (pct == null || pct < 2 || pct > 70) {
+      throw const VisionException(
+        "Couldn’t find a body fat percentage. Use a screenshot where the body fat % is visible.",
+      );
+    }
+    final date = DateTime.tryParse((map['measured_on'] is String ? map['measured_on'] as String : '').trim());
+    final now = DateTime.now();
+    return BodyReportReading(
+      percent: pct,
+      weightKg: positive('weight_kg'),
+      leanKg: positive('lean_mass_kg'),
+      muscleKg: positive('muscle_mass_kg'),
+      // A date in the future or before 2000 is a misread; fall back to today.
+      measuredOn: date != null && !date.isAfter(now) && date.year >= 2000 ? date : null,
+      device: (map['device'] is String ? map['device'] as String : '').trim(),
+      readable: map['readable'] != false,
+    );
+  }
+
+  static const physiqueInstructions = """
+You estimate body fat percentage from a photo of a person, the way an experienced coach compares a physique with
+reference photos. Use visible muscle and abdominal definition, vascularity, and fat distribution at the waist, hips,
+chest and arms, together with the sex, age, height and weight you are given.
+Return:
+- usable: false if no person's torso is clearly visible, the photo is too dark or blurry, more than one person is
+  the subject, or the person appears to be under 18. Then use 0 for the numbers and give the reason in notes.
+- estimate_percent: your best single estimate.
+- low_percent and high_percent: a range you are about 80% sure contains the true value, at least 4 points wide and
+  wider for loose clothing, poor light or an unusual angle.
+- confidence: 0.0–1.0.
+- notes: one short, neutral sentence on what limited the estimate (e.g. "A loose shirt hides the waist."), or "".
+Never comment on attractiveness, and give no health or diet advice. Respond with JSON only.""";
+
+  static Map<String, dynamic> physiqueSchema(VisionProvider provider) {
+    final gemini = provider == VisionProvider.gemini;
+    String type(String n) => gemini ? n.toUpperCase() : n;
+    const keys = ['usable', 'estimate_percent', 'low_percent', 'high_percent', 'confidence', 'notes'];
+    final number = {'type': type('number')};
+    return {
+      'type': type('object'),
+      'properties': {
+        'usable': {'type': type('boolean')},
+        'estimate_percent': number,
+        'low_percent': number,
+        'high_percent': number,
+        'confidence': number,
+        'notes': {'type': type('string')},
+      },
+      'required': keys,
+      if (gemini) 'propertyOrdering': keys else 'additionalProperties': false,
+    };
+  }
+
+  /// [context] is what the model is told about the person, e.g. "Female, 30, 170 cm, 70 kg".
+  Future<BodyFatEstimate> estimateBodyFat(Uint8List jpeg, {required String context}) async {
+    if (apiKey.trim().isEmpty) throw VisionException.missingKey;
+    if (model == AiModel.smartId) {
+      // Judging a physique is hard: Opus takes over when Haiku's range is wide or it's unsure.
+      try {
+        final quick = await _as(AiModel.quickModel).estimateBodyFat(jpeg, context: context);
+        if (!quick.needsCarefulLook) return quick;
+      } on VisionException catch (e) {
+        if (_isConnection(e)) rethrow;
+      }
+      return _as(AiModel.carefulModel).estimateBodyFat(jpeg, context: context);
+    }
+    final b64 = base64Encode(jpeg);
+    final text = 'Estimate the body fat percentage of the person in this photo. About them: $context.';
+    final raw = switch (provider) {
+      VisionProvider.gemini => await _gemini(b64, text, physiqueInstructions, physiqueSchema(provider)),
+      VisionProvider.openAI => await _openAI(b64, text, physiqueInstructions, physiqueSchema(provider), 'body_fat'),
+      VisionProvider.claude => await _claude(b64, text, physiqueInstructions, physiqueSchema(provider)),
+    };
+    return decodeEstimate(raw).withModel(model);
+  }
+
+  static BodyFatEstimate decodeEstimate(String raw) {
+    final map = _jsonObject(raw);
+    final notes = (map['notes'] is String ? map['notes'] as String : '').trim();
+    final pct = lossyDouble(map['estimate_percent']) ?? 0;
+    if (map['usable'] == false || pct < 3 || pct > 70) {
+      throw VisionException(
+        notes.isNotEmpty ? notes : 'Couldn’t estimate from that photo. Try one with your whole torso in good light.',
+      );
+    }
+    var lo = lossyDouble(map['low_percent']) ?? pct - 2;
+    var hi = lossyDouble(map['high_percent']) ?? pct + 2;
+    // Keep the guess inside its range, and the range at least 4 points wide.
+    if (lo > pct) lo = pct;
+    if (hi < pct) hi = pct;
+    if (hi - lo < 4) {
+      final pad = (4 - (hi - lo)) / 2;
+      lo -= pad;
+      hi += pad;
+    }
+    return BodyFatEstimate(
+      percent: pct,
+      low: lo.clamp(2, 70).toDouble(),
+      high: hi.clamp(2, 70).toDouble(),
+      confidence: (lossyDouble(map['confidence']) ?? 0.5).clamp(0, 1).toDouble(),
+      notes: notes,
+    );
   }
 
   // ---- Nutrition label ----

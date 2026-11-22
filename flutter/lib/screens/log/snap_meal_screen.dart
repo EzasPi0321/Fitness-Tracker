@@ -258,7 +258,7 @@ class _SnapMealScreenState extends State<SnapMealScreen> {
   Widget _workingView(BuildContext context) {
     return Center(
       key: const ValueKey('working'),
-      child: _ReadingPhoto(photo: _photo),
+      child: ReadingPhoto(photo: _photo),
     );
   }
 
@@ -428,17 +428,25 @@ class _DetectedCard extends StatelessWidget {
 /// Waiting for an estimate: a reading line passes down the photo (the photo is what's being
 /// read), and the steps underneath tick off on a timer so the wait says what it's doing.
 /// Reduced motion keeps the steps and drops the moving line.
-class _ReadingPhoto extends StatefulWidget {
-  const _ReadingPhoto({required this.photo});
+/// The photo with a scanner line passing over it and timed steps underneath, so a wait of a
+/// few seconds shows the work being done. Shared by meal photos and body fat.
+class ReadingPhoto extends StatefulWidget {
+  const ReadingPhoto({
+    super.key,
+    required this.photo,
+    this.steps = const ['Reading the photo', 'Finding each food', 'Weighing portions'],
+  });
   final Uint8List? photo;
 
+  /// Three steps, shown at 0 s, 1.4 s and 3.2 s.
+  final List<String> steps;
+
   @override
-  State<_ReadingPhoto> createState() => _ReadingPhotoState();
+  State<ReadingPhoto> createState() => _ReadingPhotoState();
 }
 
-class _ReadingPhotoState extends State<_ReadingPhoto> with SingleTickerProviderStateMixin {
-  /* 0 s reading the photo · 1.4 s finding each food · 3.2 s weighing portions */
-  static const _steps = ['Reading the photo', 'Finding each food', 'Weighing portions'];
+class _ReadingPhotoState extends State<ReadingPhoto> with SingleTickerProviderStateMixin {
+  List<String> get _steps => widget.steps;
   static const _at = [Duration.zero, Duration(milliseconds: 1400), Duration(milliseconds: 3200)];
 
   late final _scan = AnimationController(vsync: this, duration: const Duration(milliseconds: 1600));

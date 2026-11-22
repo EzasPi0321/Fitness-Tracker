@@ -48,6 +48,9 @@ abstract class HealthService {
   Future<List<WorkoutSummary>> workouts(DateTime day);
   Future<List<WeightSample>> weightHistory(DateTime since);
 
+  /// Body fat readings since [since], as percentages (0–100) in [WeightSample.kilograms].
+  Future<List<WeightSample>> bodyFatHistory(DateTime since);
+
   /// Nights of sleep that ended between [from] and [to].
   Future<List<SleepNight>> sleep(DateTime from, DateTime to);
   Future<HealthSnapshot> snapshot();
@@ -61,6 +64,7 @@ abstract class HealthService {
   });
   Future<void> deleteFood(DateTime at);
   Future<bool> saveWeight(double kilograms, DateTime at);
+  Future<bool> saveBodyFat(double percent, DateTime at);
   Future<bool> saveWater(double ml, DateTime at);
 
   /// Saves a night logged in FitTrack, so Samsung Health / Apple Health has it too.
@@ -93,6 +97,8 @@ class UnsupportedHealthService implements HealthService {
   @override
   Future<List<WeightSample>> weightHistory(DateTime since) async => const [];
   @override
+  Future<List<WeightSample>> bodyFatHistory(DateTime since) async => const [];
+  @override
   Future<List<SleepNight>> sleep(DateTime from, DateTime to) async => const [];
   @override
   Future<HealthSnapshot> snapshot() async => const HealthSnapshot();
@@ -107,6 +113,8 @@ class UnsupportedHealthService implements HealthService {
   Future<void> deleteFood(DateTime at) async {}
   @override
   Future<bool> saveWeight(double kilograms, DateTime at) async => false;
+  @override
+  Future<bool> saveBodyFat(double percent, DateTime at) async => false;
   @override
   Future<bool> saveWater(double ml, DateTime at) async => false;
   @override
