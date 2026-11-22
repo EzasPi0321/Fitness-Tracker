@@ -132,9 +132,14 @@ class _SnapMealScreenState extends State<SnapMealScreen> {
     final a = _analysis;
     if (a == null) return;
     final at = widget.logTime;
+    final state = AppScope.read(context);
+    final waterMl = [
+      for (final (i, item) in a.items.indexed)
+        if (_include.contains(i) && item.isPlainWater) item.grams,
+    ].fold<double>(0, (x, y) => x + y);
     final entries = [
       for (final (i, item) in a.items.indexed)
-        if (_include.contains(i))
+        if (_include.contains(i) && !item.isPlainWater)
           FoodEntry(
             id: newId(),
             name: item.name,
@@ -149,7 +154,32 @@ class _SnapMealScreenState extends State<SnapMealScreen> {
     ];
     final nav = Navigator.of(context);
     nav.popUntil((r) => r.isFirst);
-    await logAndCelebrate(nav.context, entries);
+    // Confirmations go up before any await, so they never use a context across a gap.
+    final host = nav.context;
+    final metric = state.profile?.usesMetric ?? true;
+    if (entries.isNotEmpty) {
+      final logging = logAndCelebrate(host, entries);
+      if (waterMl > 0) await state.addWater(waterMl, at);
+      await logging;
+    } else if (waterMl > 0) {
+      showToast(host, 'Added ${Volume.format(waterMl, metric: metric)} of water');
+      await state.addWater(waterMl, at);
+    }
+  }
+
+  /// "Log 2 items", or "Add 600 ml water" when everything ticked is water.
+  String _logLabel(MealAnalysis a) {
+    final picked = [
+      for (final (i, item) in a.items.indexed)
+        if (_include.contains(i)) item,
+    ];
+    final foods = picked.where((f) => !f.isPlainWater).length;
+    if (foods == 0 && picked.isNotEmpty) {
+      final ml = picked.fold<double>(0, (x, f) => x + f.grams);
+      final metric = AppScope.read(context).profile?.usesMetric ?? true;
+      return 'Add ${Volume.format(ml, metric: metric)} water';
+    }
+    return 'Log $foods item${foods == 1 ? '' : 's'}';
   }
 
   @override
@@ -276,7 +306,7 @@ class _SnapMealScreenState extends State<SnapMealScreen> {
           child: ListView(
             padding: const EdgeInsets.all(S.lg),
             children: [
-              Text('${a.items.length} items found', style: tt.headlineSmall),
+              Text('${a.items.length} item${a.items.length == 1 ? '' : 's'} found', style: tt.headlineSmall),
               if (a.notes.isNotEmpty)
                 Padding(
                   padding: const EdgeInsets.only(top: 4),
@@ -330,10 +360,7 @@ class _SnapMealScreenState extends State<SnapMealScreen> {
                     ],
                   ),
                 ),
-                FilledButton(
-                  onPressed: _include.isEmpty ? null : _log,
-                  child: Text('Log ${_include.length} item${_include.length == 1 ? '' : 's'}'),
-                ),
+                FilledButton(onPressed: _include.isEmpty ? null : _log, child: Text(_logLabel(a))),
               ],
             ),
           ),
@@ -355,7 +382,10 @@ class _DetectedCard extends StatelessWidget {
     final t = FT.of(context);
     final tt = Theme.of(context).textTheme;
     final c = item.confidence;
-    final (label, color) = c >= 0.75
+    final water = item.isPlainWater;
+    final (label, color) = water
+        ? ('Goes to Water', t.bodyO.toColor())
+        : c >= 0.75
         ? ('Confident', t.good)
         : c >= 0.45
         ? ('Check portion', t.warn)
@@ -387,7 +417,7 @@ class _DetectedCard extends StatelessWidget {
                     children: [
                       NumberInput(
                         value: item.grams,
-                        unit: 'g',
+                        unit: water ? 'ml' : 'g',
                         width: 100,
                         maxDigits: 0,
                         onChanged: (v) {
@@ -599,7 +629,9 @@ class _CostLine extends StatelessWidget {
     final left = state.photosLeft;
     final low = left != null && left < 20;
     final text = [
-      '${state.costPerPhotoIsMeasured ? '' : 'About '}${formatUsd(per)} a photo',
+      per < 0.01
+          ? 'Less than US\$0.01 a photo'
+          : '${state.costPerPhotoIsMeasured ? '' : 'About '}${formatUsd(per)} a photo',
       if (left != null) 'about $left left',
     ].join(' · ');
     if (low) {

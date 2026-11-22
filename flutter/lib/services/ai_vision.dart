@@ -87,6 +87,13 @@ class DetectedFood {
 
   Nutrients get nutrients =>
       Nutrients(calories: calories, protein: protein, carbs: carbs, fat: fat, fiber: fiber, sugar: sugar);
+
+  /// Plain or sparkling water with no energy: it belongs on the Water card, not the food log.
+  /// "Watermelon" and "coconut water" don't count (whole word, and they have calories).
+  bool get isPlainWater =>
+      RegExp(r'\bwater\b', caseSensitive: false).hasMatch(name) &&
+      !RegExp(r'coconut|tonic|vitamin|flavou?red|juice|cordial', caseSensitive: false).hasMatch(name) &&
+      calories <= 2;
 }
 
 class MealAnalysis {

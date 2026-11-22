@@ -97,11 +97,10 @@ double? estimatedPhotoUsd(String modelId) {
   return priceFor(modelId) == null ? null : cost(modelId);
 }
 
-/// "0.09¢", "1.8¢", "40¢", "US$1.25".
+/// Always in dollars, never cents: "less than US$0.01", "US$0.04", "US$1.25". Marked US$
+/// because Anthropic bills in US dollars and a plain "$" reads as local currency.
 String formatUsd(double usd) {
-  if (usd <= 0) return '0¢';
-  if (usd < 0.01) return '${(usd * 100).toStringAsFixed(2)}¢';
-  if (usd < 0.1) return '${(usd * 100).toStringAsFixed(1)}¢';
-  if (usd < 1) return '${(usd * 100).round()}¢';
+  if (usd <= 0) return 'US\$0.00';
+  if (usd < 0.01) return 'less than US\$0.01';
   return 'US\$${usd.toStringAsFixed(2)}';
 }

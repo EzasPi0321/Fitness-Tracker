@@ -1,5 +1,6 @@
 import 'package:fittrack/data/app_state.dart';
 import 'package:fittrack/models/ai_usage.dart';
+import 'package:fittrack/services/ai_vision.dart';
 import 'package:flutter_test/flutter_test.dart';
 
 void main() {
@@ -39,10 +40,21 @@ void main() {
     expect(s.photosLeft, 5);
   });
 
-  test('formats small amounts in cents', () {
-    expect(formatUsd(0.0009), '0.09¢');
-    expect(formatUsd(0.018), '1.8¢');
-    expect(formatUsd(0.4), '40¢');
+  test('formats costs in dollars, never cents', () {
+    expect(formatUsd(0.0003), 'less than US\$0.01');
+    expect(formatUsd(0.018), 'US\$0.02');
+    expect(formatUsd(0.4), 'US\$0.40');
     expect(formatUsd(1.25), 'US\$1.25');
+    expect(formatUsd(0), 'US\$0.00');
+  });
+
+  test('plain water goes to the Water card; watermelon and coconut water don’t', () {
+    DetectedFood f(String name, double kcal) =>
+        DetectedFood(name: name, grams: 600, calories: kcal, protein: 0, carbs: 0, fat: 0, confidence: 0.9);
+    expect(f('Mount Franklin bottled spring water', 0).isPlainWater, isTrue);
+    expect(f('Sparkling water', 0).isPlainWater, isTrue);
+    expect(f('Watermelon slice', 90).isPlainWater, isFalse);
+    expect(f('Coconut water', 110).isPlainWater, isFalse);
+    expect(f('Vitamin water', 0).isPlainWater, isFalse);
   });
 }
