@@ -277,7 +277,9 @@ ThemeData buildTheme(FT t) {
         borderRadius: BorderRadius.circular(S.radiusControl - 2),
         borderSide: BorderSide(color: t.fg.withValues(alpha: 0.6), width: 1.4),
       ),
-      floatingLabelStyle: s(12.5, FontWeight.w500, color: t.muted),
+      // Floating labels are drawn at 75% size: 16 here renders at 12 px, the smallest size
+      // where muted text keeps its Lc 60 (at 9 px it would need 75).
+      floatingLabelStyle: s(16, FontWeight.w500, color: t.muted),
       labelStyle: s(14.5, FontWeight.w400, color: t.muted),
       hintStyle: s(14.5, FontWeight.w400, color: t.muted),
     ),
