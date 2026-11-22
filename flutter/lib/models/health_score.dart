@@ -82,7 +82,9 @@ class HealthScore {
   static WeightGoal goal = WeightGoal.maintain;
 
   /// Null when there's nothing to judge (no calories).
-  static HealthScore? of(Nutrients n, {double? grams, WeightGoal? goal}) {
+  /// [detailChecked]: the fibre and sugar were filled in or confirmed, so a 0 is a real 0
+  /// (a soft drink has no fibre), not missing data.
+  static HealthScore? of(Nutrients n, {double? grams, WeightGoal? goal, bool detailChecked = false}) {
     if (n.calories < 1) return null;
     final w = ScoreWeights.of(goal ?? HealthScore.goal);
     final per100kcal = 100 / n.calories;
@@ -131,14 +133,20 @@ class HealthScore {
       ),
     );
 
-    // Fibre: credit only, so an unknown 0 simply earns nothing.
+    // Fibre. No fibre and no sugar listed on a food with carbohydrates means the data is
+    // missing (the database only had macros), not that the food has none. Counting it as zero
+    // drags a banana to "Poor"; leaving it out lets a food's protein carry the whole score. So
+    // until the AI fills it in, it counts as half: a neutral middle.
+    final fibreUnknown = !detailChecked && n.fiber == 0 && n.sugar == 0 && n.carbs >= 5;
     parts.add(
-      ScorePart(
-        label: 'Fibre',
-        points: w.fibre * lerp(fiber, 3, 0),
-        max: w.fibre,
-        detail: n.fiber > 0 ? '${_one(fiber)} g per 100 kcal' : 'None listed',
-      ),
+      fibreUnknown
+          ? ScorePart(label: 'Fibre', points: w.fibre / 2, max: w.fibre, detail: 'Not listed: counted as half')
+          : ScorePart(
+              label: 'Fibre',
+              points: w.fibre * lerp(fiber, 3, 0),
+              max: w.fibre,
+              detail: n.fiber > 0 ? '${_one(fiber)} g per 100 kcal' : 'None',
+            ),
     );
 
     // Sugar and fat balance.

@@ -1051,7 +1051,8 @@ Carbohydrate 12.0g 4.8g
     test('without a weight, density is left out instead of counted as zero', () {
       final s = HealthScore.of(const Nutrients(calories: 480, protein: 42, carbs: 18, fat: 26))!;
       expect(s.parts.first.counted, isFalse);
-      expect(s.score, inInclusiveRange(55, 70));
+      // Fibre isn't listed either, so it counts as half until the AI fills it in.
+      expect(s.score, inInclusiveRange(70, 85));
     });
 
     test('a meal is weighted by calories', () {

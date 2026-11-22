@@ -128,6 +128,14 @@ class MealAnalysis {
   }
 }
 
+/// A food's weight, fibre and sugar, filled in where the record lacked them.
+class FoodDetail {
+  const FoodDetail({this.grams, this.fiber, this.sugar});
+  final double? grams;
+  final double? fiber;
+  final double? sugar;
+}
+
 /// One food from a spoken description, with the meal it was eaten at.
 class SpokenItem {
   SpokenItem({required this.meal, required this.food});
@@ -448,6 +456,75 @@ Respond with JSON only.''';
       items.add(SpokenItem(meal: MealType.parse(r['meal'] as String?), food: one.first));
     }
     return SpokenMeals(items: items, notes: notes);
+  }
+
+  // ---- Missing detail ----
+
+  static const detailInstructions = '''
+You are a meticulous registered dietitian. You're given a food someone logged: its name, brand,
+the portion, and the calories and macros recorded for that portion. The weight, fibre or sugar
+wasn't recorded. Using standard food-composition data (e.g. AUSNUT, USDA FoodData Central) and
+the calories given, return for that same portion:
+- grams: its edible weight in grams (millilitres for drinks).
+- fiber_g: dietary fibre in grams.
+- sugar_g: total sugars in grams.
+- confidence: 0.0-1.0.
+Keep fibre and sugar each no more than the carbohydrate given. Respond with JSON only.''';
+
+  static Map<String, dynamic> detailSchema(VisionProvider provider) {
+    final gemini = provider == VisionProvider.gemini;
+    String type(String n) => gemini ? n.toUpperCase() : n;
+    const keys = ['grams', 'fiber_g', 'sugar_g', 'confidence'];
+    final number = {'type': type('number')};
+    return {
+      'type': type('object'),
+      'properties': {'grams': number, 'fiber_g': number, 'sugar_g': number, 'confidence': number},
+      'required': keys,
+      if (gemini) 'propertyOrdering': keys else 'additionalProperties': false,
+    };
+  }
+
+  /// Fills a logged food's missing weight, fibre and sugar. A small text request: Smart mode
+  /// sends it straight to the quick model.
+  Future<FoodDetail> fillDetail({
+    required String name,
+    String? brand,
+    required String portion,
+    required Nutrients n,
+  }) async {
+    if (apiKey.trim().isEmpty) throw VisionException.missingKey;
+    if (model == AiModel.smartId) {
+      return _as(AiModel.quickModel).fillDetail(name: name, brand: brand, portion: portion, n: n);
+    }
+    final text =
+        'Food: $name${brand == null || brand.isEmpty ? '' : ' ($brand)'}. Portion: $portion. '
+        'Recorded for that portion: ${n.calories.round()} kcal, protein ${_g(n.protein)} g, '
+        'carbohydrate ${_g(n.carbs)} g, fat ${_g(n.fat)} g.';
+    final raw = switch (provider) {
+      VisionProvider.gemini => await _gemini(null, text, detailInstructions, detailSchema(provider)),
+      VisionProvider.openAI => await _openAI(null, text, detailInstructions, detailSchema(provider), 'food_detail'),
+      VisionProvider.claude => await _claude(null, text, detailInstructions, detailSchema(provider)),
+    };
+    return decodeDetail(raw, n);
+  }
+
+  static String _g(double v) => v >= 10 ? v.round().toString() : v.toStringAsFixed(1);
+
+  /// Reads the answer, keeping fibre and sugar within the carbohydrate and the weight
+  /// believable for the calories (between 0.05 and 9 kcal per gram).
+  static FoodDetail decodeDetail(String raw, Nutrients n) {
+    final map = _jsonObject(raw);
+    double? num(String k) {
+      final v = lossyDouble(map[k]);
+      return v == null || !v.isFinite || v < 0 ? null : v;
+    }
+
+    var grams = num('grams');
+    if (grams != null && (grams <= 0 || n.calories / grams > 9 || n.calories / grams < 0.05)) grams = null;
+    final fiber = num('fiber_g')?.clamp(0, n.carbs).toDouble();
+    final sugar = num('sugar_g')?.clamp(0, n.carbs).toDouble();
+    if (grams == null && fiber == null && sugar == null) throw VisionException.invalidJson;
+    return FoodDetail(grams: grams, fiber: fiber, sugar: sugar);
   }
 
   /// Errors Opus would hit too (no connection, bad key, rate limit): don't pay for a second try.

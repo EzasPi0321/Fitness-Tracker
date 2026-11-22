@@ -241,6 +241,8 @@ class AppState extends ChangeNotifier {
     entries.addAll(list);
     logPulse.value++;
     _changed();
+    // Fill in missing weight, fibre and sugar after the fact, so logging never waits on it.
+    if (!isSample) unawaited(_fillInBackground(list.where((e) => e.missingDetail).toList()));
     if (_syncHealth) {
       for (final e in list) {
         e.healthSynced = await health.saveFood(
@@ -256,6 +258,46 @@ class AppState extends ChangeNotifier {
 
   /// Call after mutating an entry (portion, meal, time). `previousTime` lets the health
   /// record at the old timestamp be replaced.
+  Future<void> _fillInBackground(List<FoodEntry> list) async {
+    if (list.isEmpty) return;
+    final key = await keys.read(visionProvider.keyName);
+    if (key.trim().isEmpty) return;
+    for (final e in list) {
+      try {
+        await fillMissingDetail(e, apiKey: key);
+      } catch (_) {
+        // Offline or the AI couldn't say: the score leaves the gaps out, and the score sheet
+        // offers to try again.
+      }
+    }
+  }
+
+  /// Asks the AI for a logged food's missing weight, fibre and sugar and saves what's missing.
+  /// Recorded values are never replaced. Returns what was added, or throws [VisionException].
+  Future<FoodDetail> fillMissingDetail(FoodEntry e, {String? apiKey}) async {
+    final key = apiKey ?? await keys.read(visionProvider.keyName);
+    final service = AIVisionService(provider: visionProvider, apiKey: key, model: visionModel);
+    try {
+      final d = await service.fillDetail(name: e.name, brand: e.brand, portion: e.portionDescription, n: e.nutrients);
+      final n = e.nutrients;
+      e
+        ..grams = e.grams ?? d.grams
+        ..nutrients = Nutrients(
+          calories: n.calories,
+          protein: n.protein,
+          carbs: n.carbs,
+          fat: n.fat,
+          fiber: n.fiber > 0 ? n.fiber : (d.fiber ?? 0),
+          sugar: n.sugar > 0 ? n.sugar : (d.sugar ?? 0),
+        ).sanitized
+        ..detailChecked = true;
+      _changed();
+      return d;
+    } finally {
+      recordAiUsage('detail', service.calls);
+    }
+  }
+
   Future<void> updateEntry(FoodEntry e, {required DateTime previousTime}) async {
     _changed();
     if (e.healthSynced) await health.deleteFood(previousTime);
