@@ -153,6 +153,7 @@ class AppState extends ChangeNotifier {
     if (profile == null && seedSampleIfEmpty) loadSampleData(save: false);
     if (isSample && sampleSteps.isEmpty) sampleSteps.addAll(SampleData.generate().steps);
     loaded = true;
+    if (!isSample) _syncWeightToTrend();
     _weeklyReplan();
     unawaited(checkForUpdates());
     notifyListeners();
@@ -239,9 +240,25 @@ class AppState extends ChangeNotifier {
   }
 
   /// The smoothed weight (see [weightTrend]), so one day of water weight barely moves it.
+  /// A weight typed into Profile since the last weigh-in is used as is.
   double? get trendWeight {
-    if (weights.isEmpty) return profile?.weightKg;
-    return weightTrend([for (final w in weights) (w.date, w.kilograms)]).last.$2;
+    final p = profile;
+    if (weights.isEmpty) return p?.weightKg;
+    final last = weightsByDate.last;
+    final typed = p?.weightTypedAt;
+    if (p != null && typed != null && typed.isAfter(last.date)) return p.weightKg;
+    final t = weightTrend([for (final w in weights) (w.date, w.kilograms)]).last.$2;
+    return (t * 10).round() / 10;
+  }
+
+  /// Profile weight (and so BMR and TDEE) follows the trend weight, not the latest reading.
+  void _syncWeightToTrend() {
+    final p = profile;
+    final t = trendWeight;
+    if (p == null || t == null || weights.isEmpty) return;
+    final typed = p.weightTypedAt;
+    if (typed != null && typed.isAfter(weightsByDate.last.date)) return;
+    p.weightKg = t;
   }
 
   /// A cut or gain with a target date re-plans its pace once a week, from the trend weight.
@@ -685,9 +702,8 @@ class AppState extends ChangeNotifier {
   // ---- Weight ----
 
   Future<void> addWeight(double kilograms, DateTime date, {String? id}) async {
-    final latest = weights.isEmpty ? null : weightsByDate.last.date;
     weights.add(WeightEntry(id: id ?? newId(), date: date, kilograms: kilograms));
-    if (latest == null || !date.isBefore(latest)) profile?.weightKg = kilograms;
+    _syncWeightToTrend();
     _weeklyReplan();
     _changed();
     if (_syncHealth) await health.saveWeight(kilograms, date);

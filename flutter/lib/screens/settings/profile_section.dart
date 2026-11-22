@@ -144,6 +144,11 @@ class ProfileSection extends StatelessWidget {
             FRow(label: 'Height', trailing: heightField),
             FRow(
               label: 'Weight',
+              sub: state.weights.isEmpty
+                  ? null
+                  : (p.weightTypedAt != null && p.weightTypedAt!.isAfter(state.weightsByDate.last.date))
+                  ? 'As typed, until your next weigh-in'
+                  : 'Trend weight, from your weigh-ins',
               trailing: NumberInput(
                 key: ValueKey('w$metric'),
                 value: ((metric ? p.weightKg : p.weightKg * poundsPerKilogram) * 10).round() / 10,
@@ -151,7 +156,13 @@ class ProfileSection extends StatelessWidget {
                 onChanged: (v) {
                   if (v == null) return;
                   final kg = metric ? v : v / poundsPerKilogram;
-                  if (kg >= 30 && kg <= 350) update((p) => p.weightKg = kg);
+                  if (kg >= 30 && kg <= 350) {
+                    update(
+                      (p) => p
+                        ..weightKg = kg
+                        ..weightTypedAt = DateTime.now(),
+                    );
+                  }
                 },
               ),
             ),

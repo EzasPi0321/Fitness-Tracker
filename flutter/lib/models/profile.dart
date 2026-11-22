@@ -208,6 +208,7 @@ class UserProfile {
     this.planWeightKg,
     this.planUpdatedAt,
     this.customTargets = false,
+    this.weightTypedAt,
   }) : birthDate = birthDate ?? DateTime(DateTime.now().year - 30, 1, 1);
 
   /// What to call the user. Optional; empty means no name.
@@ -233,6 +234,10 @@ class UserProfile {
 
   /// The daily targets were typed in by hand; the weekly re-plan leaves them alone.
   bool customTargets;
+
+  /// When [weightKg] was typed into Profile. Until the next weigh-in, that typed weight is
+  /// used as is; after it, [weightKg] follows the trend weight again.
+  DateTime? weightTypedAt;
 
   double get _paceWeight => planWeightKg ?? weightKg;
 
@@ -294,6 +299,7 @@ class UserProfile {
     planWeightKg: planWeightKg,
     planUpdatedAt: planUpdatedAt,
     customTargets: customTargets,
+    weightTypedAt: weightTypedAt,
   );
 
   Map<String, dynamic> toJson() => {
@@ -312,6 +318,7 @@ class UserProfile {
     if (planWeightKg != null) 'planKg': planWeightKg,
     if (planUpdatedAt != null) 'planAt': planUpdatedAt!.millisecondsSinceEpoch,
     if (customTargets) 'customTargets': true,
+    if (weightTypedAt != null) 'wTyped': weightTypedAt!.millisecondsSinceEpoch,
   };
 
   factory UserProfile.fromJson(Map<String, dynamic> j) => UserProfile(
@@ -332,5 +339,6 @@ class UserProfile {
     planWeightKg: (j['planKg'] as num?)?.toDouble(),
     planUpdatedAt: j['planAt'] is num ? DateTime.fromMillisecondsSinceEpoch((j['planAt'] as num).toInt()) : null,
     customTargets: (j['customTargets'] as bool?) ?? false,
+    weightTypedAt: j['wTyped'] is num ? DateTime.fromMillisecondsSinceEpoch((j['wTyped'] as num).toInt()) : null,
   );
 }
