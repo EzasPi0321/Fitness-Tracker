@@ -61,7 +61,7 @@ Keep iloader installed. You only need it again if SideStore itself expires, or a
 3. Open the FitTrack source and tap **Get**. It shows **7 DAYS** in **My Apps** when done.
 4. Open FitTrack and follow the setup.
 
-**Apple Health isn't available on iPhone this way.** Apple doesn't let apps signed with a free Apple ID use Health, so FitTrack doesn't offer it. Log sleep and weight in the app. Health would need a paid Apple Developer account and TestFlight.
+**Apple Health isn't available on iPhone this way.** Apple doesn't let apps signed with a free Apple ID use Health, so FitTrack doesn't connect to it directly. Log sleep and weight in the app. Steps can still come in from Apple Health with a shortcut (step 5). Full Health sync would need a paid Apple Developer account and TestFlight.
 
 **Updates:** new versions appear in SideStore from the source. Installing one also renews the 7 days.
 
@@ -75,6 +75,22 @@ In **Shortcuts › Automation › + › Charger › Is Connected › Run Immedia
 Every time you charge, FitTrack and SideStore get a fresh 7 days.
 
 If an app expires anyway, it just won't open. **Your data is kept.** Refresh in SideStore and it opens again. Don't delete the app to fix it, because that erases its data.
+
+### 5. Steps from Apple Health (optional)
+
+The Shortcuts app can read Apple Health, so a shortcut reads today's steps and sends them to FitTrack each time you open it. The Health app doesn't open; at most a short banner shows.
+
+1. In **Shortcuts**, tap **+** on the Shortcuts tab and name it **FitTrack steps**.
+2. Add **Find Health Samples**. Set **Type** to **Steps** and add the filter **Start Date is Today**.
+3. Add **Calculate Statistics**, set to **Sum** of **Health Samples**.
+4. Add **URL** and type `fittrack://steps?count=`, then insert the **Statistics Result** variable straight after it.
+5. Add **Open URLs**. Tap **Done**.
+6. On the **Automation** tab, tap **+ › App › FitTrack › Is Opened › Run Immediately**, and choose **FitTrack steps**. Turn off **Notify When Run** to skip the banner.
+7. The first run asks to read your steps and to open FitTrack. Tap **Allow**.
+
+You can also tap the pencil on the **Steps** card to type steps in. An earlier run of the shortcut never lowers today's count.
+
+If FitTrack keeps reopening itself after the shortcut runs, change the automation's trigger to **Time of Day** (for example every hour, or 9 pm) instead of **Is Opened**.
 
 ---
 

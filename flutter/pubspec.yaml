@@ -49,6 +49,7 @@ dependencies:
   # Must match google_mlkit_text_recognition: both pin the same iOS ML Kit package
   # (google-mlkit-swiftpm 9.0.2), or Xcode can't resolve dependencies.
   google_mlkit_commons: 1.0.1
+  app_links: ^7.2.2
 
 dev_dependencies:
   flutter_test:

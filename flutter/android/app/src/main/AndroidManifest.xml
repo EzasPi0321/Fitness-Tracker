@@ -45,6 +45,14 @@
                 <action android:name="android.intent.action.MAIN"/>
                 <category android:name="android.intent.category.LAUNCHER"/>
             </intent-filter>
+            <!-- fittrack://steps?count=… (handled by app_links, not Flutter's router). -->
+            <intent-filter>
+                <action android:name="android.intent.action.VIEW"/>
+                <category android:name="android.intent.category.DEFAULT"/>
+                <category android:name="android.intent.category.BROWSABLE"/>
+                <data android:scheme="fittrack"/>
+            </intent-filter>
+            <meta-data android:name="flutter_deeplinking_enabled" android:value="false"/>
         </activity>
         <activity-alias
             android:name="ViewPermissionUsageActivity"

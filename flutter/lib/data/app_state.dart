@@ -110,6 +110,13 @@ class AppState extends ChangeNotifier {
   /// Example step counts shown with sample data (no health store on desktop).
   final Map<DateTime, int> sampleSteps = {};
 
+  /// Steps without a health store (iPhone): sent in by a Shortcuts automation that reads
+  /// Apple Health, or typed in. Keyed by day.
+  final Map<DateTime, int> loggedSteps = {};
+
+  /// When the shortcut last sent steps in, to say so on the card.
+  DateTime? stepsFromShortcutAt;
+
   /// Black by default; light and system are options in Settings.
   ThemeMode appearance = ThemeMode.dark;
 
@@ -203,6 +210,7 @@ class AppState extends ChangeNotifier {
       gym.clear();
       bodyFat.clear();
       sampleSteps.clear();
+      loggedSteps.clear();
       isSample = false;
     }
     if (weights.isEmpty) weights.add(WeightEntry(id: newId(), date: DateTime.now(), kilograms: p.weightKg));
@@ -501,6 +509,34 @@ class AppState extends ChangeNotifier {
     _changed();
   }
 
+  /// Saves a day's steps. A shortcut only ever raises today's count, since steps only go up
+  /// during a day and an early run shouldn't undo a later one.
+  void setLoggedSteps(DateTime day, int? steps, {bool fromShortcut = false}) {
+    final d = startOfDay(day);
+    if (steps == null || steps < 0) {
+      loggedSteps.remove(d);
+    } else {
+      final current = loggedSteps[d];
+      if (fromShortcut && current != null && steps < current && sameDay(d, DateTime.now())) return;
+      loggedSteps[d] = steps;
+      if (fromShortcut) stepsFromShortcutAt = DateTime.now();
+    }
+    _changed();
+  }
+
+  /// Handles fittrack://steps?count=8432 (and an optional &date=2026-11-22) from Shortcuts.
+  /// Returns true when the link was understood.
+  bool handleLink(Uri uri) {
+    if (uri.scheme != 'fittrack') return false;
+    final what = uri.host.isNotEmpty ? uri.host : (uri.pathSegments.isEmpty ? '' : uri.pathSegments.first);
+    if (what != 'steps') return false;
+    final count = parseLenientNumber(uri.queryParameters['count']);
+    if (count == null || count < 0 || count > 200000) return false;
+    final date = DateTime.tryParse(uri.queryParameters['date'] ?? '');
+    setLoggedSteps(date ?? DateTime.now(), count.round(), fromShortcut: true);
+    return true;
+  }
+
   void setStepGoal(int steps) {
     if (steps <= 0) return;
     stepGoal = steps;
@@ -728,6 +764,8 @@ class AppState extends ChangeNotifier {
     'water': water.map((e) => e.toJson()).toList(),
     'sleep': sleep.map((e) => e.toJson()).toList(),
     'gym': gym.map((e) => e.toJson()).toList(),
+    'steps': {for (final e in loggedSteps.entries) '${e.key.millisecondsSinceEpoch}': e.value},
+    if (stepsFromShortcutAt != null) 'stepsAt': stepsFromShortcutAt!.millisecondsSinceEpoch,
     'bodyFat': bodyFat.map((e) => e.toJson()).toList(),
     'aiUsage': aiUsage.map((e) => e.toJson()).toList(),
     'settings': {
@@ -752,6 +790,17 @@ class AppState extends ChangeNotifier {
   void _fromJson(Map<String, dynamic> j) {
     List<Map<String, dynamic>> list(String k) =>
         (j[k] is List ? j[k] as List : const []).whereType<Map>().map((m) => m.cast<String, dynamic>()).toList();
+    loggedSteps.clear();
+    if (j['steps'] is Map) {
+      for (final e in (j['steps'] as Map).entries) {
+        final ms = int.tryParse('${e.key}');
+        if (ms != null && e.value is num) {
+          loggedSteps[DateTime.fromMillisecondsSinceEpoch(ms)] = (e.value as num).toInt();
+        }
+      }
+    }
+    final stepsAt = j['stepsAt'] as num?;
+    stepsFromShortcutAt = stepsAt == null ? null : DateTime.fromMillisecondsSinceEpoch(stepsAt.toInt());
     profile = j['profile'] is Map ? UserProfile.fromJson((j['profile'] as Map).cast<String, dynamic>()) : null;
     entries
       ..clear()

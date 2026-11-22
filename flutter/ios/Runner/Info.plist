@@ -76,5 +76,18 @@
 	<string>FitTrack saves the meals you log to Apple Health as dietary energy, protein, carbohydrates and fat, and records weight entries you add.</string>
 	<key>ITSAppUsesNonExemptEncryption</key>
 	<false/>
+	<key>CFBundleURLTypes</key>
+	<array>
+		<dict>
+			<key>CFBundleURLName</key>
+			<string>FitTrack</string>
+			<key>CFBundleURLSchemes</key>
+			<array>
+				<string>fittrack</string>
+			</array>
+		</dict>
+	</array>
+	<key>FlutterDeepLinkingEnabled</key>
+	<false/>
 </dict>
 </plist>

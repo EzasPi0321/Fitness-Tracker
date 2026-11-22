@@ -39,7 +39,7 @@ void main() {
     expect(find.textContaining('Connect'), findsWidgets);
   }, variant: TargetPlatformVariant.only(TargetPlatform.android));
 
-  testWidgets('iPhone: Settings has no Health section and no steps target', (tester) async {
+  testWidgets('iPhone: Settings has no Health section; Profile keeps a steps target', (tester) async {
     await pump(tester, sample: true);
     await tester.tap(find.text('Settings').last);
     await tester.pumpAndSettle();
@@ -48,6 +48,16 @@ void main() {
     await tester.tap(find.text('Profile').last);
     await tester.pumpAndSettle();
     await tester.scrollUntilVisible(find.text('Sleep').last, 300, scrollable: find.byType(Scrollable).first);
-    expect(find.text('Steps'), findsNothing);
+    // Steps are back, from the Apple Health shortcut or typed in.
+    expect(find.text('From Apple Health via Shortcuts, or typed in'), findsOneWidget);
+  }, variant: TargetPlatformVariant.only(TargetPlatform.iOS));
+
+  testWidgets('iPhone: Today shows a Steps card that offers the shortcut', (tester) async {
+    final s = await pump(tester, sample: true);
+    await tester.scrollUntilVisible(find.text('Set up the shortcut'), 300, scrollable: find.byType(Scrollable).first);
+    expect(find.text('Set up the shortcut'), findsOneWidget);
+    s.handleLink(Uri.parse('fittrack://steps?count=8432'));
+    await tester.pumpAndSettle();
+    expect(find.textContaining('From Apple Health'), findsOneWidget);
   }, variant: TargetPlatformVariant.only(TargetPlatform.iOS));
 }
