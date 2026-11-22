@@ -1,6 +1,7 @@
 import 'dart:math' as math;
 
 import 'package:flutter/material.dart';
+import 'package:material_symbols_icons/symbols.dart';
 
 import '../data/app_state.dart';
 import '../services/ai_vision.dart' show VisionException;
@@ -8,12 +9,16 @@ import '../design/motion.dart';
 import '../design/tokens.dart';
 import '../models/food.dart';
 import '../models/health_score.dart';
-import '../models/util.dart';
 import 'common.dart';
 
 extension FoodEntryScore on FoodEntry {
-  HealthScore? get healthScore => HealthScore.of(nutrients, grams: grams, detailChecked: detailChecked);
+  HealthScore? get healthScore =>
+      HealthScore.of(nutrients, grams: grams, detailChecked: detailChecked, fruitVeg: fruitVeg, kind: kind, name: name);
 }
+
+/// A meal or a day, weighted by calories.
+int? averageScore(Iterable<FoodEntry> entries) =>
+    HealthScore.average([for (final e in entries) (e.healthScore, e.nutrients.calories)]);
 
 /// Status colours only: green for good and up, amber for fair, red for poor. The number and
 /// the word always travel with the colour, so it never carries the meaning alone.
@@ -156,11 +161,12 @@ Future<void> showScoreSheet(
               ],
             ),
             const SizedBox(height: S.xl),
-            for (final (i, part) in score.parts.indexed) ...[if (i > 0) const SizedBox(height: S.lg), _PartRow(part)],
+            // The two or three things that moved the score most, nothing more.
+            for (final (i, f) in score.factors.indexed) ...[if (i > 0) const SizedBox(height: S.sm), _FactorRow(f)],
             const SizedBox(height: S.xl),
             Text(
-              'How much protein and fibre you get for the calories, how light the food is per gram, and how '
-              'much of its energy comes from sugar and fat. Parts without data are left out, not counted as zero.',
+              'Based on FSANZ’s nutrient profiling (the Australian health-claims standard), per 100 g, '
+              'and weighted for your goal.',
               style: tt.bodySmall,
             ),
             if (entry != null && entry.missingDetail) ...[
@@ -174,68 +180,21 @@ Future<void> showScoreSheet(
   );
 }
 
-class _PartRow extends StatelessWidget {
-  const _PartRow(this.part);
-  final ScorePart part;
+class _FactorRow extends StatelessWidget {
+  const _FactorRow(this.factor);
+  final ScoreFactor factor;
 
   @override
   Widget build(BuildContext context) {
     final t = FT.of(context);
     final tt = Theme.of(context).textTheme;
-    final frac = part.counted ? part.points / part.max : 0.0;
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
+    // Status colours with an icon, so the meaning never rests on colour alone.
+    final color = factor.good ? t.good : t.over;
+    return Row(
       children: [
-        Row(
-          children: [
-            Expanded(
-              child: Text(part.label, style: tt.bodyMedium!.copyWith(color: part.counted ? t.fg : t.muted)),
-            ),
-            if (part.counted)
-              Text.rich(
-                TextSpan(
-                  children: [
-                    TextSpan(
-                      text: whole(part.points),
-                      style: tt.titleSmall!.copyWith(fontFeatures: tabular),
-                    ),
-                    TextSpan(
-                      text: ' / ${whole(part.max)}',
-                      style: tt.bodySmall!.copyWith(fontFeatures: tabular),
-                    ),
-                  ],
-                ),
-              ),
-          ],
-        ),
-        const SizedBox(height: 6),
-        if (part.counted)
-          LayoutBuilder(
-            builder: (context, c) => Stack(
-              children: [
-                Container(
-                  height: 6,
-                  decoration: BoxDecoration(color: t.inset, borderRadius: BorderRadius.circular(3)),
-                ),
-                TweenAnimationBuilder<double>(
-                  tween: Tween(begin: 0, end: frac.clamp(0.0, 1.0)),
-                  duration: Motion.of(context, Motion.slow),
-                  curve: Motion.settle,
-                  builder: (context, f, _) => Container(
-                    width: c.maxWidth * f,
-                    height: 6,
-                    decoration: BoxDecoration(
-                      // Neutral: the colour lives on the score itself, not on every bar.
-                      color: t.fg.withValues(alpha: t.dark ? 0.86 : 0.78),
-                      borderRadius: BorderRadius.circular(3),
-                    ),
-                  ),
-                ),
-              ],
-            ),
-          ),
-        const SizedBox(height: 4),
-        Text(part.detail, style: tt.bodySmall!.copyWith(fontFeatures: tabular)),
+        FIcon(factor.good ? Symbols.check : Symbols.remove, size: 18, color: color, weight: FontWeight.w700),
+        const SizedBox(width: S.sm),
+        Text(factor.label, style: tt.bodyLarge),
       ],
     );
   }
@@ -286,7 +245,11 @@ class _FillDetailButtonState extends State<_FillDetailButton> {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
-        Text('This food was saved without its weight, fibre or sugar, so the score is partial.', style: tt.bodySmall),
+        Text(
+          'This food was saved without some details (weight, fibre, sugar, saturated fat or sodium), so the '
+          'score is partly estimated.',
+          style: tt.bodySmall,
+        ),
         const SizedBox(height: S.sm),
         OutlinedButton(
           onPressed: _busy ? null : _fill,

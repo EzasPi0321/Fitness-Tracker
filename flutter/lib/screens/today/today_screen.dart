@@ -130,7 +130,7 @@ class _TodayScreenState extends State<TodayScreen> {
       showActive: state.healthEnabled && state.health.isSupported,
       includeActive: state.healthEnabled && state.addActiveEnergy,
       pulse: state.logPulse,
-      foodScore: HealthScore.average([for (final e in entries) (e.nutrients, e.grams)]),
+      foodScore: averageScore(entries),
     );
 
     final meals = Column(

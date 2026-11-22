@@ -21,6 +21,16 @@ enum MealType {
   static MealType parse(String? s) => values.firstWhere((m) => m.name == s, orElse: () => snack);
 }
 
+/// How FSANZ's nutrient profiling groups a food: drinks are judged per typical serve, and
+/// cheeses, oils and spreads on their own, looser scale.
+enum FoodKind {
+  food,
+  drink,
+  fatty;
+
+  static FoodKind? parse(String? s) => s == null ? null : values.where((k) => k.name == s).firstOrNull;
+}
+
 enum EntrySource {
   barcode,
   photoAI,
@@ -77,6 +87,8 @@ class FoodEntry {
     this.healthSynced = false,
     this.trust,
     this.detailChecked = false,
+    this.fruitVeg,
+    this.kind,
   }) : nutrients = nutrients.sanitized;
 
   final String id;
@@ -93,13 +105,24 @@ class FoodEntry {
   bool healthSynced;
   NutritionTrust? trust;
 
-  /// The AI has already filled in (or confirmed) the weight, fibre and sugar, so don't ask again.
+  /// The AI has already filled in (or confirmed) the missing detail, so don't ask again.
   bool detailChecked;
 
-  /// Weight, fibre or sugar wasn't recorded (many database foods and quick entries only have
-  /// calories and macros), so the health score can't be complete.
-  bool get missingDetail =>
-      !detailChecked && (grams == null || ((nutrients.fiber == 0 || nutrients.sugar == 0) && nutrients.carbs >= 5));
+  /// Share of fruit, vegetables, nuts and legumes (0-100), and the food's kind, for the
+  /// health score. Null when not known.
+  double? fruitVeg;
+  FoodKind? kind;
+
+  /// Weight, fibre, sugar, saturated fat or sodium wasn't recorded (many database foods and
+  /// quick entries only have calories and macros), so the health score can't be complete.
+  bool get missingDetail {
+    if (detailChecked) return false;
+    final n = nutrients;
+    return grams == null ||
+        ((n.fiber == 0 || n.sugar == 0) && n.carbs >= 5) ||
+        (n.satFat == 0 && n.fat >= 3) ||
+        (n.sodium == 0 && n.calories >= 50);
+  }
 
   String get portionDescription {
     final amount = formatAmount(quantity);
@@ -132,6 +155,8 @@ class FoodEntry {
     'hs': healthSynced,
     if (trust != null) 'trust': trust!.toJson(),
     if (detailChecked) 'dc': true,
+    if (fruitVeg != null) 'fv': fruitVeg,
+    if (kind != null) 'kind': kind!.name,
   };
 
   factory FoodEntry.fromJson(Map<String, dynamic> j) => FoodEntry(
@@ -149,6 +174,8 @@ class FoodEntry {
     healthSynced: (j['hs'] as bool?) ?? false,
     trust: NutritionTrust.fromJson(j['trust']),
     detailChecked: (j['dc'] as bool?) ?? false,
+    fruitVeg: (j['fv'] as num?)?.toDouble(),
+    kind: FoodKind.parse(j['kind'] as String?),
   );
 }
 

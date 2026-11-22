@@ -23,37 +23,27 @@ void main() {
     detailChecked: checked,
   );
 
-  test('missing fibre and sugar counts as half, not zero', () {
-    final s = HealthScore.of(bareBanana, goal: WeightGoal.maintain)!;
-    final fibre = s.parts.firstWhere((p) => p.label == 'Fibre');
-    expect(fibre.detail, contains('Not listed'));
-    expect(fibre.points, fibre.max / 2);
-    expect(s.score, inInclusiveRange(38, 50)); // was 27 with fibre counted as 0 / 25
+  test('missing detail gives a partial score, not a poor one', () {
+    final s = HealthScore.of(bareBanana, goal: WeightGoal.maintain, name: 'Banana')!;
+    expect(s.partial, isTrue);
+    expect(s.score, greaterThan(60)); // was 27 when missing fibre counted as zero
   });
 
-  test('a soft drink with sugar listed still has its real 0 fibre counted', () {
-    final s = HealthScore.of(cola, grams: 330, goal: WeightGoal.maintain)!;
-    expect(s.parts.firstWhere((p) => p.label == 'Fibre').counted, isTrue);
-    expect(s.score, lessThan(35));
-  });
-
-  test('once checked, a 0 is a real 0', () {
-    const riceCake = Nutrients(calories: 35, protein: 0.7, carbs: 7.5, fat: 0.3);
-    final unknown = HealthScore.of(riceCake, grams: 9)!;
-    final checked = HealthScore.of(riceCake, grams: 9, detailChecked: true)!;
-    expect(unknown.parts.firstWhere((p) => p.label == 'Fibre').detail, contains('Not listed'));
-    expect(checked.parts.firstWhere((p) => p.label == 'Fibre').points, 0); // confirmed: really none
+  test('a soft drink is low even with every detail known', () {
+    final s = HealthScore.of(cola, grams: 330, detailChecked: true, name: 'Cola')!;
+    expect(s.partial, isFalse);
+    expect(s.score, lessThanOrEqualTo(20));
   });
 
   test('filled in, the banana scores like a banana', () {
-    const filled = Nutrients(calories: 105, protein: 1.3, carbs: 27, fat: 0.4, fiber: 3.1, sugar: 14);
-    final s = HealthScore.of(filled, grams: 118, goal: WeightGoal.maintain, detailChecked: true)!;
-    expect(s.score, inInclusiveRange(60, 80));
+    const filled = Nutrients(calories: 105, protein: 1.3, carbs: 27, fat: 0.4, fiber: 3.1, sugar: 14, sodium: 1);
+    final s = HealthScore.of(filled, grams: 118, detailChecked: true, fruitVeg: 100, name: 'Banana')!;
+    expect(s.score, greaterThan(80));
   });
 
   test('which entries need filling in', () {
     expect(entry(bareBanana).missingDetail, isTrue); // no weight, no fibre or sugar
-    expect(entry(cola, grams: 330).missingDetail, isTrue); // fibre never recorded: ask once
+    expect(entry(cola, grams: 330).missingDetail, isTrue); // fibre and sodium never recorded: ask once
     expect(entry(cola, grams: 330, checked: true).missingDetail, isFalse); // asked already
     expect(entry(const Nutrients(calories: 0, carbs: 0), grams: 600).missingDetail, isFalse); // water
   });

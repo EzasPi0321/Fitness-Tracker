@@ -33,7 +33,7 @@ Future<void> logAndCelebrate(BuildContext context, List<FoodEntry> entries) asyn
   final kcal = entries.fold<double>(0, (a, e) => a + e.nutrients.calories);
   final what = entries.length == 1 ? entries.first.name : '${entries.length} items';
   // The score lands with the confirmation: one food's own, or the plate's weighted by calories.
-  final score = HealthScore.average([for (final e in entries) (e.nutrients, e.grams)]);
+  final score = averageScore(entries);
   messenger.hideCurrentSnackBar();
   messenger.showSnackBar(
     SnackBar(

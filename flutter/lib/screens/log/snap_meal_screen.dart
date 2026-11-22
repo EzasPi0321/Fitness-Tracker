@@ -241,6 +241,7 @@ class _SnapMealScreenState extends State<SnapMealScreen> {
             unit: 'g',
             grams: item.grams,
             nutrients: item.nutrients,
+            fruitVeg: item.fruitVeg,
           ),
     ];
     final nav = Navigator.of(context);
@@ -539,7 +540,9 @@ class DetectedCard extends StatelessWidget {
                             ..carbs *= f
                             ..fat *= f
                             ..fiber *= f
-                            ..sugar *= f;
+                            ..sugar *= f
+                            ..satFat *= f
+                            ..sodium *= f;
                           onChanged();
                         },
                       ),

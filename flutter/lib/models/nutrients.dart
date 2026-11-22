@@ -1,6 +1,15 @@
 /// Energy and macronutrients for an arbitrary amount of food.
 class Nutrients {
-  const Nutrients({this.calories = 0, this.protein = 0, this.carbs = 0, this.fat = 0, this.fiber = 0, this.sugar = 0});
+  const Nutrients({
+    this.calories = 0,
+    this.protein = 0,
+    this.carbs = 0,
+    this.fat = 0,
+    this.fiber = 0,
+    this.sugar = 0,
+    this.satFat = 0,
+    this.sodium = 0,
+  });
 
   final double calories;
   final double protein;
@@ -13,6 +22,11 @@ class Nutrients {
   final double fiber;
   final double sugar;
 
+  /// Saturated fat in grams and sodium in milligrams, for the health score (FSANZ nutrient
+  /// profiling). 0 can mean "not known" too; the AI fill-in supplies them when missing.
+  final double satFat;
+  final double sodium;
+
   static const zero = Nutrients();
 
   Nutrients operator +(Nutrients o) => Nutrients(
@@ -22,6 +36,8 @@ class Nutrients {
     fat: fat + o.fat,
     fiber: fiber + o.fiber,
     sugar: sugar + o.sugar,
+    satFat: satFat + o.satFat,
+    sodium: sodium + o.sodium,
   );
 
   Nutrients operator *(double factor) => Nutrients(
@@ -31,6 +47,8 @@ class Nutrients {
     fat: fat * factor,
     fiber: fiber * factor,
     sugar: sugar * factor,
+    satFat: satFat * factor,
+    sodium: sodium * factor,
   );
 
   /// Replaces negative or non-finite values (common in crowd-sourced / AI data) with zero.
@@ -43,17 +61,21 @@ class Nutrients {
       fat: clean(fat),
       fiber: clean(fiber),
       sugar: clean(sugar),
+      satFat: clean(satFat),
+      sodium: clean(sodium),
     );
   }
 
   /// The same food with fibre and sugar filled in (from a source that knows them).
-  Nutrients withExtras({double? fiber, double? sugar}) => Nutrients(
+  Nutrients withExtras({double? fiber, double? sugar, double? satFat, double? sodium}) => Nutrients(
     calories: calories,
     protein: protein,
     carbs: carbs,
     fat: fat,
     fiber: fiber ?? this.fiber,
     sugar: sugar ?? this.sugar,
+    satFat: satFat ?? this.satFat,
+    sodium: sodium ?? this.sodium,
   );
 
   double of(Macro macro) => switch (macro) {
@@ -71,6 +93,8 @@ class Nutrients {
     'f': fat,
     if (fiber > 0) 'fi': fiber,
     if (sugar > 0) 'su': sugar,
+    if (satFat > 0) 'sf': satFat,
+    if (sodium > 0) 'na': sodium,
   };
 
   factory Nutrients.fromJson(Map<String, dynamic> j) => Nutrients(
@@ -80,6 +104,8 @@ class Nutrients {
     fat: _d(j['f']),
     fiber: _d(j['fi']),
     sugar: _d(j['su']),
+    satFat: _d(j['sf']),
+    sodium: _d(j['na']),
   );
 
   @override
@@ -90,10 +116,12 @@ class Nutrients {
       other.carbs == carbs &&
       other.fat == fat &&
       other.fiber == fiber &&
-      other.sugar == sugar;
+      other.sugar == sugar &&
+      other.satFat == satFat &&
+      other.sodium == sodium;
 
   @override
-  int get hashCode => Object.hash(calories, protein, carbs, fat, fiber, sugar);
+  int get hashCode => Object.hash(calories, protein, carbs, fat, fiber, sugar, satFat, sodium);
 
   @override
   String toString() => 'Nutrients($calories kcal, P$protein C$carbs F$fat fibre$fiber sugar$sugar)';

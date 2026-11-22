@@ -67,26 +67,27 @@ class SampleData {
         ('Cottage Cheese', 'Good Culture', 140, 19, 6, 4, EntrySource.barcode),
       ],
     };
-    // Typical fibre (g), sugars (g) and weight (g) per serving, so the preview shows a real
-    // spread of health scores.
-    const extras = <String, (double, double, double)>{
-      'Greek Yogurt': (0, 6, 170),
-      'Oatmeal with Berries': (8, 12, 350),
-      'Scrambled Eggs': (0, 1, 120),
-      'Banana': (3.1, 14, 118),
-      'Whole-Grain Toast': (5, 5, 56),
-      'Chicken Salad': (5, 6, 350),
-      'Turkey Wrap': (4, 5, 250),
-      'Salmon Rice Bowl': (4, 6, 450),
-      'Lentil Soup': (11, 6, 400),
-      'Spaghetti Bolognese': (7, 12, 450),
-      'Steak & Potatoes': (5, 3, 450),
-      'Chicken Stir-Fry': (6, 10, 420),
-      'Veggie Burrito': (13, 6, 380),
-      'Protein Bar': (14, 1, 60),
-      'Apple': (4.4, 19, 182),
-      'Almonds': (3.5, 1.2, 28),
-      'Cottage Cheese': (0, 4, 150),
+    // Per serving: fibre (g), sugars (g), weight (g), saturated fat (g), sodium (mg) and the
+    // share of fruit, vegetables, nuts and legumes (%), from typical composition data, so the
+    // preview shows a real spread of health scores.
+    const extras = <String, (double, double, double, double, double, double)>{
+      'Greek Yogurt': (0, 6, 170, 3.5, 65, 0),
+      'Oatmeal with Berries': (8, 12, 350, 1.2, 10, 30),
+      'Scrambled Eggs': (0, 1, 120, 4.5, 340, 0),
+      'Banana': (3.1, 14, 118, 0.1, 1, 100),
+      'Whole-Grain Toast': (5, 5, 56, 0.3, 230, 0),
+      'Chicken Salad': (5, 6, 350, 5, 650, 45),
+      'Turkey Wrap': (4, 5, 250, 4, 1000, 20),
+      'Salmon Rice Bowl': (4, 6, 450, 3.5, 800, 25),
+      'Lentil Soup': (11, 6, 400, 1, 1100, 60),
+      'Spaghetti Bolognese': (7, 12, 450, 7, 900, 30),
+      'Steak & Potatoes': (5, 3, 450, 13, 700, 40),
+      'Chicken Stir-Fry': (6, 10, 420, 3, 1200, 45),
+      'Veggie Burrito': (13, 6, 380, 6, 1100, 50),
+      'Protein Bar': (14, 1, 60, 2.5, 220, 0),
+      'Apple': (4.4, 19, 182, 0, 2, 100),
+      'Almonds': (3.5, 1.2, 28, 1.1, 0.3, 100),
+      'Cottage Cheese': (0, 4, 150, 2.5, 600, 0),
     };
     const hours = {MealType.breakfast: 8.0, MealType.lunch: 12.5, MealType.dinner: 19.0, MealType.snack: 15.5};
 
@@ -115,8 +116,13 @@ class SampleData {
               fat: f.$6,
               fiber: extras[f.$1]?.$1 ?? 0,
               sugar: extras[f.$1]?.$2 ?? 0,
+              satFat: extras[f.$1]?.$4 ?? 0,
+              sodium: extras[f.$1]?.$5 ?? 0,
             ) *
             qty,
+        fruitVeg: extras[f.$1]?.$6,
+        // Complete examples: nothing for the AI to fill in.
+        detailChecked: extras.containsKey(f.$1),
       );
     }
 
@@ -168,7 +174,7 @@ class SampleData {
         name: 'Almonds',
         servingDescription: 'handful (28 g)',
         servingGrams: 28,
-        perServing: const Nutrients(calories: 164, protein: 6, carbs: 6, fat: 14),
+        perServing: const Nutrients(calories: 164, protein: 6, carbs: 6, fat: 14, fiber: 3.5, sugar: 1.2, satFat: 1.1),
         useCount: 12,
       ),
       CustomFood(
@@ -176,7 +182,16 @@ class SampleData {
         name: 'Overnight Oats',
         servingDescription: 'jar',
         servingGrams: 250,
-        perServing: const Nutrients(calories: 380, protein: 18, carbs: 52, fat: 10),
+        perServing: const Nutrients(
+          calories: 380,
+          protein: 18,
+          carbs: 52,
+          fat: 10,
+          fiber: 8,
+          sugar: 14,
+          satFat: 2.5,
+          sodium: 120,
+        ),
         useCount: 5,
       ),
     ];
