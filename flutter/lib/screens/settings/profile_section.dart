@@ -283,16 +283,20 @@ String goalLine(UserProfile p, double calories, double tdee) {
         : 'Gain: TDEE + 300 kcal, a lean surplus. Add a target weight and date to set the pace.';
   }
   final verb = pace.kgToGo < 0 ? 'Lose' : 'Gain';
+  final next = p.planUpdatedAt == null
+      ? ''
+      : ' Re-planned each week from your trend weight, next on '
+            '${DateFormat('EEE d MMM').format(p.planUpdatedAt!.add(const Duration(days: 7)))}.';
   final weeks = pace.weeks.round();
   final perWeek = kg(pace.kgPerWeek.abs());
   final adj = kcal(calories - tdee);
   if (pace.limited) {
     return '$verb ${kg(pace.kgToGo.abs())} in $weeks week${weeks == 1 ? '' : 's'} is faster than the safe '
-        '${kg(pace.safeKgPerWeek)} a week. Planned at that pace instead: TDEE $adj, reaching it around '
+        '${kg(pace.safeKgPerWeek)} a week. Planned at that pace instead: TDEE\u00A0$adj, reaching it around '
         '${DateFormat('d MMM').format(pace.reachBy)}.$floor';
   }
   return '$verb ${kg(pace.kgToGo.abs())} in $weeks week${weeks == 1 ? '' : 's'}: about $perWeek a week, '
-      'so TDEE $adj.$floor Updates each time you weigh in.';
+      'so TDEE\u00A0$adj.$floor$next';
 }
 
 /// Target weight and the date to reach it, for a cut or gain.

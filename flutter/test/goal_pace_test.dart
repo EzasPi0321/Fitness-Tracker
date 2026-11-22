@@ -82,7 +82,7 @@ void main() {
     expect(back.targetDate, DateTime(2027, 3, 1));
   });
 
-  test('a weigh-in re-plans the pace, unless targets were set by hand', () async {
+  test('the pace is re-planned weekly from the trend weight, not on every weigh-in', () async {
     final s = AppState(store: MemoryStore(), health: UnsupportedHealthService());
     final p = UserProfile(
       sex: BiologicalSex.male,
@@ -92,14 +92,39 @@ void main() {
       targetWeightKg: 75,
       targetDate: DateTime.now().add(const Duration(days: 70)),
     );
-    p.targets = p.plan.targets;
     s.completeOnboarding(p);
-    final before = s.profile!.targets.calories;
-    await s.addWeight(79, DateTime.now());
-    expect(s.profile!.targets.calories, isNot(before)); // 4 kg to go now, and a lower TDEE
+    s.updateProfileAndPlan((_) {}); // plans from 80 kg today
+    final planned = s.profile!.targets.calories;
 
-    s.updateProfile((p) => p.targets = const Nutrients(calories: 2500, protein: 150, carbs: 280, fat: 80));
-    await s.addWeight(78.5, DateTime.now().add(const Duration(minutes: 1)));
+    // A water-weight drop the next day changes nothing.
+    await s.addWeight(78, DateTime.now().add(const Duration(minutes: 1)));
+    expect(s.profile!.targets.calories, planned);
+    expect(s.profile!.planWeightKg, 80);
+
+    // A week on, the next weigh-in re-plans from the trend: it has only moved part of the way
+    // to the 78 kg readings, so one low day counts for little.
+    s.profile!.planUpdatedAt = DateTime.now().subtract(const Duration(days: 8));
+    await s.addWeight(78, DateTime.now().add(const Duration(minutes: 2)));
+    expect(s.profile!.planWeightKg, greaterThan(78));
+    expect(s.profile!.planWeightKg, lessThan(80));
+    expect(s.profile!.planUpdatedAt!.isAfter(DateTime.now().subtract(const Duration(minutes: 1))), isTrue);
+
+    // Targets typed in by hand are never re-planned.
+    s.updateProfile(
+      (p) => p
+        ..targets = const Nutrients(calories: 2500, protein: 150, carbs: 280, fat: 80)
+        ..customTargets = true
+        ..planUpdatedAt = DateTime.now().subtract(const Duration(days: 8)),
+    );
+    await s.addWeight(77.5, DateTime.now().add(const Duration(minutes: 3)));
     expect(s.profile!.targets.calories, 2500);
+  });
+
+  test('plan state is saved', () {
+    final p = UserProfile(planWeightKg: 79.4, planUpdatedAt: DateTime(2026, 11, 22), customTargets: true);
+    final back = UserProfile.fromJson(p.toJson());
+    expect(back.planWeightKg, 79.4);
+    expect(back.planUpdatedAt, DateTime(2026, 11, 22));
+    expect(back.customTargets, isTrue);
   });
 }

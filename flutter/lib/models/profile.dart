@@ -205,6 +205,9 @@ class UserProfile {
     this.targets = const Nutrients(calories: 2000, protein: 140, carbs: 220, fat: 65),
     this.targetWeightKg,
     this.targetDate,
+    this.planWeightKg,
+    this.planUpdatedAt,
+    this.customTargets = false,
   }) : birthDate = birthDate ?? DateTime(DateTime.now().year - 30, 1, 1);
 
   /// What to call the user. Optional; empty means no name.
@@ -223,13 +226,24 @@ class UserProfile {
   double? targetWeightKg;
   DateTime? targetDate;
 
-  GoalPace? get pace => GoalPace.of(goal: goal, weightKg: weightKg, targetKg: targetWeightKg, targetDate: targetDate);
+  /// The trend weight the pace was last planned from, and when. The pace is re-planned once a
+  /// week from the trend, so a day of water weight never moves the target.
+  double? planWeightKg;
+  DateTime? planUpdatedAt;
+
+  /// The daily targets were typed in by hand; the weekly re-plan leaves them alone.
+  bool customTargets;
+
+  double get _paceWeight => planWeightKg ?? weightKg;
+
+  GoalPace? get pace =>
+      GoalPace.of(goal: goal, weightKg: _paceWeight, targetKg: targetWeightKg, targetDate: targetDate);
 
   /// On a cut or gain with the target already reached.
   bool get targetReached {
     final t = targetWeightKg;
     if (t == null || goal == WeightGoal.maintain) return false;
-    return goal == WeightGoal.lose ? weightKg <= t + 0.05 : weightKg >= t - 0.05;
+    return goal == WeightGoal.lose ? _paceWeight <= t + 0.05 : _paceWeight >= t - 0.05;
   }
 
   /// First word of the name, for the line above Today ("Daniel · Sat 21 Nov").
@@ -277,6 +291,9 @@ class UserProfile {
     targets: targets,
     targetWeightKg: targetWeightKg,
     targetDate: targetDate,
+    planWeightKg: planWeightKg,
+    planUpdatedAt: planUpdatedAt,
+    customTargets: customTargets,
   );
 
   Map<String, dynamic> toJson() => {
@@ -292,6 +309,9 @@ class UserProfile {
     'targets': targets.toJson(),
     if (targetWeightKg != null) 'targetKg': targetWeightKg,
     if (targetDate != null) 'targetDate': targetDate!.millisecondsSinceEpoch,
+    if (planWeightKg != null) 'planKg': planWeightKg,
+    if (planUpdatedAt != null) 'planAt': planUpdatedAt!.millisecondsSinceEpoch,
+    if (customTargets) 'customTargets': true,
   };
 
   factory UserProfile.fromJson(Map<String, dynamic> j) => UserProfile(
@@ -309,5 +329,8 @@ class UserProfile {
         : const Nutrients(calories: 2000, protein: 140, carbs: 220, fat: 65),
     targetWeightKg: (j['targetKg'] as num?)?.toDouble(),
     targetDate: j['targetDate'] is num ? DateTime.fromMillisecondsSinceEpoch((j['targetDate'] as num).toInt()) : null,
+    planWeightKg: (j['planKg'] as num?)?.toDouble(),
+    planUpdatedAt: j['planAt'] is num ? DateTime.fromMillisecondsSinceEpoch((j['planAt'] as num).toInt()) : null,
+    customTargets: (j['customTargets'] as bool?) ?? false,
   );
 }

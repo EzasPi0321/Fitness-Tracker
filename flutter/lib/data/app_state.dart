@@ -13,6 +13,7 @@ import '../models/nutrients.dart';
 import '../models/gym.dart';
 import '../models/health_score.dart';
 import '../models/profile.dart';
+import '../models/weight_trend.dart';
 import '../models/sleep.dart';
 import '../models/util.dart';
 import '../services/ai_vision.dart';
@@ -152,6 +153,7 @@ class AppState extends ChangeNotifier {
     if (profile == null && seedSampleIfEmpty) loadSampleData(save: false);
     if (isSample && sampleSteps.isEmpty) sampleSteps.addAll(SampleData.generate().steps);
     loaded = true;
+    _weeklyReplan();
     unawaited(checkForUpdates());
     notifyListeners();
   }
@@ -224,8 +226,33 @@ class AppState extends ChangeNotifier {
     final p = profile;
     if (p == null) return;
     change(p);
-    if (p.isBodyValid) p.targets = p.plan.targets;
+    _plan(p);
     _changed();
+  }
+
+  /// Sets the targets from the profile, planning the pace from today's trend weight.
+  void _plan(UserProfile p) {
+    p.planWeightKg = trendWeight;
+    p.planUpdatedAt = DateTime.now();
+    p.customTargets = false;
+    if (p.isBodyValid) p.targets = p.plan.targets;
+  }
+
+  /// The smoothed weight (see [weightTrend]), so one day of water weight barely moves it.
+  double? get trendWeight {
+    if (weights.isEmpty) return profile?.weightKg;
+    return weightTrend([for (final w in weights) (w.date, w.kilograms)]).last.$2;
+  }
+
+  /// A cut or gain with a target date re-plans its pace once a week, from the trend weight.
+  /// Targets typed in by hand are left alone.
+  void _weeklyReplan() {
+    final p = profile;
+    if (p == null || isSample || p.customTargets || p.targetWeightKg == null) return;
+    if (p.goal == WeightGoal.maintain || !p.isBodyValid) return;
+    final last = p.planUpdatedAt;
+    if (last != null && DateTime.now().difference(last) < const Duration(days: 7)) return;
+    _plan(p);
   }
 
   void updateProfile(void Function(UserProfile p) change) {
@@ -660,14 +687,8 @@ class AppState extends ChangeNotifier {
   Future<void> addWeight(double kilograms, DateTime date, {String? id}) async {
     final latest = weights.isEmpty ? null : weightsByDate.last.date;
     weights.add(WeightEntry(id: id ?? newId(), date: date, kilograms: kilograms));
-    final p = profile;
-    if (p != null && (latest == null || !date.isBefore(latest))) {
-      // With a target and date, each weigh-in re-plans the pace from where you are now, unless
-      // the targets were set by hand.
-      final followsPlan = p.isBodyValid && p.targets == p.plan.targets;
-      p.weightKg = kilograms;
-      if (followsPlan && p.targetWeightKg != null && p.isBodyValid) p.targets = p.plan.targets;
-    }
+    if (latest == null || !date.isBefore(latest)) profile?.weightKg = kilograms;
+    _weeklyReplan();
     _changed();
     if (_syncHealth) await health.saveWeight(kilograms, date);
   }

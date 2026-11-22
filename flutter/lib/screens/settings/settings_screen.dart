@@ -123,7 +123,11 @@ class TargetsSection extends StatelessWidget {
 
     void set(Nutrients Function(Nutrients n, double v) f, double? v) {
       if (v == null || v < 0) return;
-      state.updateProfile((p) => p.targets = f(p.targets, v.roundToDouble()));
+      state.updateProfile(
+        (p) => p
+          ..targets = f(p.targets, v.roundToDouble())
+          ..customTargets = true,
+      );
     }
 
     // Every target gets a dot in the colour it's drawn with in the charts (neutral for steps
