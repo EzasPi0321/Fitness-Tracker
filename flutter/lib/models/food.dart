@@ -25,7 +25,8 @@ enum EntrySource {
   barcode,
   photoAI,
   manual,
-  customFood;
+  customFood,
+  voice;
 
   static EntrySource parse(String? s) => values.firstWhere((m) => m.name == s, orElse: () => manual);
 }
@@ -75,6 +76,7 @@ class FoodEntry {
     required Nutrients nutrients,
     this.healthSynced = false,
     this.trust,
+    this.detailChecked = false,
   }) : nutrients = nutrients.sanitized;
 
   final String id;
@@ -90,6 +92,14 @@ class FoodEntry {
   Nutrients nutrients;
   bool healthSynced;
   NutritionTrust? trust;
+
+  /// The AI has already filled in (or confirmed) the weight, fibre and sugar, so don't ask again.
+  bool detailChecked;
+
+  /// Weight, fibre or sugar wasn't recorded (many database foods and quick entries only have
+  /// calories and macros), so the health score can't be complete.
+  bool get missingDetail =>
+      !detailChecked && (grams == null || ((nutrients.fiber == 0 || nutrients.sugar == 0) && nutrients.carbs >= 5));
 
   String get portionDescription {
     final amount = formatAmount(quantity);
@@ -121,6 +131,7 @@ class FoodEntry {
     'n': nutrients.toJson(),
     'hs': healthSynced,
     if (trust != null) 'trust': trust!.toJson(),
+    if (detailChecked) 'dc': true,
   };
 
   factory FoodEntry.fromJson(Map<String, dynamic> j) => FoodEntry(
@@ -137,6 +148,7 @@ class FoodEntry {
     nutrients: Nutrients.fromJson((j['n'] as Map).cast<String, dynamic>()),
     healthSynced: (j['hs'] as bool?) ?? false,
     trust: NutritionTrust.fromJson(j['trust']),
+    detailChecked: (j['dc'] as bool?) ?? false,
   );
 }
 

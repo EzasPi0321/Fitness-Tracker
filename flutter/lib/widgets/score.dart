@@ -2,6 +2,8 @@ import 'dart:math' as math;
 
 import 'package:flutter/material.dart';
 
+import '../data/app_state.dart';
+import '../services/ai_vision.dart' show VisionException;
 import '../design/motion.dart';
 import '../design/tokens.dart';
 import '../models/food.dart';
@@ -10,7 +12,7 @@ import '../models/util.dart';
 import 'common.dart';
 
 extension FoodEntryScore on FoodEntry {
-  HealthScore? get healthScore => HealthScore.of(nutrients, grams: grams);
+  HealthScore? get healthScore => HealthScore.of(nutrients, grams: grams, detailChecked: detailChecked);
 }
 
 /// Status colours only: green for good and up, amber for fair, red for poor. The number and
@@ -99,7 +101,12 @@ class _ArcPainter extends CustomPainter {
 }
 
 /// Why a food scored what it did: the four parts with their points and the numbers behind them.
-Future<void> showScoreSheet(BuildContext context, {required String name, required HealthScore score}) {
+Future<void> showScoreSheet(
+  BuildContext context, {
+  required String name,
+  required HealthScore score,
+  FoodEntry? entry,
+}) {
   return showModalBottomSheet(
     context: context,
     isScrollControlled: true,
@@ -156,6 +163,10 @@ Future<void> showScoreSheet(BuildContext context, {required String name, require
               'much of its energy comes from sugar and fat. Parts without data are left out, not counted as zero.',
               style: tt.bodySmall,
             ),
+            if (entry != null && entry.missingDetail) ...[
+              const SizedBox(height: S.lg),
+              _FillDetailButton(entry: entry),
+            ],
           ],
         ),
       );
@@ -225,6 +236,68 @@ class _PartRow extends StatelessWidget {
           ),
         const SizedBox(height: 4),
         Text(part.detail, style: tt.bodySmall!.copyWith(fontFeatures: tabular)),
+      ],
+    );
+  }
+}
+
+/// "Fill in missing data": asks the AI for the food's weight, fibre and sugar, then reopens
+/// the sheet with the complete score.
+class _FillDetailButton extends StatefulWidget {
+  const _FillDetailButton({required this.entry});
+  final FoodEntry entry;
+
+  @override
+  State<_FillDetailButton> createState() => _FillDetailButtonState();
+}
+
+class _FillDetailButtonState extends State<_FillDetailButton> {
+  bool _busy = false;
+  String? _error;
+
+  Future<void> _fill() async {
+    setState(() {
+      _busy = true;
+      _error = null;
+    });
+    final state = AppScope.read(context);
+    try {
+      await state.fillMissingDetail(widget.entry);
+      if (!mounted) return;
+      final nav = Navigator.of(context);
+      final host = nav.context;
+      nav.pop();
+      final s = widget.entry.healthScore;
+      if (s != null && host.mounted) await showScoreSheet(host, name: widget.entry.name, score: s, entry: widget.entry);
+    } on VisionException catch (e) {
+      if (mounted) {
+        setState(() {
+          _busy = false;
+          _error = e.message;
+        });
+      }
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final t = FT.of(context);
+    final tt = Theme.of(context).textTheme;
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: [
+        Text('This food was saved without its weight, fibre or sugar, so the score is partial.', style: tt.bodySmall),
+        const SizedBox(height: S.sm),
+        OutlinedButton(
+          onPressed: _busy ? null : _fill,
+          child: _busy
+              ? const SizedBox.square(dimension: 18, child: CircularProgressIndicator(strokeWidth: 2))
+              : const Text('Fill in missing data'),
+        ),
+        if (_error != null) ...[
+          const SizedBox(height: S.sm),
+          Text(_error!, style: tt.bodySmall!.copyWith(color: t.over)),
+        ],
       ],
     );
   }

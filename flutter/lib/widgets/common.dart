@@ -41,6 +41,7 @@ IconData sourceIcon(EntrySource s) => switch (s) {
   EntrySource.photoAI => Symbols.photo_camera,
   EntrySource.manual => Symbols.edit_note,
   EntrySource.customFood => Symbols.star,
+  EntrySource.voice => Symbols.mic,
 };
 
 /// A surface card. Inner elements should use `S.inner(radius, padding)`.

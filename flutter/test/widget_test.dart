@@ -81,7 +81,7 @@ void main() {
     expect(find.text('Phone only'), findsOneWidget);
   }, variant: desktop);
 
-  testWidgets('add menu opens, offers three choices, and manual entry logs food', (tester) async {
+  testWidgets('add menu opens, offers four choices, and manual entry logs food', (tester) async {
     final s = await _state(sample: true);
     await _pump(tester, s, const Size(400, 860));
     final before = s.entries.length;
@@ -91,6 +91,7 @@ void main() {
     expect(find.text('Manual entry'), findsOneWidget);
     expect(find.text('Enter barcode'), findsOneWidget); // desktop/test: no camera
     expect(find.text('Photo estimate'), findsOneWidget);
+    expect(find.text('Voice entry'), findsOneWidget);
 
     // Tapping outside closes it (the scrim covers the page).
     await tester.tapAt(const Offset(40, 300));

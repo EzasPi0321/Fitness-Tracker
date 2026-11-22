@@ -5,6 +5,7 @@ import 'package:flutter/foundation.dart' show kIsWeb;
 import 'package:http/http.dart' as http;
 
 import '../models/ai_usage.dart';
+import '../models/food.dart' show MealType;
 import '../models/body_fat.dart';
 import '../models/nutrients.dart';
 import '../models/util.dart';
@@ -125,6 +126,31 @@ class MealAnalysis {
         : items.fold<double>(0, (a, i) => a + i.confidence * i.calories) / kcal;
     return weighted < 0.75;
   }
+}
+
+/// A food's weight, fibre and sugar, filled in where the record lacked them.
+class FoodDetail {
+  const FoodDetail({this.grams, this.fiber, this.sugar});
+  final double? grams;
+  final double? fiber;
+  final double? sugar;
+}
+
+/// One food from a spoken description, with the meal it was eaten at.
+class SpokenItem {
+  SpokenItem({required this.meal, required this.food});
+  MealType meal;
+  final DetectedFood food;
+}
+
+class SpokenMeals {
+  SpokenMeals({required this.items, this.notes = '', this.answeredBy = ''});
+  final List<SpokenItem> items;
+  final String notes;
+  final String answeredBy;
+
+  /// Smart mode: let the careful model try when nothing was found or any item is shaky.
+  bool get needsCarefulLook => items.isEmpty || items.any((i) => i.food.confidence < 0.6);
 }
 
 /// Values transcribed from a nutrition facts panel, always per serving.
@@ -312,11 +338,200 @@ Respond with JSON only.''';
         'were unless the correction affects them. Return every item in the meal, not only the changed ones.';
   }
 
+  // ---- Spoken meals ----
+
+  static const spokenInstructions = '''
+You are a meticulous registered dietitian. The user describes, in their own words, what they ate,
+usually by voice, so expect speech-to-text slips ("to eggs" for "two eggs"), filler words and
+no punctuation. Turn it into food items with nutrition estimates.
+For each distinct food or drink provide:
+- meal: "breakfast", "lunch", "dinner" or "snack", from what they said ("for lunch I had...").
+  If they don't say, use the time of day you're given: before 11 am breakfast, 11 am to 3 pm lunch,
+  5 to 10 pm dinner, otherwise snack.
+- name: short and specific, as they described it (e.g. "scrambled eggs", "flat white with full-cream milk").
+- estimated_grams: the edible weight (millilitres for drinks). Use the amounts they gave
+  ("two slices", "a large bowl", "300 g"); otherwise a typical single serve.
+- calories, protein_g, carbs_g, fat_g, fiber_g, sugar_g for that whole portion, from standard
+  food-composition data (e.g. AUSNUT, USDA FoodData Central).
+- confidence 0.0-1.0: how sure you are of the food and the amount.
+Split mixed meals into their parts when they're named ("toast with butter" is toast and butter).
+Only include foods they actually said they ate; never invent sides. Plain or sparkling water with
+no calories is still an item, named with the word "water".
+Put a single-sentence note in "notes" about anything you had to assume, or an empty string.
+Respond with JSON only.''';
+
+  static Map<String, dynamic> spokenSchema(VisionProvider provider) {
+    final gemini = provider == VisionProvider.gemini;
+    String type(String n) => gemini ? n.toUpperCase() : n;
+    Map<String, dynamic> object(Map<String, dynamic> props, List<String> keys) => {
+      'type': type('object'),
+      'properties': props,
+      'required': keys,
+      if (gemini) 'propertyOrdering': keys else 'additionalProperties': false,
+    };
+    final string = {'type': type('string')};
+    final number = {'type': type('number')};
+    const itemKeys = [
+      'meal',
+      'name',
+      'estimated_grams',
+      'calories',
+      'protein_g',
+      'carbs_g',
+      'fat_g',
+      'fiber_g',
+      'sugar_g',
+      'confidence',
+    ];
+    final item = object({
+      'meal': {
+        'type': type('string'),
+        'enum': ['breakfast', 'lunch', 'dinner', 'snack'],
+      },
+      'name': string,
+      'estimated_grams': number,
+      'calories': number,
+      'protein_g': number,
+      'carbs_g': number,
+      'fat_g': number,
+      'fiber_g': number,
+      'sugar_g': number,
+      'confidence': number,
+    }, itemKeys);
+    return object(
+      {
+        'items': {'type': type('array'), 'items': item},
+        'notes': string,
+      },
+      ['items', 'notes'],
+    );
+  }
+
+  /// Turns "for breakfast I had two eggs on toast, lunch was a chicken salad..." into items,
+  /// each with the meal it belongs to. [now] tells the model the time of day for anything
+  /// said without a meal. Text only, so it costs a fraction of a photo.
+  Future<SpokenMeals> analyzeSpokenMeals(String said, {required DateTime now}) async {
+    if (apiKey.trim().isEmpty) throw VisionException.missingKey;
+    if (said.trim().isEmpty) throw const VisionException('Say or type what you ate first.');
+    if (model == AiModel.smartId) {
+      try {
+        final quick = await _as(AiModel.quickModel).analyzeSpokenMeals(said, now: now);
+        if (!quick.needsCarefulLook) return quick;
+      } on VisionException catch (e) {
+        if (_isConnection(e)) rethrow;
+      }
+      return _as(AiModel.carefulModel).analyzeSpokenMeals(said, now: now);
+    }
+    final h = now.hour, m = now.minute.toString().padLeft(2, '0');
+    final userText = 'It is $h:$m now. What I ate: "${said.trim()}"';
+    final raw = switch (provider) {
+      VisionProvider.gemini => await _gemini(null, userText, spokenInstructions, spokenSchema(provider)),
+      VisionProvider.openAI => await _openAI(
+        null,
+        userText,
+        spokenInstructions,
+        spokenSchema(provider),
+        'spoken_meals',
+      ),
+      VisionProvider.claude => await _claude(null, userText, spokenInstructions, spokenSchema(provider)),
+    };
+    final out = decodeSpokenMeals(raw);
+    return SpokenMeals(items: out.items, notes: out.notes, answeredBy: model);
+  }
+
+  static SpokenMeals decodeSpokenMeals(String raw) {
+    final map = _jsonObject(raw);
+    final notes = (map['notes'] is String ? map['notes'] as String : '').trim();
+    final items = <SpokenItem>[];
+    // Each item goes through the meal-photo decoder on its own, so it's cleaned the same way
+    // and keeps its own meal, even when the same food is eaten twice in a day.
+    for (final r in (map['items'] is List ? map['items'] as List : const []).whereType<Map>()) {
+      final one = decodeAnalysis(
+        jsonEncode({
+          'items': [r],
+          'notes': '',
+        }),
+      ).items;
+      if (one.isEmpty) continue;
+      items.add(SpokenItem(meal: MealType.parse(r['meal'] as String?), food: one.first));
+    }
+    return SpokenMeals(items: items, notes: notes);
+  }
+
+  // ---- Missing detail ----
+
+  static const detailInstructions = '''
+You are a meticulous registered dietitian. You're given a food someone logged: its name, brand,
+the portion, and the calories and macros recorded for that portion. The weight, fibre or sugar
+wasn't recorded. Using standard food-composition data (e.g. AUSNUT, USDA FoodData Central) and
+the calories given, return for that same portion:
+- grams: its edible weight in grams (millilitres for drinks).
+- fiber_g: dietary fibre in grams.
+- sugar_g: total sugars in grams.
+- confidence: 0.0-1.0.
+Keep fibre and sugar each no more than the carbohydrate given. Respond with JSON only.''';
+
+  static Map<String, dynamic> detailSchema(VisionProvider provider) {
+    final gemini = provider == VisionProvider.gemini;
+    String type(String n) => gemini ? n.toUpperCase() : n;
+    const keys = ['grams', 'fiber_g', 'sugar_g', 'confidence'];
+    final number = {'type': type('number')};
+    return {
+      'type': type('object'),
+      'properties': {'grams': number, 'fiber_g': number, 'sugar_g': number, 'confidence': number},
+      'required': keys,
+      if (gemini) 'propertyOrdering': keys else 'additionalProperties': false,
+    };
+  }
+
+  /// Fills a logged food's missing weight, fibre and sugar. A small text request: Smart mode
+  /// sends it straight to the quick model.
+  Future<FoodDetail> fillDetail({
+    required String name,
+    String? brand,
+    required String portion,
+    required Nutrients n,
+  }) async {
+    if (apiKey.trim().isEmpty) throw VisionException.missingKey;
+    if (model == AiModel.smartId) {
+      return _as(AiModel.quickModel).fillDetail(name: name, brand: brand, portion: portion, n: n);
+    }
+    final text =
+        'Food: $name${brand == null || brand.isEmpty ? '' : ' ($brand)'}. Portion: $portion. '
+        'Recorded for that portion: ${n.calories.round()} kcal, protein ${_g(n.protein)} g, '
+        'carbohydrate ${_g(n.carbs)} g, fat ${_g(n.fat)} g.';
+    final raw = switch (provider) {
+      VisionProvider.gemini => await _gemini(null, text, detailInstructions, detailSchema(provider)),
+      VisionProvider.openAI => await _openAI(null, text, detailInstructions, detailSchema(provider), 'food_detail'),
+      VisionProvider.claude => await _claude(null, text, detailInstructions, detailSchema(provider)),
+    };
+    return decodeDetail(raw, n);
+  }
+
+  static String _g(double v) => v >= 10 ? v.round().toString() : v.toStringAsFixed(1);
+
+  /// Reads the answer, keeping fibre and sugar within the carbohydrate and the weight
+  /// believable for the calories (between 0.05 and 9 kcal per gram).
+  static FoodDetail decodeDetail(String raw, Nutrients n) {
+    final map = _jsonObject(raw);
+    double? num(String k) {
+      final v = lossyDouble(map[k]);
+      return v == null || !v.isFinite || v < 0 ? null : v;
+    }
+
+    var grams = num('grams');
+    if (grams != null && (grams <= 0 || n.calories / grams > 9 || n.calories / grams < 0.05)) grams = null;
+    final fiber = num('fiber_g')?.clamp(0, n.carbs).toDouble();
+    final sugar = num('sugar_g')?.clamp(0, n.carbs).toDouble();
+    if (grams == null && fiber == null && sugar == null) throw VisionException.invalidJson;
+    return FoodDetail(grams: grams, fiber: fiber, sugar: sugar);
+  }
+
   /// Errors Opus would hit too (no connection, bad key, rate limit): don't pay for a second try.
   static bool _isConnection(VisionException e) =>
       e.message.startsWith("Couldn’t reach") || RegExp(r'failed \((401|403|429)\)').hasMatch(e.message);
 
-  Future<String> _gemini(String b64, String userText, String system, Map<String, dynamic> schema) async {
+  Future<String> _gemini(String? b64, String userText, String system, Map<String, dynamic> schema) async {
     final body = {
       'systemInstruction': {
         'parts': [
@@ -328,9 +543,10 @@ Respond with JSON only.''';
           'role': 'user',
           'parts': [
             {'text': userText},
-            {
-              'inlineData': {'mimeType': 'image/jpeg', 'data': b64},
-            },
+            if (b64 != null)
+              {
+                'inlineData': {'mimeType': 'image/jpeg', 'data': b64},
+              },
           ],
         },
       ],
@@ -361,7 +577,7 @@ Respond with JSON only.''';
     return text;
   }
 
-  Future<String> _openAI(String b64, String userText, String system, Map<String, dynamic> schema, String name) async {
+  Future<String> _openAI(String? b64, String userText, String system, Map<String, dynamic> schema, String name) async {
     final body = {
       'model': model,
       'messages': [
@@ -370,10 +586,11 @@ Respond with JSON only.''';
           'role': 'user',
           'content': [
             {'type': 'text', 'text': userText},
-            {
-              'type': 'image_url',
-              'image_url': {'url': 'data:image/jpeg;base64,$b64', 'detail': 'high'},
-            },
+            if (b64 != null)
+              {
+                'type': 'image_url',
+                'image_url': {'url': 'data:image/jpeg;base64,$b64', 'detail': 'high'},
+              },
           ],
         },
       ],
@@ -408,7 +625,7 @@ Respond with JSON only.''';
   /// structured outputs. Thinking is always on for Claude Opus 5.5; effort is set explicitly
   /// (its default is medium). `fallbacks: "default"` lets Anthropic re-run a declined request on
   /// its recommended fallback model instead of returning the refusal.
-  Future<String> _claude(String b64, String userText, String system, Map<String, dynamic> schema) async {
+  Future<String> _claude(String? b64, String userText, String system, Map<String, dynamic> schema) async {
     final body = {
       'model': model,
       'max_tokens': 16000,
@@ -417,10 +634,11 @@ Respond with JSON only.''';
         {
           'role': 'user',
           'content': [
-            {
-              'type': 'image',
-              'source': {'type': 'base64', 'media_type': 'image/jpeg', 'data': b64},
-            },
+            if (b64 != null)
+              {
+                'type': 'image',
+                'source': {'type': 'base64', 'media_type': 'image/jpeg', 'data': b64},
+              },
             {'type': 'text', 'text': userText},
           ],
         },

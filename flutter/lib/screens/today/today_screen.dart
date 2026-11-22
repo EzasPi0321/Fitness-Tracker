@@ -677,7 +677,7 @@ class _EntryRow extends StatelessWidget {
                         ScoreBadge(
                           score.score,
                           size: 12,
-                          onTap: () => showScoreSheet(context, name: entry.name, score: score),
+                          onTap: () => showScoreSheet(context, name: entry.name, score: score, entry: entry),
                         ),
                       ],
                     ],

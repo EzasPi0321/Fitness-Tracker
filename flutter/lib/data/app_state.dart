@@ -11,6 +11,7 @@ import '../models/body_fat.dart';
 import '../models/food.dart';
 import '../models/nutrients.dart';
 import '../models/gym.dart';
+import '../models/health_score.dart';
 import '../models/profile.dart';
 import '../models/sleep.dart';
 import '../models/util.dart';
@@ -179,6 +180,7 @@ class AppState extends ChangeNotifier {
   @override
   void notifyListeners() {
     _byDay = null; // every change goes through here, so the index can never go stale
+    HealthScore.goal = profile?.goal ?? WeightGoal.maintain;
     super.notifyListeners();
   }
 
@@ -239,6 +241,8 @@ class AppState extends ChangeNotifier {
     entries.addAll(list);
     logPulse.value++;
     _changed();
+    // Fill in missing weight, fibre and sugar after the fact, so logging never waits on it.
+    if (!isSample) unawaited(_fillInBackground(list.where((e) => e.missingDetail).toList()));
     if (_syncHealth) {
       for (final e in list) {
         e.healthSynced = await health.saveFood(
@@ -254,6 +258,98 @@ class AppState extends ChangeNotifier {
 
   /// Call after mutating an entry (portion, meal, time). `previousTime` lets the health
   /// record at the old timestamp be replaced.
+  /// Weight, fibre and sugar per calorie for foods the AI has filled in before, by barcode or
+  /// by name and brand. Logging the same food again, at any portion, reuses them for free.
+  final Map<String, FoodDetailRates> detailCache = {};
+
+  static String detailKey(FoodEntry e) {
+    final code = e.barcode?.trim();
+    if (code != null && code.isNotEmpty) return 'b:$code';
+    String norm(String? s) => (s ?? '').toLowerCase().replaceAll(RegExp(r'\s+'), ' ').trim();
+    return 'n:${norm(e.name)}|${norm(e.brand)}';
+  }
+
+  /// Fills [e]'s gaps from an earlier answer for the same food. True when it did.
+  bool _applyCachedDetail(FoodEntry e) {
+    final r = detailCache[detailKey(e)];
+    final kcal = e.nutrients.calories;
+    if (r == null || kcal <= 0) return false;
+    _mergeDetail(
+      e,
+      FoodDetail(
+        grams: r.gramsPerKcal == null ? null : r.gramsPerKcal! * kcal,
+        fiber: r.fiberPerKcal * kcal,
+        sugar: r.sugarPerKcal * kcal,
+      ),
+    );
+    return true;
+  }
+
+  /// Adds what [e] lacks, never replacing a recorded value.
+  void _mergeDetail(FoodEntry e, FoodDetail d) {
+    final n = e.nutrients;
+    e
+      ..grams = e.grams ?? d.grams
+      ..nutrients = Nutrients(
+        calories: n.calories,
+        protein: n.protein,
+        carbs: n.carbs,
+        fat: n.fat,
+        fiber: n.fiber > 0 ? n.fiber : (d.fiber ?? 0),
+        sugar: n.sugar > 0 ? n.sugar : (d.sugar ?? 0),
+      ).sanitized
+      ..detailChecked = true;
+  }
+
+  Future<void> _fillInBackground(List<FoodEntry> list) async {
+    if (list.isEmpty) return;
+    // Foods filled in before cost nothing: no key needed, no request.
+    final rest = [
+      for (final e in list)
+        if (!_applyCachedDetail(e)) e,
+    ];
+    if (rest.length != list.length) _changed();
+    if (rest.isEmpty) return;
+    final key = await keys.read(visionProvider.keyName);
+    if (key.trim().isEmpty) return;
+    for (final e in rest) {
+      try {
+        await fillMissingDetail(e, apiKey: key);
+      } catch (_) {
+        // Offline or the AI couldn't say: the score leaves the gaps out, and the score sheet
+        // offers to try again.
+      }
+    }
+  }
+
+  /// Asks the AI for a logged food's missing weight, fibre and sugar and saves what's missing.
+  /// Recorded values are never replaced. Returns what was added, or throws [VisionException].
+  Future<FoodDetail> fillMissingDetail(FoodEntry e, {String? apiKey}) async {
+    if (_applyCachedDetail(e)) {
+      _changed();
+      return FoodDetail(grams: e.grams, fiber: e.nutrients.fiber, sugar: e.nutrients.sugar);
+    }
+    final key = apiKey ?? await keys.read(visionProvider.keyName);
+    final service = AIVisionService(provider: visionProvider, apiKey: key, model: visionModel);
+    try {
+      final d = await service.fillDetail(name: e.name, brand: e.brand, portion: e.portionDescription, n: e.nutrients);
+      _mergeDetail(e, d);
+      final kcal = e.nutrients.calories;
+      if (kcal > 0) {
+        detailCache[detailKey(e)] = FoodDetailRates(
+          gramsPerKcal: e.grams == null ? null : e.grams! / kcal,
+          fiberPerKcal: e.nutrients.fiber / kcal,
+          sugarPerKcal: e.nutrients.sugar / kcal,
+        );
+        if (detailCache.length > 2000) detailCache.remove(detailCache.keys.first);
+      }
+      _changed();
+      return d;
+    } finally {
+      recordAiUsage('detail', service.calls);
+    }
+  }
+
   Future<void> updateEntry(FoodEntry e, {required DateTime previousTime}) async {
     _changed();
     if (e.healthSynced) await health.deleteFood(previousTime);
@@ -763,6 +859,7 @@ class AppState extends ChangeNotifier {
     'water': water.map((e) => e.toJson()).toList(),
     'sleep': sleep.map((e) => e.toJson()).toList(),
     'gym': gym.map((e) => e.toJson()).toList(),
+    'detailCache': {for (final e in detailCache.entries) e.key: e.value.toJson()},
     'steps': {for (final e in loggedSteps.entries) '${e.key.millisecondsSinceEpoch}': e.value},
     if (stepsFromShortcutAt != null) 'stepsAt': stepsFromShortcutAt!.millisecondsSinceEpoch,
     'bodyFat': bodyFat.map((e) => e.toJson()).toList(),
@@ -819,6 +916,13 @@ class AppState extends ChangeNotifier {
     gym
       ..clear()
       ..addAll(list('gym').map(GymSession.fromJson));
+    detailCache.clear();
+    if (j['detailCache'] is Map) {
+      for (final e in (j['detailCache'] as Map).entries) {
+        if (e.value is Map)
+          detailCache['${e.key}'] = FoodDetailRates.fromJson((e.value as Map).cast<String, dynamic>());
+      }
+    }
     bodyFat
       ..clear()
       ..addAll(list('bodyFat').map(BodyFatEntry.fromJson));
@@ -871,4 +975,24 @@ class AppScope extends InheritedNotifier<AppState> {
   /// Read without subscribing to rebuilds (for callbacks).
   static AppState read(BuildContext context) =>
       (context.getElementForInheritedWidgetOfExactType<AppScope>()!.widget as AppScope).notifier!;
+}
+
+/// A food's weight, fibre and sugar per calorie, so an earlier fill-in applies to any portion.
+class FoodDetailRates {
+  const FoodDetailRates({this.gramsPerKcal, required this.fiberPerKcal, required this.sugarPerKcal});
+  final double? gramsPerKcal;
+  final double fiberPerKcal;
+  final double sugarPerKcal;
+
+  Map<String, dynamic> toJson() => {
+    if (gramsPerKcal != null) 'g': gramsPerKcal,
+    'fi': fiberPerKcal,
+    'su': sugarPerKcal,
+  };
+
+  factory FoodDetailRates.fromJson(Map<String, dynamic> j) => FoodDetailRates(
+    gramsPerKcal: (j['g'] as num?)?.toDouble(),
+    fiberPerKcal: ((j['fi'] as num?) ?? 0).toDouble(),
+    sugarPerKcal: ((j['su'] as num?) ?? 0).toDouble(),
+  );
 }

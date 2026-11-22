@@ -50,6 +50,7 @@ dependencies:
   # (google-mlkit-swiftpm 9.0.2), or Xcode can't resolve dependencies.
   google_mlkit_commons: 1.0.1
   app_links: ^7.2.2
+  speech_to_text: ^7.5.0
 
 dev_dependencies:
   flutter_test:

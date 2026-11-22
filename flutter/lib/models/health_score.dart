@@ -1,6 +1,7 @@
 import 'dart:math' as math;
 
 import 'nutrients.dart';
+import 'profile.dart';
 
 /// How a part of the score was earned, for the breakdown sheet.
 class ScorePart {
@@ -34,18 +35,38 @@ enum ScoreBand {
       : poor;
 }
 
-/// A 0–100 score for how much nutrition a food gives for its calories.
+/// How many of the 100 points each part is worth, by the goal in the profile. Protein leads
+/// for every goal (it keeps muscle on a cut and builds it on a gain); calorie density counts
+/// most on a cut, where filling, light food helps, and least on a gain, where dense food
+/// helps eat enough.
+class ScoreWeights {
+  const ScoreWeights({required this.protein, required this.density, required this.fibre, required this.sugarFat});
+  final double protein;
+  final double density;
+  final double fibre;
+  final double sugarFat;
+
+  static ScoreWeights of(WeightGoal goal) => switch (goal) {
+    WeightGoal.lose => const ScoreWeights(protein: 35, density: 30, fibre: 20, sugarFat: 15),
+    WeightGoal.maintain => const ScoreWeights(protein: 35, density: 25, fibre: 25, sugarFat: 15),
+    WeightGoal.gain => const ScoreWeights(protein: 40, density: 15, fibre: 25, sugarFat: 20),
+  };
+}
+
+/// A 0–100 score for how much nutrition a food gives for its calories, weighted for the
+/// profile's goal ([ScoreWeights]).
 ///
-/// - Calorie density, 35 points: kcal per gram. Under 0.6 (vegetables, most fruit) scores
-///   full; 4 and up (crisps, chocolate, oils) scores nothing. Needs the weight. Mostly-sugar
-///   foods without fibre (soft drinks, lollies) don't get this credit.
-/// - Protein, 30 points: grams per 100 kcal. 8 g or more scores full (lean meat, fish,
-///   Greek yogurt, tofu).
-/// - Fibre, 20 points: grams per 100 kcal. 3 g or more scores full (vegetables, fruit,
-///   legumes, whole grains).
-/// - Sugar and fat balance, 15 points: loses points as sugar passes 20% of the energy
-///   (unless the food also brings fibre, as whole fruit does) or fat passes 40% (less so
-///   when the fat comes with fibre or protein, as in nuts and fish).
+/// - Calorie density: kcal per gram. Under 0.6 (vegetables, most fruit) scores full; 5 and
+///   up (crisps, chocolate, oils) scores nothing, so dry foods like crackers, rice cakes and
+///   oats still get some credit. Needs the weight. Mostly-sugar foods without fibre (soft
+///   drinks, lollies) don't get this credit.
+/// - Protein: grams per 100 kcal. 8 g or more scores full (lean meat, fish, Greek yogurt,
+///   tofu).
+/// - Fibre: grams per 100 kcal. 3 g or more scores full (vegetables, fruit, legumes, whole
+///   grains).
+/// - Sugar and fat balance: loses points as sugar passes 20% of the energy (unless the food
+///   also brings fibre, as whole fruit does) or fat passes 40% (less so when the fat comes
+///   with fibre or protein, as in nuts and fish).
 ///
 /// A part whose data is missing is left out and the rest are scaled to 100, so an unknown
 /// never reads as a bad result.
@@ -56,9 +77,16 @@ class HealthScore {
 
   ScoreBand get band => ScoreBand.of(score);
 
+  /// The goal the score is weighted for. AppState keeps it in step with the profile, so
+  /// every score on screen (food rows, sheets, the day) uses the same weights.
+  static WeightGoal goal = WeightGoal.maintain;
+
   /// Null when there's nothing to judge (no calories).
-  static HealthScore? of(Nutrients n, {double? grams}) {
+  /// [detailChecked]: the fibre and sugar were filled in or confirmed, so a 0 is a real 0
+  /// (a soft drink has no fibre), not missing data.
+  static HealthScore? of(Nutrients n, {double? grams, WeightGoal? goal, bool detailChecked = false}) {
     if (n.calories < 1) return null;
+    final w = ScoreWeights.of(goal ?? HealthScore.goal);
     final per100kcal = 100 / n.calories;
     double lerp(double v, double best, double worst) => ((v - worst) / (best - worst)).clamp(0.0, 1.0);
 
@@ -79,12 +107,14 @@ class HealthScore {
           ? 'low'
           : ed < 4
           ? 'medium'
-          : 'high';
+          : ed < 5
+          ? 'high'
+          : 'very high';
       parts.add(
         ScorePart(
           label: 'Calorie density',
-          points: 35 * lerp(ed, 0.6, 4.0) * sugarScore,
-          max: 35,
+          points: w.density * lerp(ed, 0.6, 5.0) * sugarScore,
+          max: w.density,
           detail: '${_one(ed)} kcal per gram: $word',
         ),
       );
@@ -95,17 +125,28 @@ class HealthScore {
     // Protein.
     final protein = n.protein * per100kcal;
     parts.add(
-      ScorePart(label: 'Protein', points: 30 * lerp(protein, 8, 0), max: 30, detail: '${_one(protein)} g per 100 kcal'),
+      ScorePart(
+        label: 'Protein',
+        points: w.protein * lerp(protein, 8, 0),
+        max: w.protein,
+        detail: '${_one(protein)} g per 100 kcal',
+      ),
     );
 
-    // Fibre: credit only, so an unknown 0 simply earns nothing.
+    // Fibre. No fibre and no sugar listed on a food with carbohydrates means the data is
+    // missing (the database only had macros), not that the food has none. Counting it as zero
+    // drags a banana to "Poor"; leaving it out lets a food's protein carry the whole score. So
+    // until the AI fills it in, it counts as half: a neutral middle.
+    final fibreUnknown = !detailChecked && n.fiber == 0 && n.sugar == 0 && n.carbs >= 5;
     parts.add(
-      ScorePart(
-        label: 'Fibre',
-        points: 20 * lerp(fiber, 3, 0),
-        max: 20,
-        detail: n.fiber > 0 ? '${_one(fiber)} g per 100 kcal' : 'None listed',
-      ),
+      fibreUnknown
+          ? ScorePart(label: 'Fibre', points: w.fibre / 2, max: w.fibre, detail: 'Not listed: counted as half')
+          : ScorePart(
+              label: 'Fibre',
+              points: w.fibre * lerp(fiber, 3, 0),
+              max: w.fibre,
+              detail: n.fiber > 0 ? '${_one(fiber)} g per 100 kcal' : 'None',
+            ),
     );
 
     // Sugar and fat balance.
@@ -124,8 +165,8 @@ class HealthScore {
     parts.add(
       ScorePart(
         label: 'Sugar and fat',
-        points: 15 * math.min(sugarScore, fatScore),
-        max: 15,
+        points: w.sugarFat * math.min(sugarScore, fatScore),
+        max: w.sugarFat,
         detail: notes.join(' · '),
       ),
     );
@@ -137,10 +178,10 @@ class HealthScore {
 
   /// A meal or a day: each food's score weighted by its calories, so a big plate counts for
   /// more than a cup of tea.
-  static int? average(Iterable<(Nutrients, double?)> foods) {
+  static int? average(Iterable<(Nutrients, double?)> foods, {WeightGoal? goal}) {
     var total = 0.0, weight = 0.0;
     for (final (n, g) in foods) {
-      final s = HealthScore.of(n, grams: g);
+      final s = HealthScore.of(n, grams: g, goal: goal);
       if (s == null) continue;
       total += s.score * n.calories;
       weight += n.calories;

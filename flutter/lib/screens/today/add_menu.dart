@@ -7,6 +7,7 @@ import '../../design/tokens.dart';
 import '../../services/platform_caps.dart';
 import '../../widgets/common.dart';
 import '../log/log_flows.dart';
+import '../log/voice_entry_screen.dart';
 
 class _Item {
   const _Item(this.label, this.icon, this.run);
@@ -16,7 +17,7 @@ class _Item {
 }
 
 /// The floating add button. Opening it: a quick wind-up (anticipation), the plus blurs into
-/// an × (icon swap), and three choices (Hick's law) rise into a column above it with a small
+/// an × (icon swap), and four choices (Hick's law) rise into a column above it with a small
 /// stagger, overshooting and settling (follow-through). All in under 300 ms.
 class AddMenu extends StatefulWidget {
   const AddMenu({super.key, required this.day});
@@ -48,6 +49,7 @@ class _AddMenuState extends State<AddMenu> with SingleTickerProviderStateMixin {
       Symbols.photo_camera,
       (c, d) => openSnapMeal(c, day: d),
     ),
+    _Item('Voice entry', Symbols.mic, (c, d) => openVoiceEntry(c, day: d)),
     _Item('Manual entry', Symbols.edit_note, (c, d) => openManualEntry(c, day: d)),
   ];
 
