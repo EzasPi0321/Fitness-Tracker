@@ -88,7 +88,9 @@ The Shortcuts app can read Apple Health, so a shortcut reads today's steps and s
 6. On the **Automation** tab, tap **+ › App › FitTrack › Is Opened › Run Immediately**, and choose **FitTrack steps**. Turn off **Notify When Run** to skip the banner.
 7. The first run asks to read your steps and to open FitTrack. Tap **Allow**.
 
-You can also tap the pencil on the **Steps** card to type steps in. An earlier run of the shortcut never lowers today's count.
+**More steps than Health shows?** Your iPhone and Apple Watch are both being counted. In **Find Health Samples**, add **one** filter: **Source is** your Apple Watch, or your iPhone if you have no Watch. Two Source filters with "All" finds nothing. Each run replaces today's count, so the next run fixes the number.
+
+You can also tap the pencil on the **Steps** card to type steps in.
 
 If FitTrack keeps reopening itself after the shortcut runs, change the automation's trigger to **Time of Day** (for example every hour, or 9 pm) instead of **Is Opened**.
 
