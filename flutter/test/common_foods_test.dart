@@ -22,7 +22,7 @@ void main() {
   });
 
   test('every built-in food has energy that matches its macros', () {
-    const alcohol = {'Beer', 'Red wine'}; // alcohol carries energy the macros don't
+    const alcohol = {'Beer', 'Red wine', 'White wine', 'Cider', 'Spirits'}; // alcohol carries energy the macros don't
     for (final p in allCommonFoods) {
       if (alcohol.contains(p.name)) continue;
       final n = p.per100g!;
