@@ -481,7 +481,7 @@ class _LogCard extends StatelessWidget {
     // Two short lines instead of one long one, so nothing is cut off on a phone.
     final detail = [
       Energy.format(n.calories),
-      if (grams != null) '${whole(grams)} g' else entry.portionDescription,
+      if (grams != null) '${whole(grams)} ${entry.unit == 'ml' ? 'ml' : 'g'}' else entry.portionDescription,
     ].join('  ·  ');
     final macros = '${whole(n.protein)}P  ${whole(n.carbs)}C  ${whole(n.fat)}F';
 
@@ -795,17 +795,19 @@ class _SearchResultsState extends State<_SearchResults> {
       if (out.length >= 12) break;
       if (!match(e.name, e.brand) || !seen.add(e.name.toLowerCase()) || e.quantity <= 0) continue;
       final per = e.nutrients * (1 / e.quantity);
+      final byAmount = e.unit == 'g' || e.unit == 'ml';
       out.add(
         FoodProduct(
           barcode: e.barcode ?? 'recent-${e.id}',
           name: e.name,
           brand: e.brand,
-          servingDescription: e.unit == 'g' ? null : e.unit,
-          servingGrams: e.unit == 'g' ? null : (e.grams == null ? null : e.grams! / e.quantity),
-          per100g: e.unit == 'g' ? per * 100 : null,
-          perServingReported: e.unit == 'g' ? null : per,
+          servingDescription: byAmount ? null : e.unit,
+          servingGrams: byAmount ? null : (e.grams == null ? null : e.grams! / e.quantity),
+          per100g: byAmount ? per * 100 : null,
+          perServingReported: byAmount ? null : per,
           source: e.source,
           trust: e.trust,
+          liquid: e.unit == 'ml',
         ),
       );
     }
@@ -898,7 +900,7 @@ class _ResultRow extends StatelessWidget {
     final per = serving != null
         ? '${Energy.format(serving.calories)} per ${product.servingLabel}'
         : product.per100g != null
-        ? '${Energy.format(product.per100g!.calories)} per 100 g'
+        ? '${Energy.format(product.per100g!.calories)} per 100 ${product.amountUnit}'
         : '';
     return InkWell(
       borderRadius: BorderRadius.circular(14),

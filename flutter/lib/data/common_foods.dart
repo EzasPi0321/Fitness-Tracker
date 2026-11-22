@@ -373,5 +373,6 @@ FoodProduct _product((String, String, String, double, List<double>) r) {
     ),
     source: EntrySource.manual,
     trust: _trust,
+    liquid: r.$3.contains(' ml)'),
   );
 }

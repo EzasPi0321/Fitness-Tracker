@@ -34,7 +34,8 @@ class _EditEntrySheetState extends State<_EditEntrySheet> {
   bool _confirmDelete = false;
   bool _showParts = false;
 
-  bool get _grams => widget.entry.unit == 'g';
+  /// Logged by weight or volume rather than servings.
+  bool get _grams => widget.entry.unit == 'g' || widget.entry.unit == 'ml';
   double get _step => _grams ? 5 : 0.25;
 
   Nutrients get _preview {
@@ -120,7 +121,9 @@ class _EditEntrySheetState extends State<_EditEntrySheet> {
               label: 'Portion',
               children: [
                 FRow(
-                  label: _grams ? 'Grams' : (e.unit == 'serving' ? 'Servings' : 'Servings · ${e.unit}'),
+                  label: _grams
+                      ? (e.unit == 'ml' ? 'Millilitres' : 'Grams')
+                      : (e.unit == 'serving' ? 'Servings' : 'Servings · ${e.unit}'),
                   trailing: Row(
                     mainAxisSize: MainAxisSize.min,
                     children: [

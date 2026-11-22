@@ -63,7 +63,7 @@ class _ProductSheetState extends State<_ProductSheet> {
       source: p.source,
       consumedAt: widget.logTime,
       quantity: servings ? _servings! : _grams!,
-      unit: servings ? p.servingLabel : 'g',
+      unit: servings ? p.servingLabel : p.amountUnit,
       grams: servings ? (p.servingGrams == null ? null : p.servingGrams! * _servings!) : _grams,
       nutrients: n,
       trust: p.trust,
@@ -138,9 +138,9 @@ class _ProductSheetState extends State<_ProductSheet> {
             const SizedBox(height: S.xl),
             if (_units.length > 1) ...[
               SegmentedButton<_Unit>(
-                segments: const [
-                  ButtonSegment(value: _Unit.servings, label: Text('Servings')),
-                  ButtonSegment(value: _Unit.grams, label: Text('Grams')),
+                segments: [
+                  const ButtonSegment(value: _Unit.servings, label: Text('Servings')),
+                  ButtonSegment(value: _Unit.grams, label: Text(p.liquid ? 'Millilitres' : 'Grams')),
                 ],
                 selected: {_unit},
                 showSelectedIcon: false,
@@ -152,7 +152,7 @@ class _ProductSheetState extends State<_ProductSheet> {
               children: [
                 FRow(
                   label: _unit == _Unit.grams
-                      ? 'Grams'
+                      ? (p.liquid ? 'Millilitres' : 'Grams')
                       : (p.servingLabel == 'serving' ? 'Servings' : 'Servings · ${p.servingLabel}'),
                   trailing: Row(
                     mainAxisSize: MainAxisSize.min,
