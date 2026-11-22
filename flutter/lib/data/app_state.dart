@@ -11,6 +11,7 @@ import '../models/body_fat.dart';
 import '../models/food.dart';
 import '../models/nutrients.dart';
 import '../models/gym.dart';
+import '../models/health_score.dart';
 import '../models/profile.dart';
 import '../models/sleep.dart';
 import '../models/util.dart';
@@ -179,6 +180,7 @@ class AppState extends ChangeNotifier {
   @override
   void notifyListeners() {
     _byDay = null; // every change goes through here, so the index can never go stale
+    HealthScore.goal = profile?.goal ?? WeightGoal.maintain;
     super.notifyListeners();
   }
 
