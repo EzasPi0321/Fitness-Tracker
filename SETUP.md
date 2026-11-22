@@ -15,7 +15,7 @@ Every new version is published on the [Releases page](https://github.com/EzasPi0
 2. Open the download. If Android asks, allow your browser to **install unknown apps**, then tap **Install**.
 3. Open FitTrack and follow the setup.
 
-**Updates:** when a new version is out, FitTrack shows **New version available** on Today. Tap **Update**, and it installs over the old one, keeping your data.
+**Updates:** when a new version is out, FitTrack shows **New version available** on Today (or check in **Settings › Updates**). Tap **Update**: FitTrack downloads it and Android asks to install it; tap **Update** there. It installs over the old one and keeps your data. The first time, Android asks you to let FitTrack **install unknown apps**; turn it on and go back.
 
 **Samsung Health / Health Connect (optional):**
 
@@ -63,7 +63,7 @@ Keep iloader installed. You only need it again if SideStore itself expires, or a
 
 **Apple Health isn't available on iPhone this way.** Apple doesn't let apps signed with a free Apple ID use Health, so FitTrack doesn't connect to it directly. Log sleep and weight in the app. Steps can still come in from Apple Health with a shortcut (step 5). Full Health sync would need a paid Apple Developer account and TestFlight.
 
-**Updates:** new versions appear in SideStore from the source. Installing one also renews the 7 days.
+**Updates:** new versions appear in SideStore from the source. Installing one also renews the 7 days. Tapping **Update** on FitTrack's own banner opens SideStore.
 
 ### 4. Renew automatically
 
