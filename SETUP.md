@@ -67,12 +67,30 @@ Keep iloader installed. You only need it again if SideStore itself expires, or a
 
 ### 4. Renew automatically
 
-In **Shortcuts › Automation › + › Charger › Is Connected › Run Immediately**, add:
+A Shortcuts automation renews everything each time you leave FitTrack. It turns the VPN on, refreshes, then turns it off, without pop-ups. It runs when FitTrack **closes**, not when it opens, because refreshing an app reinstalls it and would shut FitTrack while you're using it.
 
-1. **LocalDevVPN › Connect**, if offered. Otherwise leave the VPN on.
-2. **SideStore › Refresh All Apps**
+1. Open SideStore once, so Shortcuts can see its actions.
+2. In **Shortcuts › Automation**, tap **+ › App**. Choose **FitTrack**, tick **Is Closed**, untick **Is Opened**, and choose **Run Immediately**.
+3. Add these actions in this order. Use the search bar to find each one:
 
-Every time you charge, FitTrack and SideStore get a fresh 7 days.
+   | # | Action | Set to |
+   |---|---|---|
+   | 1 | **Set VPN** | **Connect** · LocalDevVPN |
+   | 2 | **Wait** | **3** seconds |
+   | 3 | **Refresh All Apps** (SideStore) | turn off **Show when Run** |
+   | 4 | **Set VPN** | **Disconnect** · LocalDevVPN |
+
+4. On the trigger at the top, turn off **Notify**.
+
+If the Shortcuts app asks you to *describe* the automation instead, paste this, then check the four actions match the table:
+
+```
+When FitTrack is closed, run immediately: connect the VPN LocalDevVPN, wait 3 seconds, run SideStore's Refresh All Apps action, then disconnect the VPN LocalDevVPN.
+```
+
+**Check it works:** open FitTrack, go back to the home screen, wait about 10 seconds, then open SideStore › **My Apps**. FitTrack should show **7 DAYS**.
+
+You don't need to keep the VPN on otherwise. FitTrack works without it; only SideStore needs it while it installs, updates or refreshes.
 
 If an app expires anyway, it just won't open. **Your data is kept.** Refresh in SideStore and it opens again. Don't delete the app to fix it, because that erases its data.
 
@@ -120,6 +138,8 @@ Meal photos, AI label reading and body fat estimates use your own Anthropic API 
 - **Which anisette server:** use the one iloader signs in with (for example **jkcoxson**, `mac-ani.jkcoxson.com`), or **#1 SideStore**. Avoid servers that are a bare IP address with `http://`.
 - **Still 503 on a new version:** Apple has probably paused sign-ins for your Apple ID after repeated tries. Stop for 12–24 hours, then try once.
 - **FitTrack meanwhile:** iloader can install FitTrack directly: download `FitTrack.ipa` from the latest FitTrack release and use **Import IPA**. Re-import it within 7 days to renew it.
+- **"Could not determine this device's UDID":** the pairing file is missing or stale (common after reinstalling SideStore). Plug the phone into the computer, and in iloader use **Manage Pairing File › Place** for SideStore. Close SideStore fully, reopen it and sign in again.
+- **Already installed FitTrack with iloader?** Add the source (step 3) and tap **Update** in **My Apps**. It installs over the same app, so your data is kept, and SideStore renews it from then on.
 - **Experimental builds:** if SideStore says its build is experimental, switch its update channel to **Stable**.
 - **Leave alone:** SideJITServer and the Client Configuration screens. FitTrack doesn't need them.
 

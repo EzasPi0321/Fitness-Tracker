@@ -77,9 +77,17 @@ class DetectedFood {
     this.satFat = 0,
     this.sodium = 0,
     this.fruitVeg,
+    this.dish,
   });
 
   String name;
+
+  /// The dish this is part of, as a person would log it ("Meat lovers pizza"). Parts with the
+  /// same dish are logged together as one food. Null or equal to [name] for a food on its own.
+  String? dish;
+
+  /// What the food is logged as.
+  String get dishName => (dish == null || dish!.trim().isEmpty) ? name : dish!.trim();
   double grams;
   double calories;
   double protein;
@@ -254,7 +262,7 @@ Identify every distinct food or drink item that is visible. For each item provid
 - calories, protein_g, carbs_g, fat_g, fiber_g (dietary fibre), sugar_g (total sugars), sat_fat_g (saturated fat), sodium_mg: values for that whole portion, based on standard food-composition data (e.g. USDA FoodData Central). Account for visible oils, sauces and dressings.
 - fruit_veg_percent: 0-100, the share of the item's weight that is fruit, vegetables, nuts or legumes.
 - confidence: 0.0–1.0 for how sure you are about the identification and portion size.
-List the components of mixed dishes separately when they are visually distinguishable.
+- dish: the name a person would log the whole dish as, e.g. "Meat lovers pizza", "Chicken Caesar salad", "Big Mac meal". Break a mixed dish into its components when they are visually distinguishable (base, cheese, each topping, sauce), and give every component the same dish. A food on its own (an apple, a glass of milk) uses its own name as its dish.
 Ignore plates, cutlery and inedible packaging. If no food is visible, return an empty items array.
 Put a single-sentence caveat in "notes" (e.g. likely hidden ingredients), or an empty string.
 Respond with JSON only.''';
@@ -274,6 +282,7 @@ Respond with JSON only.''';
     final number = {'type': type('number')};
     const itemKeys = [
       'name',
+      'dish',
       'estimated_grams',
       'calories',
       'protein_g',
@@ -288,6 +297,7 @@ Respond with JSON only.''';
     ];
     final item = object({
       'name': string,
+      'dish': string,
       'estimated_grams': number,
       'calories': number,
       'protein_g': number,
@@ -360,7 +370,7 @@ Respond with JSON only.''';
   static String refinePrompt(MealAnalysis previous, String correction) {
     final items = [
       for (final i in previous.items)
-        '- ${i.name}: ${i.grams.round()} g, ${i.calories.round()} kcal, '
+        '- ${i.name}${i.dishName == i.name ? '' : ' (part of ${i.dishName})'}: ${i.grams.round()} g, ${i.calories.round()} kcal, '
             'P ${i.protein.round()} g, C ${i.carbs.round()} g, F ${i.fat.round()} g',
     ].join('\n');
     return 'Analyse this meal photo and return the nutrition estimate.\n'
@@ -1172,6 +1182,7 @@ Never estimate from the look of the food. Use only the printed numbers. Respond 
           satFat: n.satFat,
           sodium: n.sodium,
           fruitVeg: fv?.clamp(0, 100).toDouble(),
+          dish: it['dish'] is String ? (it['dish'] as String).trim() : null,
           confidence: (lossyDouble(it['confidence']) ?? 0.5).clamp(0.0, 1.0),
         ),
       );

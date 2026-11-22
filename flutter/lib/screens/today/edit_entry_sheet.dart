@@ -32,6 +32,7 @@ class _EditEntrySheetState extends State<_EditEntrySheet> {
   late MealType _meal = widget.entry.meal;
   late DateTime _time = widget.entry.consumedAt;
   bool _confirmDelete = false;
+  bool _showParts = false;
 
   bool get _grams => widget.entry.unit == 'g';
   double get _step => _grams ? 5 : 0.25;
@@ -60,6 +61,42 @@ class _EditEntrySheetState extends State<_EditEntrySheet> {
     if (picked != null) {
       setState(() => _time = DateTime(_time.year, _time.month, _time.day, picked.hour, picked.minute));
     }
+  }
+
+  /// What the dish is made of, folded away until asked for. Follows the portion above.
+  Widget _breakdown(BuildContext context, List<FoodComponent> parts) {
+    final t = FT.of(context);
+    final tt = Theme.of(context).textTheme;
+    final e = widget.entry;
+    final q = _qty;
+    final k = (q == null || q <= 0 || e.quantity <= 0) ? 1.0 : q / e.quantity;
+    return FGroup(
+      label: 'What’s in it',
+      children: [
+        FRow(
+          label: _showParts ? 'Hide breakdown' : 'Show breakdown',
+          sub: '${parts.length} parts, estimated from the photo',
+          onTap: () => setState(() => _showParts = !_showParts),
+          trailing: AnimatedRotation(
+            turns: _showParts ? 0.5 : 0,
+            duration: const Duration(milliseconds: 200),
+            child: FIcon(Symbols.expand_more, size: 22, color: t.muted),
+          ),
+        ),
+        if (_showParts)
+          for (final c in parts)
+            FRow(
+              label: c.name,
+              sub:
+                  '${whole(c.grams * k)} g · P ${whole(c.nutrients.protein * k)}  '
+                  'C ${whole(c.nutrients.carbs * k)}  F ${whole(c.nutrients.fat * k)}',
+              trailing: Text(
+                Energy.format(c.nutrients.calories * k),
+                style: tt.bodyLarge!.copyWith(fontFeatures: tabular),
+              ),
+            ),
+      ],
+    );
   }
 
   @override
@@ -119,6 +156,10 @@ class _EditEntrySheetState extends State<_EditEntrySheet> {
                   ),
               ],
             ),
+            if (e.components case final parts? when parts.isNotEmpty) ...[
+              const SizedBox(height: S.xl),
+              _breakdown(context, parts),
+            ],
             const SizedBox(height: S.xl),
             const SectionLabel('Meal'),
             SegmentedButton<MealType>(
