@@ -6,6 +6,7 @@ import 'package:intl/intl.dart';
 import 'package:material_symbols_icons/symbols.dart';
 
 import '../../data/app_state.dart';
+import '../../data/common_foods.dart';
 import '../../design/motion.dart';
 import '../../design/smooth_scroll.dart';
 import '../../design/tokens.dart';
@@ -818,6 +819,11 @@ class _SearchResultsState extends State<_SearchResults> {
     final tt = Theme.of(context).textTheme;
     final q = widget.query.trim().toLowerCase();
     final local = _local(state, q);
+    // Built-in everyday foods, minus any you've already got under the same name.
+    final common = [
+      for (final p in searchCommonFoods(q))
+        if (!local.any((l) => l.name.toLowerCase() == p.name.toLowerCase())) p,
+    ];
 
     final children = <Widget>[
       if (local.isNotEmpty) ...[
@@ -825,8 +831,13 @@ class _SearchResultsState extends State<_SearchResults> {
         for (final p in local) _ResultRow(product: p, onTap: () => widget.onPick(p)),
         const SizedBox(height: S.md),
       ],
+      if (common.isNotEmpty) ...[
+        const SectionLabel('Common foods'),
+        for (final p in common) _ResultRow(product: p, onTap: () => widget.onPick(p)),
+        const SizedBox(height: S.md),
+      ],
       if (q.length >= 2) ...[
-        const SectionLabel('Open Food Facts'),
+        const SectionLabel('Packaged foods · Open Food Facts'),
         if (_loading)
           for (var i = 0; i < 3; i++) const _SkeletonRow()
         else if (_error != null)
@@ -837,7 +848,12 @@ class _SearchResultsState extends State<_SearchResults> {
         else if (_online.isEmpty)
           Padding(
             padding: const EdgeInsets.all(S.md),
-            child: Text('No matches.', style: tt.bodyMedium!.copyWith(color: t.muted)),
+            child: Text(
+              common.isEmpty && local.isEmpty
+                  ? 'No matches. Try a simpler name, scan the barcode, or add it with Manual entry.'
+                  : 'No packaged matches.',
+              style: tt.bodyMedium!.copyWith(color: t.muted),
+            ),
           )
         else
           for (final p in _online) _ResultRow(product: p, onTap: () => widget.onPick(p)),

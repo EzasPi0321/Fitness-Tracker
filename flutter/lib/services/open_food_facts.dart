@@ -140,7 +140,9 @@ class OpenFoodFactsService {
       'search_simple': '1',
       'action': 'process',
       'json': '1',
-      'page_size': '20',
+      'page_size': '24',
+      // Most-scanned first: the products people actually buy, not obscure near-matches.
+      'sort_by': 'unique_scans_n',
       'fields': _searchFields,
     });
     final http.Response res;
@@ -160,7 +162,19 @@ class OpenFoodFactsService {
     } catch (_) {
       throw FoodLookupException.decoding;
     }
-    return parseSearch(json);
+    return rankByName(parseSearch(json), q);
+  }
+
+  /// Products whose name holds every word searched for come first, keeping the order within
+  /// each group (most scanned first).
+  static List<FoodProduct> rankByName(List<FoodProduct> products, String query) {
+    final words = query.toLowerCase().split(RegExp(r'\s+')).where((w) => w.isNotEmpty).toList();
+    bool named(FoodProduct p) {
+      final n = p.name.toLowerCase();
+      return words.every(n.contains);
+    }
+
+    return [...products.where(named), ...products.where((p) => !named(p))];
   }
 
   static List<FoodProduct> parseSearch(Object? json) {
