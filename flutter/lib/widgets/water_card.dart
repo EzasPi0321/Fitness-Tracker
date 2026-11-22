@@ -17,19 +17,56 @@ class WaterCard extends StatelessWidget {
   const WaterCard({super.key, required this.day});
   final DateTime day;
 
-  Future<void> _custom(BuildContext context, bool metric) async {
+  /// Takes back the latest drink and says what was removed.
+  void _undo(BuildContext context, bool metric) {
+    final removed = AppScope.read(context).undoWater(day);
+    if (removed != null) showToast(context, 'Removed ${Volume.format(removed.ml, metric: metric)} of water');
+  }
+
+  /// Adds water, with Undo in the toast: a mistaken tap is fixed where the eye already is.
+  void _add(BuildContext context, double ml, bool metric) {
+    AppScope.read(context).addWater(ml, logTimestamp(day));
+    showToast(
+      context,
+      'Added ${Volume.format(ml, metric: metric)} of water',
+      actionLabel: 'Undo',
+      onAction: () {
+        if (context.mounted) AppScope.read(context).undoWater(day);
+      },
+    );
+  }
+
+  /// Another amount, and the place to take back an earlier drink once the toast has gone.
+  Future<void> _custom(BuildContext context, bool metric, {required bool hasAny}) async {
     double? value;
     final ok = await showDialog<bool>(
       context: context,
       builder: (c) => AlertDialog(
         title: const Text('Add water'),
-        content: NumberInput(
-          value: null,
-          unit: Volume.unit(metric: metric),
-          hint: metric ? '330' : '12',
-          maxDigits: 0,
-          width: 200,
-          onChanged: (v) => value = v,
+        content: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            NumberInput(
+              value: null,
+              unit: Volume.unit(metric: metric),
+              hint: metric ? '330' : '12',
+              maxDigits: 0,
+              width: 200,
+              onChanged: (v) => value = v,
+            ),
+            if (hasAny) ...[
+              const SizedBox(height: S.md),
+              TextButton.icon(
+                onPressed: () {
+                  Navigator.pop(c, false);
+                  _undo(context, metric);
+                },
+                icon: const FIcon(Symbols.undo, size: 20),
+                label: const Text('Remove last drink'),
+              ),
+            ],
+          ],
         ),
         actions: [
           TextButton(onPressed: () => Navigator.pop(c, false), child: const Text('Cancel')),
@@ -37,8 +74,8 @@ class WaterCard extends StatelessWidget {
         ],
       ),
     );
-    if (ok == true && value != null && context.mounted) {
-      await AppScope.read(context).addWater(Volume.fromDisplay(value!, metric: metric), logTimestamp(day));
+    if (ok == true && value != null && value! > 0 && context.mounted) {
+      _add(context, Volume.fromDisplay(value!, metric: metric), metric);
     }
   }
 
@@ -54,11 +91,13 @@ class WaterCard extends StatelessWidget {
     final hasAny = state.waterOn(day).isNotEmpty;
     final water = t.bodyO;
 
-    Widget add(double ml) => Expanded(
+    // Sized to their labels, not stretched: the row stays clear of the add button's corner.
+    Widget add(double ml) => ConstrainedBox(
+      constraints: const BoxConstraints(minWidth: 96),
       child: Squishy(
         onTap: () {
           HapticFeedback.lightImpact();
-          state.addWater(ml, logTimestamp(day));
+          _add(context, ml, metric);
         },
         feel: PressFeel.bold,
         semanticLabel: 'Add ${Volume.format(ml, metric: metric)} of water',
@@ -68,8 +107,9 @@ class WaterCard extends StatelessWidget {
             color: t.inset,
             borderRadius: BorderRadius.circular(S.inner(S.radiusCard, S.lg) + 6),
           ),
-          padding: const EdgeInsets.symmetric(horizontal: S.sm),
+          padding: const EdgeInsets.symmetric(horizontal: S.lg),
           child: Center(
+            widthFactor: 1,
             child: FittedBox(
               fit: BoxFit.scaleDown,
               child: Row(
@@ -141,23 +181,9 @@ class WaterCard extends StatelessWidget {
                 style: IconButton.styleFrom(
                   shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(S.inner(S.radiusCard, S.lg) + 6)),
                 ),
-                tooltip: 'Other amount',
-                onPressed: () => _custom(context, metric),
+                tooltip: 'Other amount or remove',
+                onPressed: () => _custom(context, metric, hasAny: hasAny),
                 icon: FIcon(Symbols.edit, size: 20, weight: FontWeight.w500),
-              ),
-              IconButton(
-                constraints: const BoxConstraints.tightFor(width: 44, height: 44),
-                padding: EdgeInsets.zero,
-                tooltip: 'Undo last drink',
-                onPressed: hasAny
-                    ? () {
-                        final removed = state.undoWater(day);
-                        if (removed != null) {
-                          showToast(context, 'Removed ${Volume.format(removed.ml, metric: metric)} of water');
-                        }
-                      }
-                    : null,
-                icon: FIcon(Symbols.undo, size: 20, weight: FontWeight.w500),
               ),
             ],
           ),
