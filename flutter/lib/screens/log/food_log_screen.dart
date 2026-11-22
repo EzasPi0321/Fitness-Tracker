@@ -6,6 +6,7 @@ import 'package:intl/intl.dart';
 import 'package:material_symbols_icons/symbols.dart';
 
 import '../../data/app_state.dart';
+import '../../data/common_foods.dart';
 import '../../design/motion.dart';
 import '../../design/smooth_scroll.dart';
 import '../../design/tokens.dart';
@@ -480,7 +481,7 @@ class _LogCard extends StatelessWidget {
     // Two short lines instead of one long one, so nothing is cut off on a phone.
     final detail = [
       Energy.format(n.calories),
-      if (grams != null) '${whole(grams)} g' else entry.portionDescription,
+      if (grams != null) '${whole(grams)} ${entry.unit == 'ml' ? 'ml' : 'g'}' else entry.portionDescription,
     ].join('  ·  ');
     final macros = '${whole(n.protein)}P  ${whole(n.carbs)}C  ${whole(n.fat)}F';
 
@@ -794,17 +795,19 @@ class _SearchResultsState extends State<_SearchResults> {
       if (out.length >= 12) break;
       if (!match(e.name, e.brand) || !seen.add(e.name.toLowerCase()) || e.quantity <= 0) continue;
       final per = e.nutrients * (1 / e.quantity);
+      final byAmount = e.unit == 'g' || e.unit == 'ml';
       out.add(
         FoodProduct(
           barcode: e.barcode ?? 'recent-${e.id}',
           name: e.name,
           brand: e.brand,
-          servingDescription: e.unit == 'g' ? null : e.unit,
-          servingGrams: e.unit == 'g' ? null : (e.grams == null ? null : e.grams! / e.quantity),
-          per100g: e.unit == 'g' ? per * 100 : null,
-          perServingReported: e.unit == 'g' ? null : per,
+          servingDescription: byAmount ? null : e.unit,
+          servingGrams: byAmount ? null : (e.grams == null ? null : e.grams! / e.quantity),
+          per100g: byAmount ? per * 100 : null,
+          perServingReported: byAmount ? null : per,
           source: e.source,
           trust: e.trust,
+          liquid: e.unit == 'ml',
         ),
       );
     }
@@ -818,6 +821,11 @@ class _SearchResultsState extends State<_SearchResults> {
     final tt = Theme.of(context).textTheme;
     final q = widget.query.trim().toLowerCase();
     final local = _local(state, q);
+    // Built-in everyday foods, minus any you've already got under the same name.
+    final common = [
+      for (final p in searchCommonFoods(q))
+        if (!local.any((l) => l.name.toLowerCase() == p.name.toLowerCase())) p,
+    ];
 
     final children = <Widget>[
       if (local.isNotEmpty) ...[
@@ -825,8 +833,13 @@ class _SearchResultsState extends State<_SearchResults> {
         for (final p in local) _ResultRow(product: p, onTap: () => widget.onPick(p)),
         const SizedBox(height: S.md),
       ],
+      if (common.isNotEmpty) ...[
+        const SectionLabel('Common foods'),
+        for (final p in common) _ResultRow(product: p, onTap: () => widget.onPick(p)),
+        const SizedBox(height: S.md),
+      ],
       if (q.length >= 2) ...[
-        const SectionLabel('Open Food Facts'),
+        const SectionLabel('Packaged foods · Open Food Facts'),
         if (_loading)
           for (var i = 0; i < 3; i++) const _SkeletonRow()
         else if (_error != null)
@@ -837,7 +850,12 @@ class _SearchResultsState extends State<_SearchResults> {
         else if (_online.isEmpty)
           Padding(
             padding: const EdgeInsets.all(S.md),
-            child: Text('No matches.', style: tt.bodyMedium!.copyWith(color: t.muted)),
+            child: Text(
+              common.isEmpty && local.isEmpty
+                  ? 'No matches. Try a simpler name, scan the barcode, or add it with Manual entry.'
+                  : 'No packaged matches.',
+              style: tt.bodyMedium!.copyWith(color: t.muted),
+            ),
           )
         else
           for (final p in _online) _ResultRow(product: p, onTap: () => widget.onPick(p)),
@@ -882,7 +900,7 @@ class _ResultRow extends StatelessWidget {
     final per = serving != null
         ? '${Energy.format(serving.calories)} per ${product.servingLabel}'
         : product.per100g != null
-        ? '${Energy.format(product.per100g!.calories)} per 100 g'
+        ? '${Energy.format(product.per100g!.calories)} per 100 ${product.amountUnit}'
         : '';
     return InkWell(
       borderRadius: BorderRadius.circular(14),

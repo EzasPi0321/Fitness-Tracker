@@ -86,7 +86,16 @@ class OpenFoodFactsService {
     final perServing = read('serving');
     if (name == null && per100g == null && perServing == null) return null;
 
-    final servingQty = lossyDouble(p['serving_quantity']);
+    final liquid = isLiquid(p);
+    var servingQty = lossyDouble(p['serving_quantity']);
+    var servingLabel = lossyString(p['serving_size']);
+    // No serving listed: a single-serve pack (a 375 ml can, a 40 g bar) is the serving.
+    // Bigger packs (a 2 L bottle, a 1 kg bag) aren't one serving, so they're left out.
+    final pack = lossyDouble(p['product_quantity']);
+    if ((servingQty == null || servingQty <= 0) && perServing == null && pack != null && pack > 0 && pack <= 750) {
+      servingQty = pack;
+      servingLabel = '${liquid ? 'bottle' : 'pack'} (${formatAmount(pack, maxDigits: 0)} ${liquid ? 'ml' : 'g'})';
+    }
     final trust = rateTrust(p, per100g ?? perServing);
     final brand = lossyString(p['brands'])?.split(',').first.trim();
     return FoodProduct(
@@ -94,12 +103,27 @@ class OpenFoodFactsService {
       name: name ?? 'Product $barcode',
       brand: (brand == null || brand.isEmpty) ? null : brand,
       imageUrl: lossyString(p['image_front_url']) ?? lossyString(p['image_front_small_url']),
-      servingDescription: lossyString(p['serving_size']),
+      servingDescription: servingLabel,
       servingGrams: servingQty != null && servingQty > 0 ? servingQty : null,
       per100g: per100g,
       perServingReported: perServing,
       trust: trust,
+      liquid: liquid,
     );
+  }
+
+  /// Sold by volume: the pack, the serving or the nutrition table is in millilitres or litres,
+  /// or Open Food Facts files it under beverages.
+  static bool isLiquid(Map p) {
+    final ml = RegExp(r'\d\s*(ml|cl|dl|l|litres?|liters?|fl\.?\s*oz)\b', caseSensitive: false);
+    if ((lossyString(p['product_quantity_unit']) ?? '').toLowerCase() == 'ml') return true;
+    if ((lossyString(p['nutrition_data_per']) ?? '').toLowerCase().contains('ml')) return true;
+    for (final k in ['quantity', 'serving_size']) {
+      final v = lossyString(p[k]);
+      if (v != null && ml.hasMatch(v)) return true;
+    }
+    final cats = (p['categories_tags'] is List ? p['categories_tags'] as List : const []).whereType<String>();
+    return cats.contains('en:beverages') && !cats.any((c) => c.contains('powder') || c.contains('dried'));
   }
 
   /// Verified when Open Food Facts marks the nutrition facts complete, no nutrition data
@@ -129,7 +153,8 @@ class OpenFoodFactsService {
 
   static const _searchFields =
       'code,product_name,product_name_en,generic_name,brands,serving_size,serving_quantity,image_front_small_url,'
-      'image_front_url,nutriments,states_tags,data_quality_errors_tags';
+      'image_front_url,nutriments,states_tags,data_quality_errors_tags,quantity,product_quantity,'
+      'product_quantity_unit,nutrition_data_per,categories_tags';
 
   /// Text search. Results without any nutrition are dropped.
   Future<List<FoodProduct>> search(String query) async {
@@ -140,7 +165,9 @@ class OpenFoodFactsService {
       'search_simple': '1',
       'action': 'process',
       'json': '1',
-      'page_size': '20',
+      'page_size': '24',
+      // Most-scanned first: the products people actually buy, not obscure near-matches.
+      'sort_by': 'unique_scans_n',
       'fields': _searchFields,
     });
     final http.Response res;
@@ -160,7 +187,19 @@ class OpenFoodFactsService {
     } catch (_) {
       throw FoodLookupException.decoding;
     }
-    return parseSearch(json);
+    return rankByName(parseSearch(json), q);
+  }
+
+  /// Products whose name holds every word searched for come first, keeping the order within
+  /// each group (most scanned first).
+  static List<FoodProduct> rankByName(List<FoodProduct> products, String query) {
+    final words = query.toLowerCase().split(RegExp(r'\s+')).where((w) => w.isNotEmpty).toList();
+    bool named(FoodProduct p) {
+      final n = p.name.toLowerCase();
+      return words.every(n.contains);
+    }
+
+    return [...products.where(named), ...products.where((p) => !named(p))];
   }
 
   static List<FoodProduct> parseSearch(Object? json) {

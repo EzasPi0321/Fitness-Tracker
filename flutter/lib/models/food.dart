@@ -131,7 +131,7 @@ class FoodEntry {
 
   String get portionDescription {
     final amount = formatAmount(quantity);
-    if (unit == 'g') return '$amount g';
+    if (unit == 'g' || unit == 'ml') return '$amount $unit';
     if (unit == 'serving') return '$amount ${quantity == 1 ? 'serving' : 'servings'}';
     return '$amount × $unit'; // e.g. "2 × 1 cup (240 ml)"
   }
@@ -312,6 +312,7 @@ class FoodProduct {
     this.source = EntrySource.barcode,
     this.customFoodId,
     this.trust,
+    this.liquid = false,
   });
 
   final String barcode;
@@ -325,6 +326,12 @@ class FoodProduct {
   final EntrySource source;
   final String? customFoodId;
   final NutritionTrust? trust;
+
+  /// A drink: amounts are in millilitres, and "per 100 g" values are per 100 ml.
+  final bool liquid;
+
+  /// 'ml' for drinks, 'g' for everything else.
+  String get amountUnit => liquid ? 'ml' : 'g';
 
   factory FoodProduct.fromCustomFood(CustomFood food) {
     final g = food.servingGrams;
@@ -365,7 +372,7 @@ class FoodProduct {
   String get servingLabel {
     final d = servingDescription;
     if (d != null && d.isNotEmpty) return d;
-    if (servingGrams != null) return 'serving (${formatAmount(servingGrams!, maxDigits: 1)} g)';
+    if (servingGrams != null) return 'serving (${formatAmount(servingGrams!, maxDigits: 1)} $amountUnit)';
     return 'serving';
   }
 }

@@ -75,17 +75,21 @@ A Shortcuts automation renews everything each time you leave FitTrack. It turns 
 
    | # | Action | Set to |
    |---|---|---|
-   | 1 | **Set VPN** | **Connect** · LocalDevVPN |
-   | 2 | **Wait** | **3** seconds |
-   | 3 | **Refresh All Apps** (SideStore) | turn off **Show when Run** |
-   | 4 | **Set VPN** | **Disconnect** · LocalDevVPN |
+   | 1 | **Get Network Details** | **Wi-Fi** · **Network Name** |
+   | 2 | **If** | **Network Details** · **has any value** |
+   | 3 | **Set VPN** (inside the If) | **Connect** · LocalDevVPN |
+   | 4 | **Wait** (inside the If) | **3** seconds |
+   | 5 | **Refresh All Apps** (SideStore, inside the If) | turn off **Show when Run** |
+   | 6 | **Set VPN** (inside the If) | **Disconnect** · LocalDevVPN |
+
+   Leave **Otherwise** empty. SideStore only refreshes over Wi-Fi ("No wifi interface satisfied" on mobile data), so on mobile data the automation does nothing instead of failing with the VPN left on. One refresh on Wi-Fi a week is enough.
 
 4. On the trigger at the top, turn off **Notify**.
 
-If the Shortcuts app asks you to *describe* the automation instead, paste this, then check the four actions match the table:
+If the Shortcuts app asks you to *describe* the automation instead, paste this, then check the actions match the table:
 
 ```
-When FitTrack is closed, run immediately: connect the VPN LocalDevVPN, wait 3 seconds, run SideStore's Refresh All Apps action, then disconnect the VPN LocalDevVPN.
+When FitTrack is closed, run immediately: get the current Wi-Fi network name. If it has any value, connect the VPN LocalDevVPN, wait 3 seconds, run SideStore's Refresh All Apps action, then disconnect the VPN LocalDevVPN. Otherwise do nothing.
 ```
 
 **Check it works:** open FitTrack, go back to the home screen, wait about 10 seconds, then open SideStore › **My Apps**. FitTrack should show **7 DAYS**.

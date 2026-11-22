@@ -91,11 +91,13 @@ class NutritionCalculator {
     required ActivityLevel activity,
     required WeightGoal goal,
     DietStyle diet = DietStyle.balanced,
+
+    /// Daily kcal above or below maintenance; the goal's default when null.
+    double? adjustment,
   }) {
     final resting = bmr(sex: sex, weightKg: weightKg, heightCm: heightCm, age: age);
     final tdee = NutritionCalculator.tdee(resting, activity);
-    final minimum = sex == BiologicalSex.male ? 1500.0 : 1200.0;
-    final calories = _round(_max(minimum, tdee + goal.calorieAdjustment) / 10) * 10;
+    final calories = _round(_max(minimumCalories(sex), tdee + (adjustment ?? goal.calorieAdjustment)) / 10) * 10;
 
     final protein = _round(calories * diet.protein / 4);
     final fat = _round(calories * diet.fat / 9);
@@ -115,9 +117,78 @@ class NutritionCalculator {
     Macro.fat: MacroRange(_round(calories * 0.20 / 9), _round(calories * 0.35 / 9)),
   };
 
+  /// The floor no plan goes under.
+  static double minimumCalories(BiologicalSex sex) => sex == BiologicalSex.male ? 1500 : 1200;
+
   // Swift's .rounded() rounds half away from zero; Dart's round() does the same.
   static double _round(double v) => v.roundToDouble();
   static double _max(double a, double b) => a > b ? a : b;
+}
+
+/// About 7,700 kcal of energy per kilogram of body weight lost or gained.
+const kcalPerKg = 7700.0;
+
+/// How fast a target weight by a date needs to go, held to a safe pace.
+///
+/// Safe pace: losing up to 1% of body weight a week (and no more than 1 kg), gaining up to
+/// 0.5% a week, the usual guidance for keeping muscle on a cut and limiting fat on a gain.
+class GoalPace {
+  const GoalPace({
+    required this.kgToGo,
+    required this.weeks,
+    required this.kgPerWeek,
+    required this.safeKgPerWeek,
+    required this.reachBy,
+  });
+
+  /// Signed: negative to lose.
+  final double kgToGo;
+
+  /// Weeks until the chosen date.
+  final double weeks;
+
+  /// Signed pace the plan uses, after the safety limit.
+  final double kgPerWeek;
+  final double safeKgPerWeek;
+
+  /// When the target is reached at [kgPerWeek]: the chosen date, or later when the limit applies.
+  final DateTime reachBy;
+
+  bool get limited => kgToGo.abs() / weeks > safeKgPerWeek + 1e-9;
+
+  /// Daily calories above (+) or below (−) maintenance.
+  double get dailyKcal => kgPerWeek * kcalPerKg / 7;
+
+  static double safeRate(WeightGoal goal, double weightKg) =>
+      goal == WeightGoal.lose ? (weightKg * 0.01).clamp(0, 1.0).toDouble() : weightKg * 0.005;
+
+  /// Null when there's nothing to plan: maintaining, no target or date, or the target is
+  /// on the wrong side of the current weight (already reached).
+  static GoalPace? of({
+    required WeightGoal goal,
+    required double weightKg,
+    double? targetKg,
+    DateTime? targetDate,
+    DateTime? now,
+  }) {
+    if (goal == WeightGoal.maintain || targetKg == null || targetDate == null) return null;
+    final diff = targetKg - weightKg;
+    if (goal == WeightGoal.lose ? diff >= -0.05 : diff <= 0.05) return null;
+    final today = now ?? DateTime.now();
+    // At least a week, so a date that's tomorrow (or past) never asks for a crash plan.
+    final days = targetDate.difference(DateTime(today.year, today.month, today.day)).inHours / 24;
+    final weeks = (days < 7 ? 7 : days) / 7;
+    final safe = safeRate(goal, weightKg);
+    final rate = (diff.abs() / weeks).clamp(0, safe).toDouble();
+    final reachWeeks = diff.abs() / rate;
+    return GoalPace(
+      kgToGo: diff,
+      weeks: weeks,
+      kgPerWeek: diff.sign * rate,
+      safeKgPerWeek: safe,
+      reachBy: today.add(Duration(hours: (reachWeeks * 7 * 24).round())),
+    );
+  }
 }
 
 class UserProfile {
@@ -132,6 +203,11 @@ class UserProfile {
     this.diet = DietStyle.balanced,
     this.usesMetric = true,
     this.targets = const Nutrients(calories: 2000, protein: 140, carbs: 220, fat: 65),
+    this.targetWeightKg,
+    this.targetDate,
+    this.planWeightKg,
+    this.planUpdatedAt,
+    this.customTargets = false,
   }) : birthDate = birthDate ?? DateTime(DateTime.now().year - 30, 1, 1);
 
   /// What to call the user. Optional; empty means no name.
@@ -145,6 +221,30 @@ class UserProfile {
   DietStyle diet;
   bool usesMetric;
   Nutrients targets;
+
+  /// Where a cut or gain is heading, and by when. Sets the daily calorie change.
+  double? targetWeightKg;
+  DateTime? targetDate;
+
+  /// The trend weight the pace was last planned from, and when. The pace is re-planned once a
+  /// week from the trend, so a day of water weight never moves the target.
+  double? planWeightKg;
+  DateTime? planUpdatedAt;
+
+  /// The daily targets were typed in by hand; the weekly re-plan leaves them alone.
+  bool customTargets;
+
+  double get _paceWeight => planWeightKg ?? weightKg;
+
+  GoalPace? get pace =>
+      GoalPace.of(goal: goal, weightKg: _paceWeight, targetKg: targetWeightKg, targetDate: targetDate);
+
+  /// On a cut or gain with the target already reached.
+  bool get targetReached {
+    final t = targetWeightKg;
+    if (t == null || goal == WeightGoal.maintain) return false;
+    return goal == WeightGoal.lose ? _paceWeight <= t + 0.05 : _paceWeight >= t - 0.05;
+  }
 
   /// First word of the name, for the line above Today ("Daniel · Sat 21 Nov").
   String get firstName => name.trim().split(RegExp(r'\s+')).first;
@@ -171,6 +271,8 @@ class UserProfile {
     activity: activity,
     goal: goal,
     diet: diet,
+    // A target that's been reached holds the weight there instead of carrying on.
+    adjustment: targetReached ? 0 : pace?.dailyKcal,
   );
 
   bool get isBodyValid =>
@@ -187,6 +289,11 @@ class UserProfile {
     diet: diet,
     usesMetric: usesMetric,
     targets: targets,
+    targetWeightKg: targetWeightKg,
+    targetDate: targetDate,
+    planWeightKg: planWeightKg,
+    planUpdatedAt: planUpdatedAt,
+    customTargets: customTargets,
   );
 
   Map<String, dynamic> toJson() => {
@@ -200,6 +307,11 @@ class UserProfile {
     'diet': diet.name,
     'metric': usesMetric,
     'targets': targets.toJson(),
+    if (targetWeightKg != null) 'targetKg': targetWeightKg,
+    if (targetDate != null) 'targetDate': targetDate!.millisecondsSinceEpoch,
+    if (planWeightKg != null) 'planKg': planWeightKg,
+    if (planUpdatedAt != null) 'planAt': planUpdatedAt!.millisecondsSinceEpoch,
+    if (customTargets) 'customTargets': true,
   };
 
   factory UserProfile.fromJson(Map<String, dynamic> j) => UserProfile(
@@ -215,5 +327,10 @@ class UserProfile {
     targets: j['targets'] is Map
         ? Nutrients.fromJson((j['targets'] as Map).cast<String, dynamic>())
         : const Nutrients(calories: 2000, protein: 140, carbs: 220, fat: 65),
+    targetWeightKg: (j['targetKg'] as num?)?.toDouble(),
+    targetDate: j['targetDate'] is num ? DateTime.fromMillisecondsSinceEpoch((j['targetDate'] as num).toInt()) : null,
+    planWeightKg: (j['planKg'] as num?)?.toDouble(),
+    planUpdatedAt: j['planAt'] is num ? DateTime.fromMillisecondsSinceEpoch((j['planAt'] as num).toInt()) : null,
+    customTargets: (j['customTargets'] as bool?) ?? false,
   );
 }
