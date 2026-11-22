@@ -88,6 +88,7 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
           content: Text(
             _draft.name.isEmpty ? 'Welcome to FitTrack' : 'Welcome, ${_draft.firstName}. Your plan is ready.',
           ),
+          duration: const Duration(milliseconds: 2500),
         ),
       );
     }
@@ -146,16 +147,27 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
                       children: [
                         if (_index > 0 && _steps[_index - 1] != _Step.welcome)
                           TextButton(onPressed: () => _go(-1), child: const Text('Back')),
-                        const Spacer(),
-                        Squishy(
-                          onTap: _canContinue ? (last ? _finish : () => _go(1)) : null,
-                          feel: last ? PressFeel.bold : PressFeel.normal,
-                          haptic: last,
-                          child: IgnorePointer(
-                            child: FilledButton(
-                              onPressed: _canContinue ? () {} : null,
-                              child: Text(
-                                last ? (widget.existing == null ? 'Start tracking' : 'Save targets') : 'Continue',
+                        const SizedBox(width: S.md),
+                        // Flexible, with the label shrinking to fit: large system text sizes
+                        // otherwise push the button past the screen edge.
+                        Flexible(
+                          child: Align(
+                            alignment: Alignment.centerRight,
+                            child: Squishy(
+                              onTap: _canContinue ? (last ? _finish : () => _go(1)) : null,
+                              feel: last ? PressFeel.bold : PressFeel.normal,
+                              haptic: last,
+                              child: IgnorePointer(
+                                child: FilledButton(
+                                  onPressed: _canContinue ? () {} : null,
+                                  child: FittedBox(
+                                    fit: BoxFit.scaleDown,
+                                    child: Text(
+                                      last ? (widget.existing == null ? 'Start tracking' : 'Save targets') : 'Continue',
+                                      maxLines: 1,
+                                    ),
+                                  ),
+                                ),
                               ),
                             ),
                           ),
@@ -266,7 +278,8 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
         Text('Connect $name?', style: tt.headlineMedium),
         const SizedBox(height: S.md),
         Text(
-          'FitTrack can fill in your height and weight, add exercise to your budget, and save meals to $name.',
+          'FitTrack can fill in your height and weight, add exercise to your budget, read your steps and sleep, '
+          'and save meals, water, weight and body fat to $name.',
           style: tt.bodyLarge!.copyWith(color: t.muted),
         ),
         const SizedBox(height: S.xl),
@@ -289,7 +302,7 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
           const SizedBox(height: S.md),
           StatusPill(
             text: state.healthMissing.isEmpty
-                ? 'Connected to $name. Tap Continue.'
+                ? 'Connected to $name.'
                 : 'Connected. Not allowed: ${state.healthMissing.join(', ')}',
             color: state.healthMissing.isEmpty ? t.good : t.warn,
             icon: Symbols.check,
@@ -300,7 +313,12 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
           StatusPill(text: state.healthError!, color: t.warn, icon: Symbols.info),
         ],
         const SizedBox(height: S.sm),
-        Text('You can change this later in Settings. Tap Continue to skip.', style: tt.bodySmall),
+        Text(
+          state.healthEnabled
+              ? 'You can change what’s shared later in Settings.'
+              : 'You can change this later in Settings. Tap Continue to skip.',
+          style: tt.bodySmall,
+        ),
       ],
     );
   }

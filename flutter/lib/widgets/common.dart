@@ -321,15 +321,23 @@ class StatusPill extends StatelessWidget {
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
       decoration: BoxDecoration(color: color.withValues(alpha: 0.14), borderRadius: BorderRadius.circular(6)),
-      child: Row(
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          if (icon != null) ...[
-            FIcon(icon!, size: 14, color: color, weight: FontWeight.w600),
-            const SizedBox(width: 4),
+      // One paragraph with the icon inline, so a long message wraps inside the pill instead of
+      // running off the screen, and a short one still sizes to its text.
+      child: Text.rich(
+        TextSpan(
+          children: [
+            if (icon != null)
+              WidgetSpan(
+                alignment: PlaceholderAlignment.middle,
+                child: Padding(
+                  padding: const EdgeInsets.only(right: 4),
+                  child: FIcon(icon!, size: 14, color: color, weight: FontWeight.w600),
+                ),
+              ),
+            TextSpan(text: text),
           ],
-          Text(text, style: Theme.of(context).textTheme.labelMedium!.copyWith(color: color)),
-        ],
+        ),
+        style: Theme.of(context).textTheme.labelMedium!.copyWith(color: color),
       ),
     );
   }
@@ -341,7 +349,10 @@ void showToast(BuildContext context, String text, {String? actionLabel, VoidCall
   m.showSnackBar(
     SnackBar(
       content: Text(text),
-      duration: const Duration(seconds: 3),
+      // Gone on its own: 2.5 s to read, 3 s when there's an Undo to reach for. Flutter keeps
+      // snack bars with an action open until dismissed unless told otherwise.
+      duration: Duration(milliseconds: actionLabel == null ? 2500 : 3000),
+      persist: false,
       action: actionLabel == null ? null : SnackBarAction(label: actionLabel, onPressed: onAction ?? () {}),
     ),
   );
