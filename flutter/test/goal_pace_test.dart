@@ -127,4 +127,28 @@ void main() {
     expect(back.planUpdatedAt, DateTime(2026, 11, 22));
     expect(back.customTargets, isTrue);
   });
+
+  test('a weight typed into Profile is planned from, not the older weigh-ins', () {
+    final s = AppState(store: MemoryStore(), health: UnsupportedHealthService());
+    s.completeOnboarding(UserProfile(sex: BiologicalSex.male, weightKg: 70, heightCm: 184));
+    s.updateProfileAndPlan(
+      (p) => p
+        ..weightKg = 83
+        ..weightTypedAt = DateTime.now().add(const Duration(seconds: 1))
+        ..goal = WeightGoal.lose
+        ..targetWeightKg = 78
+        ..targetDate = DateTime.now().add(const Duration(days: 98)),
+    );
+    expect(s.profile!.planWeightKg, 83);
+    expect(s.profile!.targetReached, isFalse);
+    expect(s.profile!.pace!.kgToGo, closeTo(-5, 1e-9));
+  });
+
+  test('profile weight follows the trend weight after each weigh-in', () async {
+    final s = AppState(store: MemoryStore(), health: UnsupportedHealthService());
+    s.completeOnboarding(UserProfile(sex: BiologicalSex.male, weightKg: 80, heightCm: 180));
+    await s.addWeight(78, DateTime.now().add(const Duration(days: 1)));
+    expect(s.profile!.weightKg, greaterThan(79.5)); // one light day barely moves it
+    expect(s.profile!.weightKg, lessThan(80));
+  });
 }

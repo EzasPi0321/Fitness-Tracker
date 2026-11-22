@@ -306,14 +306,13 @@ void main() {
       expect(s.entries.single.id, 'b');
     });
 
-    test('a later weigh-in updates the profile weight, an older one does not', () async {
+    test('the profile weight follows the trend weight, not the latest reading', () async {
       final s = make();
       await s.load();
       s.completeOnboarding(UserProfile(weightKg: 80));
-      await s.addWeight(79, DateTime.now().add(const Duration(minutes: 1)));
-      expect(s.profile!.weightKg, 79);
-      await s.addWeight(90, DateTime(2000));
-      expect(s.profile!.weightKg, 79);
+      await s.addWeight(79, DateTime.now().add(const Duration(days: 7)));
+      // A week at 10% a day moves the trend about halfway: 79.5, not 79.
+      expect(s.profile!.weightKg, closeTo(79.5, 0.05));
     });
   });
 
