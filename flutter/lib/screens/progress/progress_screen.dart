@@ -5,6 +5,7 @@ import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
 import 'package:material_symbols_icons/symbols.dart';
 
+import 'body_fat.dart';
 import '../../data/app_state.dart';
 import '../../design/motion.dart';
 import '../../design/oklch.dart';
@@ -54,6 +55,7 @@ class _ProgressScreenState extends State<ProgressScreen> {
 
   List<WeightSample> _healthWeights = const [];
   List<SleepNight> _healthSleep = const [];
+  List<WeightSample> _healthBodyFat = const [];
 
   @override
   void didChangeDependencies() {
@@ -67,10 +69,13 @@ class _ProgressScreenState extends State<ProgressScreen> {
     final since = addDays(DateTime.now(), -TrendRange.quarter.days);
     final w = await s.health.weightHistory(since);
     final sl = await s.health.sleep(startOfDay(since), DateTime.now());
+    // Body fat is measured every few weeks, so look back a year rather than the chart range.
+    final bf = await s.health.bodyFatHistory(addDays(DateTime.now(), -365));
     if (mounted) {
       setState(() {
         _healthWeights = w;
         _healthSleep = sl;
+        _healthBodyFat = bf;
       });
     }
   }
@@ -103,6 +108,10 @@ class _ProgressScreenState extends State<ProgressScreen> {
     final calorie = _CalorieCard(days: days, logged: logged, target: state.targets.calories, range: _range);
     final macros = _MacroCard(logged: logged, targets: state.targets);
     final weight = _WeightCard(points: weights, metric: metric, start: start);
+    final bodyFat = BodyFatCard(
+      readings: mergeBodyFat(state.bodyFatByDate, state.healthEnabled ? _healthBodyFat : const []),
+      metric: metric,
+    );
     // Logged nights win over the health store's for the same morning.
     final nights = {...nightsByDay(_healthSleep), ...state.loggedNights};
     final sleepCard = _SleepTrendCard(
@@ -175,6 +184,8 @@ class _ProgressScreenState extends State<ProgressScreen> {
                       const SizedBox(height: S.lg),
                       Rise(delay: const Duration(milliseconds: 90), child: weight),
                     ],
+                    const SizedBox(height: S.lg),
+                    Rise(delay: const Duration(milliseconds: 105), child: bodyFat),
                     const SizedBox(height: S.lg),
                     Rise(delay: const Duration(milliseconds: 120), child: sleepCard),
                     const SizedBox(height: S.lg),

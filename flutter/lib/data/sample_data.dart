@@ -1,5 +1,6 @@
 import 'dart:math';
 
+import '../models/body_fat.dart';
 import '../models/food.dart';
 import '../models/gym.dart';
 import '../models/nutrients.dart';
@@ -19,6 +20,7 @@ class SampleData {
     this.steps,
     this.sleep,
     this.gym,
+    this.bodyFat,
   );
 
   final UserProfile profile;
@@ -29,6 +31,7 @@ class SampleData {
   final Map<DateTime, int> steps;
   final List<SleepEntry> sleep;
   final List<GymSession> gym;
+  final List<BodyFatEntry> bodyFat;
 
   static SampleData generate({DateTime? now}) {
     final rnd = Random(20261121);
@@ -252,6 +255,26 @@ class SampleData {
       }
     }
 
-    return SampleData._(profile, entries, weights, custom, water, steps, sleep, gym);
+    // A gym InBody scan every four weeks, trending down, and one photo estimate in between.
+    final bodyFat = <BodyFatEntry>[
+      for (final (d, pct) in const [(84, 27.9), (56, 27.1), (28, 26.4), (2, 25.6)])
+        BodyFatEntry(
+          id: id(),
+          at: addDays(today, -d).add(const Duration(hours: 9)),
+          percent: pct,
+          source: BodyFatSource.report,
+          device: 'InBody 570',
+        ),
+      BodyFatEntry(
+        id: id(),
+        at: addDays(today, -14).add(const Duration(hours: 8)),
+        percent: 26,
+        low: 23.5,
+        high: 28.5,
+        source: BodyFatSource.photo,
+      ),
+    ];
+
+    return SampleData._(profile, entries, weights, custom, water, steps, sleep, gym, bodyFat);
   }
 }

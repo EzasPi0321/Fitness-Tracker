@@ -7,7 +7,10 @@ Future<ScrollController> _list(WidgetTester tester) async {
   final c = SmoothScrollController();
   await tester.pumpWidget(
     MaterialApp(
-      home: ListView(controller: c, children: [for (var i = 0; i < 100; i++) SizedBox(height: 50, child: Text('$i'))]),
+      home: ListView(
+        controller: c,
+        children: [for (var i = 0; i < 100; i++) SizedBox(height: 50, child: Text('$i'))],
+      ),
     ),
   );
   return c;
