@@ -424,7 +424,7 @@ class _SnapMealScreenState extends State<SnapMealScreen> {
                 AnimatedOpacity(
                   opacity: _refining ? 0.5 : 1,
                   duration: Motion.of(context, Motion.base),
-                  child: _DetectedCard(
+                  child: DetectedCard(
                     item: item,
                     included: _include.contains(i),
                     onInclude: (v) => setState(() => v ? _include.add(i) : _include.remove(i)),
@@ -472,8 +472,14 @@ class _SnapMealScreenState extends State<SnapMealScreen> {
   }
 }
 
-class _DetectedCard extends StatelessWidget {
-  const _DetectedCard({required this.item, required this.included, required this.onInclude, required this.onChanged});
+class DetectedCard extends StatelessWidget {
+  const DetectedCard({
+    super.key,
+    required this.item,
+    required this.included,
+    required this.onInclude,
+    required this.onChanged,
+  });
   final DetectedFood item;
   final bool included;
   final ValueChanged<bool> onInclude;

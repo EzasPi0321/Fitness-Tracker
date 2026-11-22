@@ -25,7 +25,8 @@ enum EntrySource {
   barcode,
   photoAI,
   manual,
-  customFood;
+  customFood,
+  voice;
 
   static EntrySource parse(String? s) => values.firstWhere((m) => m.name == s, orElse: () => manual);
 }

@@ -74,6 +74,10 @@
 	<string>FitTrack reads your active energy, workouts, height and weight to personalise your daily calorie budget and chart your progress.</string>
 	<key>NSHealthUpdateUsageDescription</key>
 	<string>FitTrack saves the meals you log to Apple Health as dietary energy, protein, carbohydrates and fat, and records weight entries you add.</string>
+	<key>NSMicrophoneUsageDescription</key>
+	<string>FitTrack listens when you tap the microphone in Voice entry, so you can say what you ate instead of typing it.</string>
+	<key>NSSpeechRecognitionUsageDescription</key>
+	<string>FitTrack turns what you say in Voice entry into text, so it can find the foods and log them.</string>
 	<key>ITSAppUsesNonExemptEncryption</key>
 	<false/>
 	<key>CFBundleURLTypes</key>
