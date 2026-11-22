@@ -13,12 +13,14 @@ A calorie and macro tracker built with Flutter. One codebase builds the **Androi
 
 ## Install
 
+**Step-by-step setup for Android and iPhone, the AI key, and fixes for common problems: [SETUP.md](SETUP.md).**
+
 Every push to `main` publishes a GitHub Release (see `.github/workflows/build.yml`):
 
 | File | Platform | How to install |
 |---|---|---|
 | `FitTrack.apk` | Android | Open it on the phone and allow "Install unknown apps". Updates install over the old version. |
-| `FitTrack.ipa` | iPhone | Install with SideStore or AltStore, which re-sign it with your Apple ID. |
+| `FitTrack.ipa` | iPhone | Install with SideStore (see [SETUP.md](SETUP.md)), which re-signs it with your Apple ID. |
 | `FitTrack-Windows.zip` | Windows | Unzip it and run `FitTrack.exe`. |
 | `FitTrack-Web.zip` | Browser | The web build. Camera features are phone-only. |
 

@@ -89,7 +89,7 @@ class ProfileSection extends StatelessWidget {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
-        const SectionLabel('Profile'),
+        const SectionLabel('Goal'),
         // Goal first: it's the decision people come here to change most.
         SegmentedButton<WeightGoal>(
           segments: const [

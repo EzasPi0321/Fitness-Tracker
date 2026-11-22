@@ -65,10 +65,101 @@ class _SnapMealScreenState extends State<SnapMealScreen> {
   final _include = <int>{};
   late MealType _meal = MealType.suggested(widget.logTime);
 
+  /// What the user says the estimate got wrong, and the corrections applied so far.
+  final _fix = TextEditingController();
+  final _corrections = <String>[];
+  bool _refining = false;
+  String? _fixError;
+
   @override
   void dispose() {
     _hint.dispose();
+    _fix.dispose();
     super.dispose();
+  }
+
+  /// Sends the photo, the items as they stand (including any edits) and the correction, and
+  /// replaces the estimate with the answer. The cost adds to this photo's.
+  Future<void> _refine() async {
+    final text = _fix.text.trim();
+    final photo = _photo, current = _analysis;
+    if (text.isEmpty || photo == null || current == null || _refining) return;
+    FocusScope.of(context).unfocus();
+    final state = AppScope.read(context);
+    final key = await state.keys.read(state.visionProvider.keyName);
+    setState(() {
+      _refining = true;
+      _fixError = null;
+    });
+    final service = AIVisionService(provider: state.visionProvider, apiKey: key, model: state.visionModel);
+    try {
+      final result = await service.refineMeal(photo, previous: current, correction: text);
+      if (!mounted) return;
+      setState(() {
+        if (result.items.isEmpty) {
+          _fixError = 'That correction left nothing to log. Try wording it differently.';
+          return;
+        }
+        final usd = service.calls.isEmpty ? null : AiUsage.ofCalls('meal', service.calls).usd;
+        if (usd != null) _photoUsd = (_photoUsd ?? 0) + usd;
+        _analysis = result;
+        _include
+          ..clear()
+          ..addAll(List.generate(result.items.length, (i) => i));
+        _corrections.add(text);
+        _fix.clear();
+      });
+    } on VisionException catch (e) {
+      if (mounted) setState(() => _fixError = e.message);
+    } finally {
+      state.recordAiUsage('meal', service.calls);
+      if (mounted) setState(() => _refining = false);
+    }
+  }
+
+  Widget _correctBox(BuildContext context) {
+    final t = FT.of(context);
+    final tt = Theme.of(context).textTheme;
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: [
+        TextField(
+          controller: _fix,
+          enabled: !_refining,
+          textCapitalization: TextCapitalization.sentences,
+          textInputAction: TextInputAction.send,
+          onSubmitted: (_) => _refine(),
+          onChanged: (_) => setState(() {}),
+          decoration: InputDecoration(
+            labelText: 'Correct the estimate',
+            hintText: 'e.g. "large bowl", "no dressing"',
+            suffixIcon: _refining
+                ? const Padding(
+                    padding: EdgeInsets.all(14),
+                    child: SizedBox.square(dimension: 18, child: CircularProgressIndicator(strokeWidth: 2)),
+                  )
+                : IconButton(
+                    tooltip: 'Re-estimate',
+                    onPressed: _fix.text.trim().isEmpty ? null : _refine,
+                    icon: const FIcon(Symbols.arrow_upward, size: 20, weight: FontWeight.w600),
+                  ),
+          ),
+        ),
+        const SizedBox(height: S.xs),
+        Text(
+          _refining
+              ? 'Re-estimating with your correction…'
+              : PlatformCaps.isPhone
+              ? 'Type it, or tap the microphone on your keyboard and say it.'
+              : 'Say what the photo got wrong, and it re-estimates the meal.',
+          style: tt.bodySmall,
+        ),
+        if (_fixError != null) ...[
+          const SizedBox(height: S.xs),
+          Text(_fixError!, style: tt.bodySmall!.copyWith(color: t.over)),
+        ],
+      ],
+    );
   }
 
   Future<void> _pick(ImageSource source) async {
@@ -323,17 +414,28 @@ class _SnapMealScreenState extends State<SnapMealScreen> {
                     style: tt.bodySmall!.copyWith(color: FT.of(context).muted),
                   ),
                 ),
+              if (_corrections.isNotEmpty)
+                Padding(
+                  padding: const EdgeInsets.only(top: 4),
+                  child: Text('Updated for ${_corrections.map((c) => '“$c”').join(', ')}.', style: tt.bodySmall),
+                ),
               const SizedBox(height: S.lg),
               for (final (i, item) in a.items.indexed) ...[
-                _DetectedCard(
-                  item: item,
-                  included: _include.contains(i),
-                  onInclude: (v) => setState(() => v ? _include.add(i) : _include.remove(i)),
-                  onChanged: () => setState(() {}),
+                AnimatedOpacity(
+                  opacity: _refining ? 0.5 : 1,
+                  duration: Motion.of(context, Motion.base),
+                  child: _DetectedCard(
+                    item: item,
+                    included: _include.contains(i),
+                    onInclude: (v) => setState(() => v ? _include.add(i) : _include.remove(i)),
+                    onChanged: () => setState(() {}),
+                  ),
                 ),
                 const SizedBox(height: S.sm),
               ],
-              const SizedBox(height: S.lg),
+              const SizedBox(height: S.sm),
+              _correctBox(context),
+              const SizedBox(height: S.xl),
               const SectionLabel('Meal'),
               SegmentedButton<MealType>(
                 segments: [for (final m in MealType.values) ButtonSegment(value: m, label: Text(m.title))],
@@ -360,7 +462,7 @@ class _SnapMealScreenState extends State<SnapMealScreen> {
                     ],
                   ),
                 ),
-                FilledButton(onPressed: _include.isEmpty ? null : _log, child: Text(_logLabel(a))),
+                FilledButton(onPressed: _include.isEmpty || _refining ? null : _log, child: Text(_logLabel(a))),
               ],
             ),
           ),

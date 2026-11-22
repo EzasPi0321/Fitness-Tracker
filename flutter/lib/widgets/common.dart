@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:intl/intl.dart';
 import 'package:flutter/services.dart';
 import 'package:material_symbols_icons/symbols.dart';
 
@@ -223,7 +224,11 @@ class _NumberInputState extends State<NumberInput> {
   late final _ctl = TextEditingController(text: _fmt(widget.value));
   final _focus = FocusNode();
 
-  String _fmt(double? v) => v == null ? '' : formatAmount(v, maxDigits: widget.maxDigits);
+  // Grouped like every other number in the app ("10,000", "2,250"); the lenient parser reads
+  // the comma back as a thousands separator.
+  String _fmt(double? v) => v == null
+      ? ''
+      : NumberFormat('#,##0${widget.maxDigits > 0 ? '.${'#' * widget.maxDigits}' : ''}', 'en_US').format(v);
 
   @override
   void initState() {

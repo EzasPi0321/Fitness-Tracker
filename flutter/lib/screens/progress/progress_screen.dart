@@ -5,6 +5,7 @@ import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
 import 'package:material_symbols_icons/symbols.dart';
 
+import '../../models/weight_trend.dart';
 import 'body_fat.dart';
 import '../../data/app_state.dart';
 import '../../design/motion.dart';
@@ -98,16 +99,26 @@ class _ProgressScreenState extends State<ProgressScreen> {
     ];
     final logged = days.where((d) => d.count > 0).toList();
     final metric = state.profile?.usesMetric ?? true;
-    final weights = (state.healthEnabled && _healthWeights.isNotEmpty)
-        ? _healthWeights.where((w) => !w.date.isBefore(start)).toList()
-        : state.weightsByDate
-              .where((w) => !w.date.isBefore(start))
-              .map((w) => WeightSample(w.date, w.kilograms))
-              .toList();
+    // The trend runs over all weigh-ins, so it's already settled when the chart's period starts.
+    final allWeights = (state.healthEnabled && _healthWeights.isNotEmpty)
+        ? _healthWeights
+        : state.weightsByDate.map((w) => WeightSample(w.date, w.kilograms)).toList();
+    final trendAll = weightTrend([for (final w in allWeights) (w.date, w.kilograms)]);
+    final weights = allWeights.where((w) => !w.date.isBefore(start)).toList();
+    final trend = [
+      for (final p in trendAll)
+        if (!p.$1.isBefore(start)) WeightSample(p.$1, p.$2),
+    ];
 
     final calorie = _CalorieCard(days: days, logged: logged, target: state.targets.calories, range: _range);
     final macros = _MacroCard(logged: logged, targets: state.targets);
-    final weight = _WeightCard(points: weights, metric: metric, start: start);
+    final weight = _WeightCard(
+      points: weights,
+      trend: trend,
+      weeklyChange: weeklyTrendChange(trendAll),
+      metric: metric,
+      start: start,
+    );
     final bodyFat = BodyFatCard(
       readings: mergeBodyFat(state.bodyFatByDate, state.healthEnabled ? _healthBodyFat : const []),
       metric: metric,
@@ -727,8 +738,18 @@ class _MacroRow extends StatelessWidget {
 }
 
 class _WeightCard extends StatelessWidget {
-  const _WeightCard({required this.points, required this.metric, required this.start});
+  const _WeightCard({
+    required this.points,
+    required this.trend,
+    required this.weeklyChange,
+    required this.metric,
+    required this.start,
+  });
   final List<WeightSample> points;
+
+  /// The smoothed line, one value per weigh-in, and how far it moved in the last week (kg).
+  final List<WeightSample> trend;
+  final double? weeklyChange;
   final bool metric;
   final DateTime start;
 
@@ -739,10 +760,18 @@ class _WeightCard extends StatelessWidget {
     final t = FT.of(context);
     final tt = Theme.of(context).textTheme;
     final unit = metric ? 'kg' : 'lb';
+    // Lead with the trend, not the last scale reading: it's the number that means something.
     String sub = 'No weigh-ins in this period';
-    if (points.isNotEmpty) {
-      final delta = _d(points.last.kilograms) - _d(points.first.kilograms);
-      sub = '${oneDecimal(_d(points.last.kilograms))} $unit · ${delta > 0 ? '+' : ''}${oneDecimal(delta)} $unit';
+    if (trend.length >= 2) {
+      final w = weeklyChange;
+      final rate = w == null
+          ? ''
+          : w.abs() < 0.05
+          ? ' · steady'
+          : ' · ${w > 0 ? '+' : '−'}${oneDecimal(_d(w.abs()))} $unit a week';
+      sub = 'Trend ${oneDecimal(_d(trend.last.kilograms))} $unit$rate';
+    } else if (points.isNotEmpty) {
+      sub = '${oneDecimal(_d(points.last.kilograms))} $unit';
     }
     final now = DateTime.now();
     double x(DateTime d) => d.difference(start).inMinutes / 1440;
@@ -760,11 +789,13 @@ class _WeightCard extends StatelessWidget {
         ),
       );
     } else {
-      final vals = points.map((p) => _d(p.kilograms)).toList();
+      final vals = [...points, ...trend].map((p) => _d(p.kilograms)).toList();
       final lo = (vals.reduce(math.min) - 1).floorToDouble();
       final hi = (vals.reduce(math.max) + 1).ceilToDouble();
       final interval = math.max(1.0, ((hi - lo) / 4).ceilToDouble());
       final spots = [for (final p in points) FlSpot(x(p.date), _d(p.kilograms))];
+      final trendSpots = [for (final p in trend) FlSpot(x(p.date), _d(p.kilograms))];
+      final showTrend = trendSpots.length >= 2;
       final wo = t.bodyO;
       body = SizedBox(
         height: 200,
@@ -826,7 +857,7 @@ class _WeightCard extends StatelessWidget {
                   getTooltipItems: (spots) => [
                     for (final s in spots)
                       LineTooltipItem(
-                        '${oneDecimal(s.y)} $unit\n',
+                        '${showTrend ? (s.barIndex == 0 ? 'Weighed ' : 'Trend ') : ''}${oneDecimal(s.y)} $unit\n',
                         tt.titleSmall!.copyWith(fontFeatures: tabular),
                         children: [
                           TextSpan(
@@ -839,8 +870,18 @@ class _WeightCard extends StatelessWidget {
                 ),
               ),
               lineBarsData: [
+                if (showTrend)
+                  LineChartBarData(
+                    spots: spots,
+                    barWidth: 0,
+                    color: Colors.transparent,
+                    dotData: FlDotData(
+                      getDotPainter: (spot, _, _, i) =>
+                          FlDotCirclePainter(radius: 2.5, color: wo.withAlpha(0.45).toColor(), strokeWidth: 0),
+                    ),
+                  ),
                 LineChartBarData(
-                  spots: spots,
+                  spots: showTrend ? trendSpots : spots,
                   isCurved: true, // moves along curves, not straight segments
                   curveSmoothness: 0.3,
                   preventCurveOverShooting: true,
@@ -875,7 +916,29 @@ class _WeightCard extends StatelessWidget {
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           _CardTitle('Body weight', sub),
-          const SizedBox(height: S.xl),
+          if (trend.length >= 2) ...[
+            const SizedBox(height: S.md),
+            Wrap(
+              spacing: S.lg,
+              runSpacing: S.xs,
+              children: [
+                _LegendItem(
+                  swatch: _LineSwatch(color: t.bodyO.toColor()),
+                  label: 'Trend',
+                ),
+                _LegendItem(
+                  swatch: Container(
+                    width: 6,
+                    height: 6,
+                    decoration: BoxDecoration(shape: BoxShape.circle, color: t.bodyO.withAlpha(0.45).toColor()),
+                  ),
+                  label: 'Weigh-ins',
+                ),
+              ],
+            ),
+            const SizedBox(height: S.lg),
+          ] else
+            const SizedBox(height: S.xl),
           body,
         ],
       ),
