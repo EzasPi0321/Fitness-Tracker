@@ -200,6 +200,7 @@ class _VoiceEntryScreenState extends State<VoiceEntryScreen> {
           unit: 'g',
           grams: f.grams,
           nutrients: f.nutrients,
+          fruitVeg: f.fruitVeg,
         ),
       );
     }

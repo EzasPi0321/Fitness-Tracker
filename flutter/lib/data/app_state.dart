@@ -280,6 +280,10 @@ class AppState extends ChangeNotifier {
         grams: r.gramsPerKcal == null ? null : r.gramsPerKcal! * kcal,
         fiber: r.fiberPerKcal * kcal,
         sugar: r.sugarPerKcal * kcal,
+        satFat: r.satFatPerKcal == null ? null : r.satFatPerKcal! * kcal,
+        sodium: r.sodiumPerKcal == null ? null : r.sodiumPerKcal! * kcal,
+        fruitVeg: r.fruitVeg,
+        kind: r.kind,
       ),
     );
     return true;
@@ -297,7 +301,11 @@ class AppState extends ChangeNotifier {
         fat: n.fat,
         fiber: n.fiber > 0 ? n.fiber : (d.fiber ?? 0),
         sugar: n.sugar > 0 ? n.sugar : (d.sugar ?? 0),
+        satFat: n.satFat > 0 ? n.satFat : (d.satFat ?? 0),
+        sodium: n.sodium > 0 ? n.sodium : (d.sodium ?? 0),
       ).sanitized
+      ..fruitVeg = e.fruitVeg ?? d.fruitVeg
+      ..kind = e.kind ?? d.kind
       ..detailChecked = true;
   }
 
@@ -340,6 +348,10 @@ class AppState extends ChangeNotifier {
           gramsPerKcal: e.grams == null ? null : e.grams! / kcal,
           fiberPerKcal: e.nutrients.fiber / kcal,
           sugarPerKcal: e.nutrients.sugar / kcal,
+          satFatPerKcal: e.nutrients.satFat / kcal,
+          sodiumPerKcal: e.nutrients.sodium / kcal,
+          fruitVeg: e.fruitVeg,
+          kind: e.kind,
         );
         if (detailCache.length > 2000) detailCache.remove(detailCache.keys.first);
       }
@@ -979,20 +991,42 @@ class AppScope extends InheritedNotifier<AppState> {
 
 /// A food's weight, fibre and sugar per calorie, so an earlier fill-in applies to any portion.
 class FoodDetailRates {
-  const FoodDetailRates({this.gramsPerKcal, required this.fiberPerKcal, required this.sugarPerKcal});
+  const FoodDetailRates({
+    this.gramsPerKcal,
+    required this.fiberPerKcal,
+    required this.sugarPerKcal,
+    this.satFatPerKcal,
+    this.sodiumPerKcal,
+    this.fruitVeg,
+    this.kind,
+  });
   final double? gramsPerKcal;
   final double fiberPerKcal;
   final double sugarPerKcal;
+
+  /// Null for memories saved before saturated fat and sodium were asked for.
+  final double? satFatPerKcal;
+  final double? sodiumPerKcal;
+  final double? fruitVeg;
+  final FoodKind? kind;
 
   Map<String, dynamic> toJson() => {
     if (gramsPerKcal != null) 'g': gramsPerKcal,
     'fi': fiberPerKcal,
     'su': sugarPerKcal,
+    if (satFatPerKcal != null) 'sf': satFatPerKcal,
+    if (sodiumPerKcal != null) 'na': sodiumPerKcal,
+    if (fruitVeg != null) 'fv': fruitVeg,
+    if (kind != null) 'kind': kind!.name,
   };
 
   factory FoodDetailRates.fromJson(Map<String, dynamic> j) => FoodDetailRates(
     gramsPerKcal: (j['g'] as num?)?.toDouble(),
     fiberPerKcal: ((j['fi'] as num?) ?? 0).toDouble(),
     sugarPerKcal: ((j['su'] as num?) ?? 0).toDouble(),
+    satFatPerKcal: (j['sf'] as num?)?.toDouble(),
+    sodiumPerKcal: (j['na'] as num?)?.toDouble(),
+    fruitVeg: (j['fv'] as num?)?.toDouble(),
+    kind: FoodKind.parse(j['kind'] as String?),
   );
 }

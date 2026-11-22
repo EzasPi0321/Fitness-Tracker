@@ -5,7 +5,7 @@ import 'package:flutter/foundation.dart' show kIsWeb;
 import 'package:http/http.dart' as http;
 
 import '../models/ai_usage.dart';
-import '../models/food.dart' show MealType;
+import '../models/food.dart' show FoodKind, MealType;
 import '../models/body_fat.dart';
 import '../models/nutrients.dart';
 import '../models/util.dart';
@@ -74,6 +74,9 @@ class DetectedFood {
     required this.confidence,
     this.fiber = 0,
     this.sugar = 0,
+    this.satFat = 0,
+    this.sodium = 0,
+    this.fruitVeg,
   });
 
   String name;
@@ -84,10 +87,25 @@ class DetectedFood {
   double fat;
   double fiber;
   double sugar;
+  double satFat;
+
+  /// Milligrams.
+  double sodium;
+
+  /// Share of fruit, vegetables, nuts and legumes, 0-100, for the health score.
+  double? fruitVeg;
   double confidence;
 
-  Nutrients get nutrients =>
-      Nutrients(calories: calories, protein: protein, carbs: carbs, fat: fat, fiber: fiber, sugar: sugar);
+  Nutrients get nutrients => Nutrients(
+    calories: calories,
+    protein: protein,
+    carbs: carbs,
+    fat: fat,
+    fiber: fiber,
+    sugar: sugar,
+    satFat: satFat,
+    sodium: sodium,
+  );
 
   /// Plain or sparkling water with no energy: it belongs on the Water card, not the food log.
   /// "Watermelon" and "coconut water" don't count (whole word, and they have calories).
@@ -130,10 +148,18 @@ class MealAnalysis {
 
 /// A food's weight, fibre and sugar, filled in where the record lacked them.
 class FoodDetail {
-  const FoodDetail({this.grams, this.fiber, this.sugar});
+  const FoodDetail({this.grams, this.fiber, this.sugar, this.satFat, this.sodium, this.fruitVeg, this.kind});
   final double? grams;
   final double? fiber;
   final double? sugar;
+  final double? satFat;
+
+  /// Milligrams.
+  final double? sodium;
+
+  /// Fruit, vegetable, nut and legume share, 0-100.
+  final double? fruitVeg;
+  final FoodKind? kind;
 }
 
 /// One food from a spoken description, with the meal it was eaten at.
@@ -225,7 +251,8 @@ You are a meticulous registered dietitian analysing a photo of a meal.
 Identify every distinct food or drink item that is visible. For each item provide:
 - name: a short, specific description (e.g. "grilled chicken breast", "steamed white rice").
 - estimated_grams: the edible portion weight in grams. Use the plate, cutlery, hands and packaging as scale references.
-- calories, protein_g, carbs_g, fat_g, fiber_g (dietary fibre), sugar_g (total sugars): values for that whole portion, based on standard food-composition data (e.g. USDA FoodData Central). Account for visible oils, sauces and dressings.
+- calories, protein_g, carbs_g, fat_g, fiber_g (dietary fibre), sugar_g (total sugars), sat_fat_g (saturated fat), sodium_mg: values for that whole portion, based on standard food-composition data (e.g. USDA FoodData Central). Account for visible oils, sauces and dressings.
+- fruit_veg_percent: 0-100, the share of the item's weight that is fruit, vegetables, nuts or legumes.
 - confidence: 0.0–1.0 for how sure you are about the identification and portion size.
 List the components of mixed dishes separately when they are visually distinguishable.
 Ignore plates, cutlery and inedible packaging. If no food is visible, return an empty items array.
@@ -254,6 +281,9 @@ Respond with JSON only.''';
       'fat_g',
       'fiber_g',
       'sugar_g',
+      'sat_fat_g',
+      'sodium_mg',
+      'fruit_veg_percent',
       'confidence',
     ];
     final item = object({
@@ -265,6 +295,9 @@ Respond with JSON only.''';
       'fat_g': number,
       'fiber_g': number,
       'sugar_g': number,
+      'sat_fat_g': number,
+      'sodium_mg': number,
+      'fruit_veg_percent': number,
       'confidence': number,
     }, itemKeys);
     return object(
@@ -351,8 +384,9 @@ For each distinct food or drink provide:
 - name: short and specific, as they described it (e.g. "scrambled eggs", "flat white with full-cream milk").
 - estimated_grams: the edible weight (millilitres for drinks). Use the amounts they gave
   ("two slices", "a large bowl", "300 g"); otherwise a typical single serve.
-- calories, protein_g, carbs_g, fat_g, fiber_g, sugar_g for that whole portion, from standard
-  food-composition data (e.g. AUSNUT, USDA FoodData Central).
+- calories, protein_g, carbs_g, fat_g, fiber_g, sugar_g, sat_fat_g (saturated fat) and sodium_mg
+  for that whole portion, from standard food-composition data (e.g. AUSNUT, USDA FoodData Central).
+- fruit_veg_percent: 0-100, the share of the item's weight that is fruit, vegetables, nuts or legumes.
 - confidence 0.0-1.0: how sure you are of the food and the amount.
 Split mixed meals into their parts when they're named ("toast with butter" is toast and butter).
 Only include foods they actually said they ate; never invent sides. Plain or sparkling water with
@@ -381,6 +415,9 @@ Respond with JSON only.''';
       'fat_g',
       'fiber_g',
       'sugar_g',
+      'sat_fat_g',
+      'sodium_mg',
+      'fruit_veg_percent',
       'confidence',
     ];
     final item = object({
@@ -396,6 +433,9 @@ Respond with JSON only.''';
       'fat_g': number,
       'fiber_g': number,
       'sugar_g': number,
+      'sat_fat_g': number,
+      'sodium_mg': number,
+      'fruit_veg_percent': number,
       'confidence': number,
     }, itemKeys);
     return object(
@@ -468,17 +508,34 @@ the calories given, return for that same portion:
 - grams: its edible weight in grams (millilitres for drinks).
 - fiber_g: dietary fibre in grams.
 - sugar_g: total sugars in grams.
+- sat_fat_g: saturated fat in grams.
+- sodium_mg: sodium in milligrams.
+- fruit_veg_percent: 0-100, the share of its weight that is fruit, vegetables, nuts or legumes.
+- kind: "drink" for beverages, "fatty" for cheeses, oils, butter, margarine and spreads, otherwise "food".
 - confidence: 0.0-1.0.
-Keep fibre and sugar each no more than the carbohydrate given. Respond with JSON only.''';
+Keep fibre and sugar each no more than the carbohydrate given, and saturated fat no more than the
+fat given. Respond with JSON only.''';
 
   static Map<String, dynamic> detailSchema(VisionProvider provider) {
     final gemini = provider == VisionProvider.gemini;
     String type(String n) => gemini ? n.toUpperCase() : n;
-    const keys = ['grams', 'fiber_g', 'sugar_g', 'confidence'];
+    const keys = ['grams', 'fiber_g', 'sugar_g', 'sat_fat_g', 'sodium_mg', 'fruit_veg_percent', 'kind', 'confidence'];
     final number = {'type': type('number')};
     return {
       'type': type('object'),
-      'properties': {'grams': number, 'fiber_g': number, 'sugar_g': number, 'confidence': number},
+      'properties': {
+        'grams': number,
+        'fiber_g': number,
+        'sugar_g': number,
+        'sat_fat_g': number,
+        'sodium_mg': number,
+        'fruit_veg_percent': number,
+        'kind': {
+          'type': type('string'),
+          'enum': ['food', 'drink', 'fatty'],
+        },
+        'confidence': number,
+      },
       'required': keys,
       if (gemini) 'propertyOrdering': keys else 'additionalProperties': false,
     };
@@ -523,8 +580,21 @@ Keep fibre and sugar each no more than the carbohydrate given. Respond with JSON
     if (grams != null && (grams <= 0 || n.calories / grams > 9 || n.calories / grams < 0.05)) grams = null;
     final fiber = num('fiber_g')?.clamp(0, n.carbs).toDouble();
     final sugar = num('sugar_g')?.clamp(0, n.carbs).toDouble();
-    if (grams == null && fiber == null && sugar == null) throw VisionException.invalidJson;
-    return FoodDetail(grams: grams, fiber: fiber, sugar: sugar);
+    final satFat = num('sat_fat_g')?.clamp(0, n.fat).toDouble();
+    final sodium = num('sodium_mg')?.clamp(0, 50000).toDouble();
+    final fruitVeg = num('fruit_veg_percent')?.clamp(0, 100).toDouble();
+    if (grams == null && fiber == null && sugar == null && satFat == null && sodium == null) {
+      throw VisionException.invalidJson;
+    }
+    return FoodDetail(
+      grams: grams,
+      fiber: fiber,
+      sugar: sugar,
+      satFat: satFat,
+      sodium: sodium,
+      fruitVeg: fruitVeg,
+      kind: FoodKind.parse(map['kind'] as String?),
+    );
   }
 
   /// Errors Opus would hit too (no connection, bad key, rate limit): don't pay for a second try.
@@ -934,6 +1004,7 @@ Return:
   and fat is written "Fat, total".
 - energy: the energy number exactly as printed, and energy_unit: "kcal" or "kJ". If both are printed, give the kcal figure.
 - protein_g, carbs_g (total carbohydrate), fat_g (total fat), fiber_g (dietary fibre), sugar_g (total sugars; "sugars" on Australian panels). Use 0 for fibre or sugars only when the panel doesn't list them.
+- sat_fat_g (saturated fat; "– saturated" on Australian panels) and sodium_mg (sodium in milligrams; if only salt is printed, salt ÷ 2.5 × 1000).
 - readable: true if the panel was legible, false if you had to guess.
 Never estimate from the look of the food. Use only the printed numbers. Respond with JSON only.''';
 
@@ -953,6 +1024,8 @@ Never estimate from the look of the food. Use only the printed numbers. Respond 
       'fat_g',
       'fiber_g',
       'sugar_g',
+      'sat_fat_g',
+      'sodium_mg',
       'readable',
     ];
     final string = {'type': type('string')};
@@ -978,6 +1051,8 @@ Never estimate from the look of the food. Use only the printed numbers. Respond 
         'fat_g': number,
         'fiber_g': number,
         'sugar_g': number,
+        'sat_fat_g': number,
+        'sodium_mg': number,
         'readable': {'type': type('boolean')},
       },
       'required': keys,
@@ -1031,6 +1106,8 @@ Never estimate from the look of the food. Use only the printed numbers. Respond 
       fat: lossyDouble(json['fat_g']) ?? 0,
       fiber: lossyDouble(json['fiber_g']) ?? 0,
       sugar: lossyDouble(json['sugar_g']) ?? 0,
+      satFat: lossyDouble(json['sat_fat_g']) ?? 0,
+      sodium: lossyDouble(json['sodium_mg']) ?? 0,
     ).sanitized;
     final grams = lossyDouble(json['serving_grams']) ?? 0;
     final per100 = str('basis') == '100g';
@@ -1078,7 +1155,10 @@ Never estimate from the look of the food. Use only the printed numbers. Respond 
         fat: lossyDouble(it['fat_g']) ?? 0,
         fiber: lossyDouble(it['fiber_g']) ?? 0,
         sugar: lossyDouble(it['sugar_g']) ?? 0,
+        satFat: lossyDouble(it['sat_fat_g']) ?? 0,
+        sodium: lossyDouble(it['sodium_mg']) ?? 0,
       ).sanitized;
+      final fv = lossyDouble(it['fruit_veg_percent']);
       items.add(
         DetectedFood(
           name: name,
@@ -1089,6 +1169,9 @@ Never estimate from the look of the food. Use only the printed numbers. Respond 
           fat: n.fat,
           fiber: n.fiber,
           sugar: n.sugar,
+          satFat: n.satFat,
+          sodium: n.sodium,
+          fruitVeg: fv?.clamp(0, 100).toDouble(),
           confidence: (lossyDouble(it['confidence']) ?? 0.5).clamp(0.0, 1.0),
         ),
       );

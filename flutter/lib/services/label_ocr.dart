@@ -93,6 +93,9 @@ class LabelOcr {
     // Fibre and sugars help the health score; "– sugars" sits under carbohydrate on most panels.
     final fiber = _valueAfter(lines, RegExp(r'^[-–•\s]*(dietary\s+)?fib(re|er)\b'));
     final sugar = _valueAfter(lines, RegExp(r'^[-–•\s]*(of\s+which\s+)?(total\s+)?sugars?\b'));
+    // Saturated fat ("– saturated" under fat) and sodium (mg) feed the health score.
+    final satFat = _valueAfter(lines, RegExp(r'^[-–•\s]*(of\s+which\s+)?saturate[ds]?(\s+fat)?\b'));
+    final sodium = _valueAfter(lines, RegExp(r'^[-–•\s]*sodium\b'), unit: 'mg');
     final n = Nutrients(
       calories: kcal ?? 0,
       protein: protein ?? 0,
@@ -100,6 +103,8 @@ class LabelOcr {
       fat: fat ?? 0,
       fiber: fiber ?? 0,
       sugar: sugar ?? 0,
+      satFat: satFat ?? 0,
+      sodium: sodium ?? 0,
     ).sanitized;
 
     return LabelReading(

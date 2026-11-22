@@ -76,6 +76,9 @@ class OpenFoodFactsService {
         fat: lossyDouble(n['fat_$suffix']) ?? 0,
         fiber: lossyDouble(n['fiber_$suffix']) ?? 0,
         sugar: lossyDouble(n['sugars_$suffix']) ?? 0,
+        satFat: lossyDouble(n['saturated-fat_$suffix']) ?? 0,
+        // Open Food Facts gives sodium in grams; salt is 2.5x sodium when only salt is listed.
+        sodium: ((lossyDouble(n['sodium_$suffix']) ?? ((lossyDouble(n['salt_$suffix']) ?? 0) / 2.5)) * 1000),
       ).sanitized;
     }
 
