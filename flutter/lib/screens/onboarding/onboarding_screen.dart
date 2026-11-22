@@ -147,16 +147,27 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
                       children: [
                         if (_index > 0 && _steps[_index - 1] != _Step.welcome)
                           TextButton(onPressed: () => _go(-1), child: const Text('Back')),
-                        const Spacer(),
-                        Squishy(
-                          onTap: _canContinue ? (last ? _finish : () => _go(1)) : null,
-                          feel: last ? PressFeel.bold : PressFeel.normal,
-                          haptic: last,
-                          child: IgnorePointer(
-                            child: FilledButton(
-                              onPressed: _canContinue ? () {} : null,
-                              child: Text(
-                                last ? (widget.existing == null ? 'Start tracking' : 'Save targets') : 'Continue',
+                        const SizedBox(width: S.md),
+                        // Flexible, with the label shrinking to fit: large system text sizes
+                        // otherwise push the button past the screen edge.
+                        Flexible(
+                          child: Align(
+                            alignment: Alignment.centerRight,
+                            child: Squishy(
+                              onTap: _canContinue ? (last ? _finish : () => _go(1)) : null,
+                              feel: last ? PressFeel.bold : PressFeel.normal,
+                              haptic: last,
+                              child: IgnorePointer(
+                                child: FilledButton(
+                                  onPressed: _canContinue ? () {} : null,
+                                  child: FittedBox(
+                                    fit: BoxFit.scaleDown,
+                                    child: Text(
+                                      last ? (widget.existing == null ? 'Start tracking' : 'Save targets') : 'Continue',
+                                      maxLines: 1,
+                                    ),
+                                  ),
+                                ),
                               ),
                             ),
                           ),
