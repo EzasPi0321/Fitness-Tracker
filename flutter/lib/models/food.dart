@@ -89,6 +89,7 @@ class FoodEntry {
     this.detailChecked = false,
     this.fruitVeg,
     this.kind,
+    this.components,
   }) : nutrients = nutrients.sanitized;
 
   final String id;
@@ -112,6 +113,10 @@ class FoodEntry {
   /// health score. Null when not known.
   double? fruitVeg;
   FoodKind? kind;
+
+  /// What a dish is made of (a pizza's base, cheese and toppings), when a photo estimate
+  /// worked it out part by part. The entry's own nutrients are their sum. Null for single foods.
+  List<FoodComponent>? components;
 
   /// Weight, fibre, sugar, saturated fat or sodium wasn't recorded (many database foods and
   /// quick entries only have calories and macros), so the health score can't be complete.
@@ -137,6 +142,7 @@ class FoodEntry {
     final factor = newQuantity / quantity;
     nutrients = (nutrients * factor).sanitized;
     grams = grams == null ? null : grams! * factor;
+    components = components?.map((c) => c * factor).toList();
     quantity = newQuantity;
   }
 
@@ -157,6 +163,7 @@ class FoodEntry {
     if (detailChecked) 'dc': true,
     if (fruitVeg != null) 'fv': fruitVeg,
     if (kind != null) 'kind': kind!.name,
+    if (components != null) 'parts': [for (final c in components!) c.toJson()],
   };
 
   factory FoodEntry.fromJson(Map<String, dynamic> j) => FoodEntry(
@@ -176,6 +183,30 @@ class FoodEntry {
     detailChecked: (j['dc'] as bool?) ?? false,
     fruitVeg: (j['fv'] as num?)?.toDouble(),
     kind: FoodKind.parse(j['kind'] as String?),
+    components: j['parts'] is List
+        ? [
+            for (final c in j['parts'] as List)
+              if (c is Map) FoodComponent.fromJson(c.cast<String, dynamic>()),
+          ]
+        : null,
+  );
+}
+
+/// One part of a dish, as the photo estimate saw it.
+class FoodComponent {
+  const FoodComponent({required this.name, required this.grams, required this.nutrients});
+  final String name;
+  final double grams;
+  final Nutrients nutrients;
+
+  FoodComponent operator *(double k) => FoodComponent(name: name, grams: grams * k, nutrients: nutrients * k);
+
+  Map<String, dynamic> toJson() => {'name': name, 'g': grams, 'n': nutrients.toJson()};
+
+  factory FoodComponent.fromJson(Map<String, dynamic> j) => FoodComponent(
+    name: (j['name'] as String?) ?? '',
+    grams: (j['g'] as num?)?.toDouble() ?? 0,
+    nutrients: Nutrients.fromJson((j['n'] as Map? ?? const {}).cast<String, dynamic>()),
   );
 }
 

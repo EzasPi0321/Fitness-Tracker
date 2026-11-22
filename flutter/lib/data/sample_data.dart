@@ -89,6 +89,27 @@ class SampleData {
       'Almonds': (3.5, 1.2, 28, 1.1, 0.3, 100),
       'Cottage Cheese': (0, 4, 150, 2.5, 600, 0),
     };
+    // A photo-estimated dish keeps its parts, for the breakdown in its edit sheet.
+    const parts = <String, List<FoodComponent>>{
+      'Chicken Salad': [
+        FoodComponent(
+          name: 'Grilled chicken breast',
+          grams: 140,
+          nutrients: Nutrients(calories: 223, protein: 38, carbs: 0, fat: 5),
+        ),
+        FoodComponent(
+          name: 'Mixed leaves and cherry tomatoes',
+          grams: 150,
+          nutrients: Nutrients(calories: 30, protein: 2, carbs: 6, fat: 0),
+        ),
+        FoodComponent(name: 'Croutons', grams: 20, nutrients: Nutrients(calories: 80, protein: 2, carbs: 12, fat: 3)),
+        FoodComponent(
+          name: 'Caesar dressing',
+          grams: 40,
+          nutrients: Nutrients(calories: 147, protein: 0, carbs: 0, fat: 18),
+        ),
+      ],
+    };
     const hours = {MealType.breakfast: 8.0, MealType.lunch: 12.5, MealType.dinner: 19.0, MealType.snack: 15.5};
 
     FoodEntry make(
@@ -123,6 +144,7 @@ class SampleData {
         fruitVeg: extras[f.$1]?.$6,
         // Complete examples: nothing for the AI to fill in.
         detailChecked: extras.containsKey(f.$1),
+        components: parts[f.$1]?.map((c) => c * qty).toList(),
       );
     }
 

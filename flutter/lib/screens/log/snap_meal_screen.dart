@@ -228,20 +228,17 @@ class _SnapMealScreenState extends State<SnapMealScreen> {
       for (final (i, item) in a.items.indexed)
         if (_include.contains(i) && item.isPlainWater) item.grams,
     ].fold<double>(0, (x, y) => x + y);
+    // One entry per dish: a pizza is logged as the pizza, with its parts kept inside it.
     final entries = [
-      for (final (i, item) in a.items.indexed)
-        if (_include.contains(i) && !item.isPlainWater)
-          FoodEntry(
-            id: newId(),
-            name: item.name,
+      for (final parts in _dishes(a).values)
+        if (parts.any((p) => _include.contains(p.$1) && !p.$2.isPlainWater))
+          dishEntry(
+            [
+              for (final (i, item) in parts)
+                if (_include.contains(i) && !item.isPlainWater) item,
+            ],
             meal: _meal,
-            source: EntrySource.photoAI,
-            consumedAt: at,
-            quantity: item.grams,
-            unit: 'g',
-            grams: item.grams,
-            nutrients: item.nutrients,
-            fruitVeg: item.fruitVeg,
+            at: at,
           ),
     ];
     final nav = Navigator.of(context);
@@ -259,19 +256,31 @@ class _SnapMealScreenState extends State<SnapMealScreen> {
     }
   }
 
-  /// "Log 2 items", or "Add 600 ml water" when everything ticked is water.
+  /// The detected items grouped by the dish they belong to, in the order they came.
+  static Map<String, List<(int, DetectedFood)>> _dishes(MealAnalysis a) {
+    final out = <String, List<(int, DetectedFood)>>{};
+    for (final (i, item) in a.items.indexed) {
+      (out[item.dishName.toLowerCase()] ??= []).add((i, item));
+    }
+    return out;
+  }
+
+  /// "Log 2 foods", or "Add 600 ml water" when everything ticked is water.
   String _logLabel(MealAnalysis a) {
     final picked = [
       for (final (i, item) in a.items.indexed)
         if (_include.contains(i)) item,
     ];
-    final foods = picked.where((f) => !f.isPlainWater).length;
+    final foods = {
+      for (final f in picked)
+        if (!f.isPlainWater) f.dishName.toLowerCase(),
+    }.length;
     if (foods == 0 && picked.isNotEmpty) {
       final ml = picked.fold<double>(0, (x, f) => x + f.grams);
       final metric = AppScope.read(context).profile?.usesMetric ?? true;
       return 'Add ${Volume.format(ml, metric: metric)} water';
     }
-    return 'Log $foods item${foods == 1 ? '' : 's'}';
+    return 'Log $foods food${foods == 1 ? '' : 's'}';
   }
 
   @override
@@ -398,7 +407,12 @@ class _SnapMealScreenState extends State<SnapMealScreen> {
           child: ListView(
             padding: const EdgeInsets.all(S.lg),
             children: [
-              Text('${a.items.length} item${a.items.length == 1 ? '' : 's'} found', style: tt.headlineSmall),
+              Builder(
+                builder: (context) {
+                  final n = _dishes(a).length;
+                  return Text('$n food${n == 1 ? '' : 's'} found', style: tt.headlineSmall);
+                },
+              ),
               if (a.notes.isNotEmpty)
                 Padding(
                   padding: const EdgeInsets.only(top: 4),
@@ -421,17 +435,29 @@ class _SnapMealScreenState extends State<SnapMealScreen> {
                   child: Text('Updated for ${_corrections.map((c) => '“$c”').join(', ')}.', style: tt.bodySmall),
                 ),
               const SizedBox(height: S.lg),
-              for (final (i, item) in a.items.indexed) ...[
-                AnimatedOpacity(
-                  opacity: _refining ? 0.5 : 1,
-                  duration: Motion.of(context, Motion.base),
-                  child: DetectedCard(
-                    item: item,
-                    included: _include.contains(i),
-                    onInclude: (v) => setState(() => v ? _include.add(i) : _include.remove(i)),
-                    onChanged: () => setState(() {}),
+              for (final parts in _dishes(a).values) ...[
+                // A dish made of parts gets its name and total above them; it's logged as one food.
+                if (parts.length > 1 || parts.first.$2.dishName != parts.first.$2.name)
+                  _DishHeader(
+                    name: parts.first.$2.dishName,
+                    total: Nutrients.sum([
+                      for (final (i, item) in parts)
+                        if (_include.contains(i)) item.nutrients,
+                    ]),
                   ),
-                ),
+                for (final (i, item) in parts) ...[
+                  AnimatedOpacity(
+                    opacity: _refining ? 0.5 : 1,
+                    duration: Motion.of(context, Motion.base),
+                    child: DetectedCard(
+                      item: item,
+                      included: _include.contains(i),
+                      onInclude: (v) => setState(() => v ? _include.add(i) : _include.remove(i)),
+                      onChanged: () => setState(() {}),
+                    ),
+                  ),
+                  const SizedBox(height: S.sm),
+                ],
                 const SizedBox(height: S.sm),
               ],
               const SizedBox(height: S.sm),
@@ -756,4 +782,52 @@ class _CostLine extends StatelessWidget {
       textAlign: TextAlign.center,
     );
   }
+}
+
+/// The dish's name and running total, above the parts it's made of.
+class _DishHeader extends StatelessWidget {
+  const _DishHeader({required this.name, required this.total});
+  final String name;
+  final Nutrients total;
+
+  @override
+  Widget build(BuildContext context) {
+    final tt = Theme.of(context).textTheme;
+    return Padding(
+      padding: const EdgeInsets.fromLTRB(S.xs, S.xs, S.xs, S.sm),
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.baseline,
+        textBaseline: TextBaseline.alphabetic,
+        children: [
+          Expanded(child: Text(name, style: tt.titleMedium)),
+          Text(Energy.format(total.calories), style: tt.titleSmall!.copyWith(fontFeatures: tabular)),
+        ],
+      ),
+    );
+  }
+}
+
+/// One food entry for a dish: its parts' nutrients summed, the parts kept for the breakdown.
+/// A single part is logged as itself, with no breakdown.
+FoodEntry dishEntry(List<DetectedFood> parts, {required MealType meal, required DateTime at}) {
+  final grams = parts.fold<double>(0, (a, p) => a + p.grams);
+  final fv = grams <= 0 || parts.every((p) => p.fruitVeg == null)
+      ? null
+      : parts.fold<double>(0, (a, p) => a + (p.fruitVeg ?? 0) * p.grams) / grams;
+  final single = parts.length == 1;
+  return FoodEntry(
+    id: newId(),
+    name: parts.first.dishName,
+    meal: meal,
+    source: EntrySource.photoAI,
+    consumedAt: at,
+    quantity: grams,
+    unit: 'g',
+    grams: grams,
+    nutrients: Nutrients.sum([for (final p in parts) p.nutrients]),
+    fruitVeg: fv,
+    components: single && parts.first.dishName == parts.first.name
+        ? null
+        : [for (final p in parts) FoodComponent(name: p.name, grams: p.grams, nutrients: p.nutrients)],
+  );
 }
