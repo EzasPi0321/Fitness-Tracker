@@ -70,6 +70,7 @@ class _FitTrackAppState extends State<FitTrackApp> with WidgetsBindingObserver {
           darkTheme: buildTheme(FT.darkTheme()),
           themeMode: widget.state.appearance,
           scrollBehavior: kIsWeb ? const _WebScrollBehavior() : null,
+          builder: (context, child) => KeyboardDismisser(child: child!),
           home: const _Root(),
         ),
       ),
@@ -234,4 +235,29 @@ class _WebScrollBehavior extends MaterialScrollBehavior {
 
   @override
   Widget buildOverscrollIndicator(BuildContext context, Widget child, ScrollableDetails details) => child;
+}
+
+/// The iPhone number pad has no Done key, so a field could never be left. Tapping anywhere
+/// outside a field, or starting to scroll, puts the keyboard away. Taps on fields and buttons
+/// still go to them: their own gestures win over this one.
+class KeyboardDismisser extends StatelessWidget {
+  const KeyboardDismisser({super.key, required this.child});
+  final Widget child;
+
+  static void _dismiss() => FocusManager.instance.primaryFocus?.unfocus();
+
+  @override
+  Widget build(BuildContext context) {
+    return GestureDetector(
+      behavior: HitTestBehavior.translucent,
+      onTap: _dismiss,
+      child: NotificationListener<ScrollStartNotification>(
+        onNotification: (n) {
+          if (n.dragDetails != null) _dismiss(); // a finger drag, not a programmatic scroll
+          return false;
+        },
+        child: child,
+      ),
+    );
+  }
 }
