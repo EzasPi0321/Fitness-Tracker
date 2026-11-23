@@ -257,7 +257,7 @@ class AIVisionService {
   static const instructions = '''
 You are a meticulous registered dietitian analysing a photo of a meal.
 Identify every distinct food or drink item that is visible. For each item provide:
-- name: a short, specific description (e.g. "grilled chicken breast", "steamed white rice").
+- name: a short, specific description in sentence case (e.g. "Grilled chicken breast", "Steamed white rice").
 - estimated_grams: the edible portion weight in grams. Use the plate, cutlery, hands and packaging as scale references.
 - calories, protein_g, carbs_g, fat_g, fiber_g (dietary fibre), sugar_g (total sugars), sat_fat_g (saturated fat), sodium_mg: values for that whole portion, based on standard food-composition data (e.g. USDA FoodData Central). Account for visible oils, sauces and dressings.
 - fruit_veg_percent: 0-100, the share of the item's weight that is fruit, vegetables, nuts or legumes.
@@ -391,7 +391,7 @@ For each distinct food or drink provide:
 - meal: "breakfast", "lunch", "dinner" or "snack", from what they said ("for lunch I had...").
   If they don't say, use the time of day you're given: before 11 am breakfast, 11 am to 3 pm lunch,
   5 to 10 pm dinner, otherwise snack.
-- name: short and specific, as they described it (e.g. "scrambled eggs", "flat white with full-cream milk").
+- name: short and specific, as they described it, in sentence case (e.g. "Scrambled eggs", "Flat white with full-cream milk").
 - estimated_grams: the edible weight (millilitres for drinks). Use the amounts they gave
   ("two slices", "a large bowl", "300 g"); otherwise a typical single serve.
 - calories, protein_g, carbs_g, fat_g, fiber_g, sugar_g, sat_fat_g (saturated fat) and sodium_mg
@@ -1127,7 +1127,7 @@ Never estimate from the look of the food. Use only the printed numbers. Respond 
     // Hand back per-serving values; convert from per-100 g when the serving weight is known.
     final perServing = per100 && grams > 0 ? n * (grams / 100) : n;
     return LabelReading(
-      name: str('product_name'),
+      name: sentenceCase(str('product_name')),
       brand: str('brand'),
       servingDescription: per100 && grams <= 0
           ? '100 g'
@@ -1155,7 +1155,7 @@ Never estimate from the look of the food. Use only the printed numbers. Respond 
     final items = <DetectedFood>[];
     for (final it in (json['items'] is List ? json['items'] as List : const [])) {
       if (it is! Map) continue;
-      final name = (it['name'] is String ? it['name'] as String : '').trim();
+      final name = sentenceCase(it['name'] is String ? it['name'] as String : '');
       final grams = lossyDouble(it['estimated_grams']) ?? 0;
       if (name.isEmpty || !grams.isFinite || grams <= 0) continue;
       final n = Nutrients(
@@ -1182,7 +1182,7 @@ Never estimate from the look of the food. Use only the printed numbers. Respond 
           satFat: n.satFat,
           sodium: n.sodium,
           fruitVeg: fv?.clamp(0, 100).toDouble(),
-          dish: it['dish'] is String ? (it['dish'] as String).trim() : null,
+          dish: it['dish'] is String ? sentenceCase(it['dish'] as String) : null,
           confidence: (lossyDouble(it['confidence']) ?? 0.5).clamp(0.0, 1.0),
         ),
       );
