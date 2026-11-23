@@ -998,6 +998,19 @@ Carbohydrate 12.0g 4.8g
       expect(y.mostTrained, TrainingType.push);
     });
 
+    test('current streak counts back from this week, and last week still counts on Monday', () {
+      GymSession g(int m, int d) => GymSession(id: '$m-$d', at: DateTime(2026, m, d, 18), type: TrainingType.push, minutes: 45);
+      final y = GymYear(2026, [g(3, 2), g(3, 10), g(3, 17), g(3, 18)]); // weeks of 2, 9 and 16 March
+      expect(y.currentWeekStreak(now: DateTime(2026, 3, 18)), 3); // trained this week
+      expect(y.currentWeekStreak(now: DateTime(2026, 3, 23)), 3); // new week, not trained yet
+      expect(y.currentWeekStreak(now: DateTime(2026, 3, 30)), 0); // a whole week missed
+      expect(y.currentWeekStreak(now: DateTime(2027, 1, 4)), 0); // another year
+      expect(y.minutes, 180);
+      expect(y.weeksElapsed(now: DateTime(2026, 1, 14)), 2);
+      expect(y.perWeek(now: DateTime(2026, 1, 14)), 2);
+      expect(y.weeksElapsed(now: DateTime(2027, 6, 1)), closeTo(52.1, 0.1)); // a past year counts whole
+    });
+
     test('sessions save, reload, edit and delete', () async {
       final store = MemoryStore();
       final s = AppState(store: store, health: UnsupportedHealthService());
