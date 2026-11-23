@@ -20,8 +20,10 @@ class GymCard extends StatelessWidget {
     final t = FT.of(context);
     final tt = Theme.of(context).textTheme;
     final sessions = state.gymOn(day);
-    final week = state.gymThisWeek(day);
     final isToday = sameDay(day, DateTime.now());
+    // The week this day is in, Monday to Sunday: which days had training.
+    final monday = weekStart(day);
+    final trainedDays = [for (var i = 0; i < 7; i++) state.gymOn(addDays(monday, i)).isNotEmpty];
 
     void quickLog(TrainingType type) {
       final now = DateTime.now();
@@ -64,8 +66,8 @@ class GymCard extends StatelessWidget {
                           sessions.isEmpty
                               ? (isToday ? 'Not trained yet today' : 'Rest day')
                               : sessions.length == 1
-                              ? 'Trained today'
-                              : '${sessions.length} sessions',
+                              ? (isToday ? 'Trained today' : 'Trained')
+                              : '${sessions.length} sessions${isToday ? ' today' : ''}',
                           style: tt.bodySmall,
                         ),
                       ),
@@ -73,17 +75,7 @@ class GymCard extends StatelessWidget {
                   ],
                 ),
               ),
-              Text.rich(
-                TextSpan(
-                  children: [
-                    TextSpan(
-                      text: '$week',
-                      style: tt.titleLarge!.copyWith(fontFeatures: tabular),
-                    ),
-                    TextSpan(text: ' this week', style: tt.bodySmall),
-                  ],
-                ),
-              ),
+              _WeekDots(trained: trainedDays, selected: day.weekday - 1),
             ],
           ),
           // The new row eases in, so the cards below slide down instead of jumping.
@@ -332,6 +324,72 @@ class _GymSheetState extends State<_GymSheet> {
             ],
           ],
         ),
+      ),
+    );
+  }
+}
+
+/// Monday to Sunday of the shown day's week: a filled dot for each day with training, the
+/// shown day ringed. It starts empty each Monday, so the weekly reset is visible.
+class _WeekDots extends StatelessWidget {
+  const _WeekDots({required this.trained, required this.selected});
+  final List<bool> trained;
+
+  /// 0 = Monday.
+  final int selected;
+
+  static const _letters = ['M', 'T', 'W', 'T', 'F', 'S', 'S'];
+  static const _names = ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday', 'Sunday'];
+
+  @override
+  Widget build(BuildContext context) {
+    final t = FT.of(context);
+    final tt = Theme.of(context).textTheme;
+    final days = trained.where((d) => d).length;
+    return Semantics(
+      label: 'This week',
+      value:
+          '$days of 7 days trained'
+          '${days == 0 ? '' : ': ${[for (var i = 0; i < 7; i++)
+                  if (trained[i]) _names[i]].join(', ')}'}',
+      excludeSemantics: true,
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.end,
+        children: [
+          Row(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              for (var i = 0; i < 7; i++)
+                Padding(
+                  padding: EdgeInsets.only(left: i == 0 ? 0 : 4),
+                  child: Column(
+                    children: [
+                      Text(
+                        _letters[i],
+                        style: tt.labelSmall!.copyWith(
+                          color: i == selected ? t.fg : t.muted,
+                          fontWeight: i == selected ? FontWeight.w700 : null,
+                        ),
+                      ),
+                      const SizedBox(height: 4),
+                      AnimatedContainer(
+                        duration: Motion.of(context, Motion.base),
+                        width: 12,
+                        height: 12,
+                        decoration: BoxDecoration(
+                          shape: BoxShape.circle,
+                          color: trained[i] ? t.fg : t.inset,
+                          border: i == selected && !trained[i] ? Border.all(color: t.muted, width: 1.5) : null,
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+            ],
+          ),
+          const SizedBox(height: 6),
+          Text('$days ${days == 1 ? 'day' : 'days'} this week', style: tt.labelSmall!.copyWith(fontFeatures: tabular)),
+        ],
       ),
     );
   }
