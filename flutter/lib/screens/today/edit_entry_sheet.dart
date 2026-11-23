@@ -36,7 +36,22 @@ class _EditEntrySheetState extends State<_EditEntrySheet> {
 
   /// Logged by weight or volume rather than servings.
   bool get _grams => widget.entry.unit == 'g' || widget.entry.unit == 'ml';
-  double get _step => _grams ? 5 : 0.25;
+
+  /// Grams (or ml) in one serving, when a servings entry knows its weight. Then the portion can
+  /// be typed as a weight too: "175 g" instead of working out 1.4 servings.
+  double? get _perServing {
+    final e = widget.entry;
+    if (_grams || e.grams == null || e.grams! <= 0 || e.quantity <= 0) return null;
+    return e.grams! / e.quantity;
+  }
+
+  /// 'ml' when the serving is a volume ("can (375 ml)"), else 'g'.
+  String get _weightUnit => widget.entry.unit.contains(' ml') ? 'ml' : 'g';
+
+  /// Typing the portion as a weight; [_qty] stays in servings underneath.
+  bool _byWeight = false;
+
+  double get _step => _grams || _byWeight ? 5 : 0.25;
 
   Nutrients get _preview {
     final e = widget.entry;
@@ -51,6 +66,11 @@ class _EditEntrySheetState extends State<_EditEntrySheet> {
     final e = widget.entry;
     final previous = e.consumedAt;
     e.rescale(q);
+    if (_byWeight && e.grams != null) {
+      // Kept as typed: the log reads "175 g", not "1.4 × 1 cup (125 g)".
+      e.unit = _weightUnit;
+      e.quantity = e.grams!;
+    }
     e.meal = _meal;
     e.consumedAt = _time;
     Navigator.pop(context);
@@ -100,6 +120,35 @@ class _EditEntrySheetState extends State<_EditEntrySheet> {
     );
   }
 
+  /// The amount: servings, or (by weight) grams converted to servings as you type.
+  Widget _portionRow(FoodEntry e) {
+    final per = _perServing;
+    final weight = _byWeight && per != null;
+    final shown = weight ? (_qty == null ? null : (_qty! * per).roundToDouble()) : _qty;
+    void set(double? v) => setState(() => _qty = v == null ? null : (weight ? v / per : v));
+    final step = _step;
+    return FRow(
+      label: weight
+          ? (_weightUnit == 'ml' ? 'Millilitres' : 'Grams')
+          : _grams
+          ? (e.unit == 'ml' ? 'Millilitres' : 'Grams')
+          : (e.unit == 'serving' ? 'Servings' : 'Servings · ${e.unit}'),
+      sub: weight ? '1 serving is ${whole(per)} $_weightUnit' : null,
+      trailing: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          NumberInput(key: ValueKey(weight), value: shown, maxDigits: weight ? 0 : 2, width: 90, onChanged: set),
+          const SizedBox(width: S.sm),
+          Stepper2(
+            minusEnabled: (shown ?? 0) > step,
+            onMinus: () => set(((shown ?? 0) - step).clamp(step, 5000)),
+            onPlus: () => set(((shown ?? 0) + step).clamp(step, 5000)),
+          ),
+        ],
+      ),
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     final t = FT.of(context);
@@ -117,28 +166,20 @@ class _EditEntrySheetState extends State<_EditEntrySheet> {
             Text(e.name, style: tt.headlineSmall),
             if (e.brand != null) Text(e.brand!, style: tt.bodyMedium!.copyWith(color: t.muted)),
             const SizedBox(height: S.xl),
-            FGroup(
-              label: 'Portion',
-              children: [
-                FRow(
-                  label: _grams
-                      ? (e.unit == 'ml' ? 'Millilitres' : 'Grams')
-                      : (e.unit == 'serving' ? 'Servings' : 'Servings · ${e.unit}'),
-                  trailing: Row(
-                    mainAxisSize: MainAxisSize.min,
-                    children: [
-                      NumberInput(value: _qty, maxDigits: 2, width: 90, onChanged: (v) => setState(() => _qty = v)),
-                      const SizedBox(width: S.sm),
-                      Stepper2(
-                        minusEnabled: (_qty ?? 0) > _step,
-                        onMinus: () => setState(() => _qty = ((_qty ?? 0) - _step).clamp(_step, 5000)),
-                        onPlus: () => setState(() => _qty = ((_qty ?? 0) + _step).clamp(_step, 5000)),
-                      ),
-                    ],
-                  ),
-                ),
-              ],
-            ),
+            if (_perServing != null) ...[
+              const SectionLabel('Portion'),
+              SegmentedButton<bool>(
+                segments: [
+                  const ButtonSegment(value: false, label: Text('Servings')),
+                  ButtonSegment(value: true, label: Text(_weightUnit == 'ml' ? 'Millilitres' : 'Grams')),
+                ],
+                selected: {_byWeight},
+                showSelectedIcon: false,
+                onSelectionChanged: (s) => setState(() => _byWeight = s.first),
+              ),
+              const SizedBox(height: S.md),
+            ],
+            FGroup(label: _perServing != null ? null : 'Portion', children: [_portionRow(e)]),
             const SizedBox(height: S.xl),
             FGroup(
               label: 'Nutrition',
