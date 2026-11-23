@@ -244,7 +244,8 @@ class _FoodLogScreenState extends State<FoodLogScreen> {
                 child: ColoredBox(color: Colors.black.withValues(alpha: t.dark ? 0.6 : 0.3)),
               ),
             ),
-          if (searching)
+          // Results only once something's typed: an empty search shows nothing over the log.
+          if (_search.text.trim().isNotEmpty)
             Positioned(
               left: gutter,
               right: gutter,
@@ -809,18 +810,22 @@ class _SearchResultsState extends State<_SearchResults> {
     super.dispose();
   }
 
-  /// My Foods plus foods logged before, each once, most recent first.
+  /// My Foods and foods logged before that match what's typed, each once, most recent first.
+  /// Kept short so they sit in the results rather than crowding them.
+  static const _maxRecent = 4;
   List<FoodProduct> _local(AppState state, String q) {
     final out = <FoodProduct>[];
     final seen = <String>{};
+    if (q.isEmpty) return out;
     bool match(String name, String? brand) =>
-        q.isEmpty || name.toLowerCase().contains(q) || (brand?.toLowerCase().contains(q) ?? false);
+        name.toLowerCase().contains(q) || (brand?.toLowerCase().contains(q) ?? false);
     for (final f in state.customFoodsByRecent) {
+      if (out.length >= _maxRecent) return out;
       if (match(f.name, f.brand) && seen.add(f.name.toLowerCase())) out.add(FoodProduct.fromCustomFood(f));
     }
     final recent = [...state.entries]..sort((a, b) => b.consumedAt.compareTo(a.consumedAt));
     for (final e in recent) {
-      if (out.length >= 12) break;
+      if (out.length >= _maxRecent) break;
       if (!match(e.name, e.brand) || !seen.add(e.name.toLowerCase()) || e.quantity <= 0) continue;
       final per = e.nutrients * (1 / e.quantity);
       final byAmount = e.unit == 'g' || e.unit == 'ml';
@@ -857,7 +862,7 @@ class _SearchResultsState extends State<_SearchResults> {
 
     final children = <Widget>[
       if (local.isNotEmpty) ...[
-        SectionLabel(q.isEmpty ? 'Recent and My Foods' : 'Yours'),
+        const SectionLabel('Recently added'),
         for (final p in local) _ResultRow(product: p, onTap: () => widget.onPick(p)),
         const SizedBox(height: S.md),
       ],
@@ -888,12 +893,8 @@ class _SearchResultsState extends State<_SearchResults> {
         else
           for (final p in _online) _ResultRow(product: p, onTap: () => widget.onPick(p)),
       ],
-      if (local.isEmpty && q.length < 2)
-        Padding(
-          padding: const EdgeInsets.all(S.lg),
-          child: Text('Type a food name, or scan its barcode.', style: tt.bodyMedium!.copyWith(color: t.muted)),
-        ),
     ];
+    if (children.isEmpty) return const SizedBox.shrink();
 
     return Rise(
       distance: 14,

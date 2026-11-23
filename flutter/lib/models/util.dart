@@ -59,6 +59,14 @@ double? parseLenientNumber(String? raw) {
 final _whole = NumberFormat.decimalPattern('en_US')..maximumFractionDigits = 0;
 final _one = NumberFormat('#,##0.0', 'en_US');
 
+/// "diced honeydew melon" → "Diced honeydew melon". Only the first letter changes, so
+/// names that are already cased ("Big Mac", "iPhone") keep their own capitals after it.
+String sentenceCase(String s) {
+  final t = s.trim();
+  if (t.isEmpty) return t;
+  return t[0].toUpperCase() + t.substring(1);
+}
+
 /// "1,234" — rounded.
 String whole(double v) => _whole.format(v.isFinite ? v.round() : 0);
 

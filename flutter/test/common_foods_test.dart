@@ -34,6 +34,14 @@ void main() {
     expect(searchCommonFoods('bubble tea').first.liquid, isTrue);
   });
 
+  test('everyday extras are found', () {
+    expect(searchCommonFoods('honeydew').first.name, 'Honeydew melon');
+    expect(searchCommonFoods('melon').map((p) => p.name), containsAll(['Rockmelon', 'Honeydew melon', 'Watermelon']));
+    expect(searchCommonFoods('flat white').first.name, 'Flat white');
+    expect(searchCommonFoods('udon').first.name, 'Udon noodles, cooked');
+    expect(searchCommonFoods('nectarine').first.name, 'Nectarine');
+  });
+
   test('every built-in food has energy that matches its macros', () {
     const alcohol = {'Beer', 'Red wine', 'White wine', 'Cider', 'Spirits'}; // alcohol carries energy the macros don't
     for (final p in allCommonFoods) {

@@ -978,6 +978,11 @@ Carbohydrate 12.0g 4.8g
       expect(byDay[DateTime(2026, 3, 3)]!.asleep, const Duration(hours: 7)); // the nap doesn't replace it
     });
   });
+  test('sentence case only touches the first letter', () {
+    expect(sentenceCase('diced honeydew melon'), 'Diced honeydew melon');
+    expect(sentenceCase('  iced Big Mac meal '), 'Iced Big Mac meal');
+    expect(sentenceCase(''), '');
+  });
   group('Gym', () {
     test('the year summary counts sessions, days, types and the best run of weeks', () {
       GymSession g(int m, int d, TrainingType t) => GymSession(id: '$m-$d-$t', at: DateTime(2026, m, d, 18), type: t);

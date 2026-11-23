@@ -15,6 +15,7 @@ void main() {
 ], "notes": "Assumed a standard serve of pasta."}
 ''');
     expect(r.items.map((i) => i.meal), [MealType.breakfast, MealType.breakfast, MealType.lunch, MealType.dinner]);
+    expect(r.items.first.food.name, 'Scrambled eggs'); // AI names come back sentence-cased
     expect(r.items[2].food.grams, 30); // lunch toast is its own item, not the breakfast one
     expect(r.notes, contains('pasta'));
     expect(r.needsCarefulLook, isFalse);
