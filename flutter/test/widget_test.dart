@@ -49,7 +49,8 @@ void main() {
     await _pump(tester, s, const Size(400, 860));
 
     expect(find.textContaining('sample data'), findsOneWidget);
-    expect(find.text('Energy left'), findsOneWidget);
+    expect(find.text('Calories left'), findsOneWidget);
+    expect(find.text('Food score'), findsOneWidget); // its own gauge beside the macros
     expect(find.textContaining('Priya · '), findsOneWidget); // the line above Today uses the profile name
     // Water: one tap adds a glass.
     await tester.ensureVisible(find.text('250 ml'));

@@ -202,7 +202,8 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
       WeightGoal.values,
       _draft.goal,
       (g) => g.title,
-      (g) => g.detail,
+      // The surplus in the chosen energy unit.
+      (g) => g == WeightGoal.gain ? 'Lean surplus of about ${Energy.format(300)}' : g.detail,
       (g) => setState(() => _draft.goal = g),
     ),
     _Step.plan => _plan(context),
@@ -227,7 +228,7 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
         const SizedBox(height: S.xl),
         Rise(
           delay: const Duration(milliseconds: 60),
-          child: Text('Your calories, worked out from your body.', style: tt.displaySmall),
+          child: Text('Your ${Energy.word}, worked out from your body.', style: tt.displaySmall),
         ),
         const SizedBox(height: S.xl),
         // The moment: the plan the app builds, set like the Nutrition Information panel on a packet.
@@ -616,11 +617,11 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
         _tdeeTable(context),
         const SizedBox(height: S.md),
         Text(
-          'Your daily goal is your TDEE ${_draft.goal == WeightGoal.maintain
+          'Your daily goal is your TDEE${_draft.goal == WeightGoal.maintain
               ? ''
               : _draft.goal == WeightGoal.lose
-              ? 'minus 500 '
-              : 'plus 300 '}kcal. You can fine-tune any number later in Settings.',
+              ? ' minus ${Energy.format(500)}'
+              : ' plus ${Energy.format(300)}'}. You can fine-tune any number later in Settings.',
           style: tt.bodySmall,
         ),
       ],

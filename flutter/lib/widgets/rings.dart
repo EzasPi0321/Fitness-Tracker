@@ -76,10 +76,10 @@ class _CalorieRingState extends State<CalorieRing> with SingleTickerProviderStat
     final remaining = widget.budget - widget.consumed;
 
     return Semantics(
-      label: 'Calories',
+      label: Energy.fieldName,
       value:
-          '${whole(widget.consumed)} of ${whole(widget.budget)} kilocalories eaten, '
-          '${whole(remaining.abs())} ${remaining >= 0 ? 'remaining' : 'over'}',
+          '${Energy.format(widget.consumed)} of ${Energy.format(widget.budget)} eaten, '
+          '${Energy.format(remaining.abs())} ${remaining >= 0 ? 'remaining' : 'over'}',
       excludeSemantics: true,
       child: RepaintBoundary(
         child: SizedBox.square(
@@ -249,6 +249,65 @@ class MacroGauge extends StatelessWidget {
           const SizedBox(height: 6),
           Text(label, style: tt.labelLarge!.copyWith(fontSize: 13)),
           Text('${whole(consumed)} / ${whole(target)} g', style: tt.bodySmall!.copyWith(fontFeatures: tabular)),
+        ],
+      ),
+    );
+  }
+}
+
+/// The day's food score as a gauge beside the macros, out of 100. The fill is neutral, not the
+/// calorie ring's green, so the two never read as one thing; only the band word ("Good") carries
+/// the score's colour.
+class ScoreGauge extends StatelessWidget {
+  const ScoreGauge({super.key, required this.score, required this.color, required this.band});
+
+  /// Null until food is logged.
+  final int? score;
+
+  /// The band's colour, for the band word.
+  final Color color;
+
+  /// "Excellent", "Good"…, shown under the label.
+  final String band;
+
+  @override
+  Widget build(BuildContext context) {
+    final t = FT.of(context);
+    final tt = Theme.of(context).textTheme;
+    final s = score;
+    return Semantics(
+      label: 'Food score today',
+      value: s == null ? 'nothing logged yet' : '$s out of 100, $band',
+      excludeSemantics: true,
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          RepaintBoundary(
+            child: SizedBox.square(
+              dimension: 64,
+              child: TweenAnimationBuilder<double>(
+                tween: Tween(end: (s ?? 0) / 100),
+                duration: Motion.of(context, Motion.slow),
+                curve: Motion.settle,
+                builder: (context, f, _) => CustomPaint(
+                  isComplex: true,
+                  painter: _GaugePainter(f, t.fg.withValues(alpha: t.dark ? 0.86 : 0.78), t),
+                  child: Center(
+                    child: Text(s == null ? '–' : '$s', style: tt.titleSmall!.copyWith(fontFeatures: tabular)),
+                  ),
+                ),
+              ),
+            ),
+          ),
+          const SizedBox(height: 6),
+          Text('Food score', style: tt.labelLarge!.copyWith(fontSize: 13)),
+          Text(
+            s == null ? 'Log food' : band,
+            style: tt.bodySmall!.copyWith(
+              color: s == null ? null : color,
+              fontWeight: s == null ? null : FontWeight.w600,
+            ),
+          ),
         ],
       ),
     );

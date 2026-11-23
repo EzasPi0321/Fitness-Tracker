@@ -307,7 +307,7 @@ class _CalorieCard extends StatelessWidget {
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           _CardTitle(
-            'Calorie intake',
+            Energy.isKJ ? 'Energy intake' : 'Calorie intake',
             logged.isEmpty ? 'No meals logged in this period' : 'Average ${Energy.format(avg)} a day',
           ),
           const SizedBox(height: S.md),

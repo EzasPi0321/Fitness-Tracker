@@ -122,6 +122,9 @@ abstract final class Energy {
   /// Field name: "Calories" reads oddly next to kJ.
   static String get fieldName => isKJ ? 'Energy' : 'Calories';
 
+  /// The word in a sentence: "calories" or "kilojoules".
+  static String get word => isKJ ? 'kilojoules' : 'calories';
+
   static double toDisplay(double kcal) => isKJ ? kcal * kilojoulesPerKcal : kcal;
   static double fromDisplay(double value) => isKJ ? value / kilojoulesPerKcal : value;
 

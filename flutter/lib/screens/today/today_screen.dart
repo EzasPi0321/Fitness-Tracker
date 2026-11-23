@@ -443,7 +443,7 @@ class _SummaryCard extends StatelessWidget {
       children: [
         BlurSwitcher(
           child: Text(
-            left >= 0 ? 'Energy left' : 'Over your goal',
+            left >= 0 ? (Energy.isKJ ? 'Kilojoules left' : 'Calories left') : 'Over your goal',
             key: ValueKey(left >= 0),
             style: tt.bodyMedium!.copyWith(color: left >= 0 ? t.muted : t.over),
           ),
@@ -470,14 +470,13 @@ class _SummaryCard extends StatelessWidget {
             ),
           ],
         ),
-        const SizedBox(height: S.xs),
-        Text(
-          [
-            '${Energy.format(consumed.calories)} eaten of ${Energy.format(budget)}',
-            if (showActive) '${whole(Energy.toDisplay(active))} active${includeActive ? ' added' : ''}',
-          ].join(' · '),
-          style: tt.bodySmall!.copyWith(fontFeatures: tabular),
-        ),
+        if (showActive) ...[
+          const SizedBox(height: S.xs),
+          Text(
+            '${whole(Energy.toDisplay(active))} ${Energy.label} active${includeActive ? ', added to your goal' : ''}',
+            style: tt.bodySmall!.copyWith(fontFeatures: tabular),
+          ),
+        ],
       ],
     );
 
@@ -496,8 +495,8 @@ class _SummaryCard extends StatelessWidget {
                 size: narrow ? 108 : 116,
                 stroke: 8,
                 showCenter: false,
-                // The day's food score sits inside the ring: how well, beside how much.
-                center: foodScore == null ? null : _DayScore(score: foodScore!),
+                // Eaten out of the goal: what the ring is filled with.
+                center: _Eaten(eaten: consumed.calories, budget: budget),
               ),
             ],
           ),
@@ -508,6 +507,14 @@ class _SummaryCard extends StatelessWidget {
                 Expanded(
                   child: MacroGauge(label: m.title, consumed: consumed.of(m), target: targets.of(m), color: t.macro(m)),
                 ),
+              // Quality beside quantity: its own gauge, in the score's colour.
+              Expanded(
+                child: ScoreGauge(
+                  score: foodScore,
+                  color: foodScore == null ? t.muted : scoreColor(t, foodScore!),
+                  band: foodScore == null ? '' : ScoreBand.of(foodScore!).label,
+                ),
+              ),
             ],
           ),
         ],
@@ -553,7 +560,7 @@ class _MealCard extends StatelessWidget {
             onTap: onToggle,
             feel: PressFeel.subtle,
             hitSlop: 0,
-            semanticLabel: '${meal.title}, ${whole(kcal)} kilocalories, ${collapsed ? 'collapsed' : 'expanded'}',
+            semanticLabel: '${meal.title}, ${Energy.format(kcal)}, ${collapsed ? 'collapsed' : 'expanded'}',
             child: Padding(
               padding: const EdgeInsets.fromLTRB(S.lg, S.md, S.md, S.md),
               child: Row(
@@ -711,33 +718,29 @@ class _EntryRow extends StatelessWidget {
   }
 }
 
-/// The day's food score, inside the calorie ring: the number in its band's colour, and its name.
-class _DayScore extends StatelessWidget {
-  const _DayScore({required this.score});
-  final int score;
+/// Inside the calorie ring: eaten, out of the goal.
+class _Eaten extends StatelessWidget {
+  const _Eaten({required this.eaten, required this.budget});
+  final double eaten;
+  final double budget;
 
   @override
   Widget build(BuildContext context) {
-    final t = FT.of(context);
     final tt = Theme.of(context).textTheme;
-    final band = ScoreBand.of(score);
     return Semantics(
-      label: 'Food score today',
-      value: '$score out of 100, ${band.label}',
+      label: 'Eaten',
+      value: '${Energy.format(eaten)} of ${Energy.format(budget)}',
       excludeSemantics: true,
       child: Column(
         mainAxisSize: MainAxisSize.min,
         children: [
-          BlurSwitcher(
-            child: Text(
-              '$score',
-              key: ValueKey(score),
-              style: tt.headlineSmall!.copyWith(color: scoreColor(t, score), fontFeatures: tabular, height: 1.0),
-            ),
+          CountUp(
+            value: Energy.toDisplay(eaten),
+            format: whole,
+            style: tt.titleLarge!.copyWith(fontFeatures: tabular, height: 1.0),
           ),
           const SizedBox(height: 2),
-          // Named, so the number inside a calorie ring isn't read as calories.
-          Text('Food score', style: tt.labelSmall),
+          Text('of ${whole(Energy.toDisplay(budget))}', style: tt.labelSmall!.copyWith(fontFeatures: tabular)),
         ],
       ),
     );

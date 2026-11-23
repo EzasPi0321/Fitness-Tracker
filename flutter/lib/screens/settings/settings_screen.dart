@@ -340,7 +340,7 @@ class _HealthSection extends StatelessWidget {
         ),
         FRow(
           label: 'Add active energy to budget',
-          sub: 'Exercise calories raise today’s goal',
+          sub: 'Exercise ${Energy.word} raise today’s goal',
           trailing: Switch(
             value: state.addActiveEnergy,
             onChanged: state.healthEnabled ? state.setAddActiveEnergy : null,
