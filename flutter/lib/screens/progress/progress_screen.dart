@@ -259,6 +259,11 @@ bool isAxisTick(int i, int days) {
 /// Width of the value labels on the left of every chart.
 const _axisW = 36.0;
 
+/// A logged day is on target when it's at or under the goal, or no more than 10% over it.
+/// Days under half the goal don't count: most likely not everything was logged.
+bool onCalorieTarget(double calories, double target) =>
+    target <= 0 || (calories >= target * 0.5 && calories <= target * 1.1);
+
 FlLine _gridLine(FT t) => FlLine(color: t.border.withValues(alpha: 0.5), strokeWidth: 0.6);
 
 class _CalorieCard extends StatelessWidget {
@@ -283,7 +288,7 @@ class _CalorieCard extends StatelessWidget {
     final t = FT.of(context);
     final tt = Theme.of(context).textTheme;
     final avg = logged.isEmpty ? 0.0 : logged.fold<double>(0, (a, d) => a + d.n.calories) / logged.length;
-    final onTarget = logged.where((d) => (d.n.calories - target).abs() <= target * 0.1).length;
+    final onTarget = logged.where((d) => onCalorieTarget(d.n.calories, target)).length;
     final over = logged.where((d) => d.n.calories > target * 1.1).length;
     final maxCal = days.fold<double>(0, (a, d) => math.max(a, d.n.calories));
     // The chart is drawn in the user's energy unit so its axis lands on round numbers.

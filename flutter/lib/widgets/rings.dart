@@ -19,6 +19,7 @@ class CalorieRing extends StatefulWidget {
     this.size = 180,
     this.stroke = 18,
     this.showCenter = true,
+    this.center,
   });
 
   final double consumed;
@@ -29,6 +30,9 @@ class CalorieRing extends StatefulWidget {
 
   /// False when the number is shown beside the ring instead of inside it.
   final bool showCenter;
+
+  /// Something else to show inside the ring when [showCenter] is false.
+  final Widget? center;
 
   @override
   State<CalorieRing> createState() => _CalorieRingState();
@@ -95,7 +99,7 @@ class _CalorieRingState extends State<CalorieRing> with SingleTickerProviderStat
                 return CustomPaint(
                   painter: _RingPainter(progress: p, stroke: widget.stroke * (1 + 0.1 * swell), flare: swell, t: t),
                   child: !widget.showCenter
-                      ? null
+                      ? (widget.center == null ? null : Center(child: widget.center))
                       : Center(
                           child: Transform.scale(
                             scale: 1 + 0.05 * swell,
