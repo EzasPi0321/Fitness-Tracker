@@ -82,23 +82,28 @@ void main() {
     expect(find.text('Phone only'), findsOneWidget);
   }, variant: desktop);
 
-  testWidgets('add menu opens, offers four choices, and manual entry logs food', (tester) async {
+  testWidgets('a meal\'s Add offers every way to log, and manual entry logs into that meal', (tester) async {
     final s = await _state(sample: true);
     await _pump(tester, s, const Size(400, 860));
     final before = s.entries.length;
+    final addSnack = find.bySemanticsLabel(RegExp(r'^Add to Snacks'));
 
-    await tester.tap(find.bySemanticsLabel('Log food'));
+    await tester.ensureVisible(addSnack);
     await tester.pumpAndSettle();
+    await tester.tap(addSnack);
+    await tester.pumpAndSettle();
+    expect(find.text('Add to snacks'), findsOneWidget);
+    expect(find.text('Search foods'), findsOneWidget);
     expect(find.text('Manual entry'), findsOneWidget);
     expect(find.text('Enter barcode'), findsOneWidget); // desktop/test: no camera
     expect(find.text('Photo estimate'), findsOneWidget);
     expect(find.text('Voice entry'), findsOneWidget);
 
-    // Tapping outside closes it (the scrim covers the page).
-    await tester.tapAt(const Offset(40, 300));
+    // Tapping outside closes it.
+    await tester.tapAt(const Offset(200, 40));
     await tester.pumpAndSettle();
     expect(find.text('Manual entry'), findsNothing);
-    await tester.tap(find.bySemanticsLabel('Log food'));
+    await tester.tap(addSnack);
     await tester.pumpAndSettle();
 
     await tester.tap(find.text('Manual entry'));
@@ -114,7 +119,22 @@ void main() {
 
     expect(s.entries.length, before + 1);
     expect(s.entries.last.nutrients.calories, 210);
+    expect(s.entries.last.meal.name, 'snack');
     expect(find.textContaining('Logged Granola'), findsOneWidget);
+  }, variant: desktop);
+
+  testWidgets('Search foods from a meal opens the Food log search', (tester) async {
+    final s = await _state(sample: true);
+    await _pump(tester, s, const Size(400, 860));
+    final addSnack = find.bySemanticsLabel(RegExp(r'^Add to Snacks'));
+    await tester.ensureVisible(addSnack);
+    await tester.pumpAndSettle();
+    await tester.tap(addSnack);
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('Search foods'));
+    await tester.pumpAndSettle();
+    expect(find.textContaining('Search · logs at'), findsOneWidget);
+    expect(s.foodSearchRequest.value, isNull);
   }, variant: desktop);
 
   testWidgets('wide window uses the side rail and two-column Today', (tester) async {

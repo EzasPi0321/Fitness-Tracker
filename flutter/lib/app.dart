@@ -121,6 +121,28 @@ class Shell extends StatefulWidget {
 
 class _ShellState extends State<Shell> {
   int _index = 0;
+  ValueNotifier<({DateTime day, DateTime at})?>? _searchRequest;
+
+  @override
+  void didChangeDependencies() {
+    super.didChangeDependencies();
+    final r = AppScope.read(context).foodSearchRequest;
+    if (r != _searchRequest) {
+      _searchRequest?.removeListener(_onSearchRequest);
+      _searchRequest = r..addListener(_onSearchRequest);
+    }
+  }
+
+  /// A meal's "Search foods" lives on the Food log tab.
+  void _onSearchRequest() {
+    if (_searchRequest?.value != null && _index != 1) setState(() => _index = 1);
+  }
+
+  @override
+  void dispose() {
+    _searchRequest?.removeListener(_onSearchRequest);
+    super.dispose();
+  }
 
   @override
   Widget build(BuildContext context) {
