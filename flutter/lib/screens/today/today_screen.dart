@@ -560,7 +560,7 @@ class _MealCard extends StatelessWidget {
             onTap: onToggle,
             feel: PressFeel.subtle,
             hitSlop: 0,
-            semanticLabel: '${meal.title}, ${whole(kcal)} kilocalories, ${collapsed ? 'collapsed' : 'expanded'}',
+            semanticLabel: '${meal.title}, ${Energy.format(kcal)}, ${collapsed ? 'collapsed' : 'expanded'}',
             child: Padding(
               padding: const EdgeInsets.fromLTRB(S.lg, S.md, S.md, S.md),
               child: Row(

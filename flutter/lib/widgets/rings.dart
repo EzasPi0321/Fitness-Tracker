@@ -76,10 +76,10 @@ class _CalorieRingState extends State<CalorieRing> with SingleTickerProviderStat
     final remaining = widget.budget - widget.consumed;
 
     return Semantics(
-      label: 'Calories',
+      label: Energy.fieldName,
       value:
-          '${whole(widget.consumed)} of ${whole(widget.budget)} kilocalories eaten, '
-          '${whole(remaining.abs())} ${remaining >= 0 ? 'remaining' : 'over'}',
+          '${Energy.format(widget.consumed)} of ${Energy.format(widget.budget)} eaten, '
+          '${Energy.format(remaining.abs())} ${remaining >= 0 ? 'remaining' : 'over'}',
       excludeSemantics: true,
       child: RepaintBoundary(
         child: SizedBox.square(

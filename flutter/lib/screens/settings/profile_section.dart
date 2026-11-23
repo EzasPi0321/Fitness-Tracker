@@ -290,8 +290,8 @@ String goalLine(UserProfile p, double calories, double tdee) {
   final pace = p.pace;
   if (pace == null) {
     return p.goal == WeightGoal.lose
-        ? 'Cut: TDEE − 500 kcal, about 0.5 kg (1 lb) a week. Add a target weight and date to set the pace.'
-        : 'Gain: TDEE + 300 kcal, a lean surplus. Add a target weight and date to set the pace.';
+        ? 'Cut: TDEE − ${Energy.format(500)}, about 0.5 kg (1 lb) a week. Add a target weight and date to set the pace.'
+        : 'Gain: TDEE + ${Energy.format(300)}, a lean surplus. Add a target weight and date to set the pace.';
   }
   final verb = pace.kgToGo < 0 ? 'Lose' : 'Gain';
   final next = p.planUpdatedAt == null
