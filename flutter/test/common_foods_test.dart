@@ -21,6 +21,19 @@ void main() {
     expect(searchCommonFoods('quokka'), isEmpty);
   });
 
+  test('Chinese staples are found by English, pinyin and Cantonese names', () {
+    expect(searchCommonFoods('congee').first.name, 'Congee');
+    expect(searchCommonFoods('jook').first.name, 'Congee');
+    expect(searchCommonFoods('mantou').first.name, 'Mantou');
+    expect(searchCommonFoods('gai lan').first.name, 'Gai lan, cooked');
+    expect(searchCommonFoods('kangkong').first.name, 'Water spinach, cooked');
+    expect(searchCommonFoods('lap cheong').first.name, 'Chinese sausage');
+    expect(searchCommonFoods('char siu').first.name, 'Char siu');
+    expect(searchCommonFoods('mapo').first.name, 'Mapo tofu');
+    expect(searchCommonFoods('tofu').map((p) => p.name), containsAll(['Tofu, firm', 'Tofu, silken']));
+    expect(searchCommonFoods('bubble tea').first.liquid, isTrue);
+  });
+
   test('every built-in food has energy that matches its macros', () {
     const alcohol = {'Beer', 'Red wine', 'White wine', 'Cider', 'Spirits'}; // alcohol carries energy the macros don't
     for (final p in allCommonFoods) {

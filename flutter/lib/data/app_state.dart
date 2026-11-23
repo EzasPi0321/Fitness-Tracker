@@ -784,6 +784,13 @@ class AppState extends ChangeNotifier {
           ];
   }
 
+  /// Set when a meal's Add asks for food search: the Food log tab opens its search for that
+  /// day, and what's picked logs at that time. The Food log clears it once handled.
+  final foodSearchRequest = ValueNotifier<({DateTime day, DateTime at})?>(null);
+
+  void requestFoodSearch(DateTime day, DateTime at) =>
+      foodSearchRequest.value = (day: DateTime(day.year, day.month, day.day), at: at);
+
   /// Bumped when health data should be read again (connected, app reopened, pulled to refresh).
   final healthRefresh = ValueNotifier<int>(0);
 

@@ -1309,12 +1309,21 @@ class _GymYearCardState extends State<_GymYearCard> {
             ),
             const SizedBox(height: S.xs),
             Text(
-              [
-                if (y.daysTrained != y.total) 'on ${y.daysTrained} days',
-                '${y.activeWeeks.length} active ${y.activeWeeks.length == 1 ? 'week' : 'weeks'}',
-                'best run ${y.bestWeekStreak} ${y.bestWeekStreak == 1 ? 'week' : 'weeks'}',
-              ].join('  ·  '),
+              '${_count(y.daysTrained, 'training day')} across ${_count(y.activeWeeks.length, 'week')}',
               style: tt.bodySmall!.copyWith(fontFeatures: tabular),
+            ),
+            const SizedBox(height: S.lg),
+            Divider(height: 1, color: t.border),
+            const SizedBox(height: S.lg),
+            Row(
+              children: [
+                Expanded(
+                  child: _year == thisYear
+                      ? _Tile('Current streak', '${y.currentWeekStreak()}', suffix: _unit(y.currentWeekStreak(), 'week'))
+                      : _Tile('Active weeks', '${y.activeWeeks.length}', suffix: _unit(y.activeWeeks.length, 'week')),
+                ),
+                Expanded(child: _perWeekTile(y)),
+              ],
             ),
             const SizedBox(height: S.xl),
             _YearGrid(year: _year, byDay: y.byDay, sessions: y.sessions),
@@ -1328,6 +1337,19 @@ class _GymYearCardState extends State<_GymYearCard> {
       ),
     );
   }
+}
+
+/// "1 week", "3 weeks".
+String _count(int n, String word) => '$n ${n == 1 ? word : '${word}s'}';
+
+/// The unit beside a tile's number: " week", " weeks".
+String _unit(num n, String word) => n == 1 ? ' $word' : ' ${word}s';
+
+/// Average sessions a week, to one decimal under ten.
+Widget _perWeekTile(GymYear y) {
+  final v = y.perWeek();
+  final text = v >= 10 ? v.round().toString() : v.toStringAsFixed(1);
+  return _Tile('Per week', text, suffix: _unit(double.parse(text), 'session'));
 }
 
 /// One square per day, a column per week (Monday on top), like a training diary's year page.

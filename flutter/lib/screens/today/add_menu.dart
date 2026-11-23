@@ -2,234 +2,76 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:material_symbols_icons/symbols.dart';
 
-import '../../design/motion.dart';
+import '../../data/app_state.dart';
 import '../../design/tokens.dart';
+import '../../models/food.dart';
 import '../../services/platform_caps.dart';
 import '../../widgets/common.dart';
 import '../log/log_flows.dart';
 import '../log/voice_entry_screen.dart';
 
-class _Item {
-  const _Item(this.label, this.icon, this.run);
-  final String label;
-  final IconData icon;
-  final void Function(BuildContext context, DateTime day) run;
-}
-
-/// The floating add button. Opening it: a quick wind-up (anticipation), the plus blurs into
-/// an × (icon swap), and four choices (Hick's law) rise into a column above it with a small
-/// stagger, overshooting and settling (follow-through). All in under 300 ms.
-class AddMenu extends StatefulWidget {
-  const AddMenu({super.key, required this.day});
-  final DateTime day;
-
-  @override
-  State<AddMenu> createState() => _AddMenuState();
-}
-
-class _AddMenuState extends State<AddMenu> with SingleTickerProviderStateMixin {
-  late final _c = AnimationController(vsync: this, duration: const Duration(milliseconds: 280));
-  bool _open = false;
-
-  @override
-  void initState() {
-    super.initState();
-    // Drop the items from the tree (and from screen readers) once the close finishes.
-    _c.addStatusListener((s) {
-      if (s == AnimationStatus.dismissed && mounted) setState(() {});
-    });
-  }
-
-  List<_Item> get _items => [
-    PlatformCaps.hasCamera
-        ? _Item('Scan barcode', Symbols.barcode_scanner, (c, d) => openBarcodeScanner(c, day: d))
-        : _Item('Enter barcode', Symbols.keyboard, (c, d) => openBarcodeEntry(c, day: d)),
-    _Item(
-      PlatformCaps.hasCamera ? 'Snap meal' : 'Photo estimate',
-      Symbols.photo_camera,
-      (c, d) => openSnapMeal(c, day: d),
-    ),
-    _Item('Voice entry', Symbols.mic, (c, d) => openVoiceEntry(c, day: d)),
-    _Item('Manual entry', Symbols.edit_note, (c, d) => openManualEntry(c, day: d)),
-  ];
-
-  void _toggle([bool? open]) {
-    final next = open ?? !_open;
-    if (next == _open) return;
-    setState(() => _open = next);
-    if (Motion.reduced(context)) {
-      _c.value = next ? 1 : 0;
-      return;
-    }
-    if (next) {
-      HapticFeedback.selectionClick();
-      _c.forward(from: 0);
-    } else {
-      _c.animateBack(0, duration: const Duration(milliseconds: 180), curve: Curves.easeIn);
-    }
-  }
-
-  void _pick(_Item item) {
-    _toggle(false);
-    item.run(context, widget.day);
-  }
-
-  @override
-  void dispose() {
-    _c.dispose();
-    super.dispose();
-  }
-
-  @override
-  Widget build(BuildContext context) {
-    final t = FT.of(context);
-    final pad = MediaQuery.paddingOf(context);
-    final items = _items;
-    const fab = 64.0;
-    final right = 20.0 + pad.right;
-    final bottom = 20.0 + pad.bottom;
-
-    return Positioned.fill(
-      child: Stack(
-        children: [
-          // Scrim: staging, the menu becomes the only thing in focus. A dark tint (not the page
-          // background) so it reads in light mode too.
-          Positioned.fill(
-            child: IgnorePointer(
-              ignoring: !_open,
-              child: GestureDetector(
-                behavior: HitTestBehavior.opaque,
-                onTap: () => _toggle(false),
-                child: AnimatedBuilder(
-                  animation: _c,
-                  builder: (context, _) => ColoredBox(
-                    color: (t.dark ? Colors.black : t.fg).withValues(
-                      alpha: (t.dark ? 0.55 : 0.28) * Curves.easeOut.transform(_c.value.clamp(0, 1)),
-                    ),
-                  ),
-                ),
-              ),
-            ),
-          ),
-          if (_open || !_c.isDismissed)
-            for (var i = 0; i < items.length; i++)
-              AnimatedBuilder(
-                animation: _c,
-                builder: (context, child) {
-                  // Stagger: each item starts 30 ms after the previous one.
-                  final start = 0.18 + i * 0.11;
-                  final raw = ((_c.value - start) / (1 - start)).clamp(0.0, 1.0);
-                  final e = Motion.settle.transform(raw);
-                  // One column straight above the button: every circle centred on the +, with
-                  // its label right-aligned beside it, so nothing overlaps at any screen width.
-                  // Each rises out of the button to its slot, the nearest first.
-                  final slot = fab / 2 + S.md + 28 + i * (56 + S.md);
-                  final dy = slot * e;
-                  return Positioned(
-                    right: right + fab / 2 - 28,
-                    bottom: bottom + fab / 2 - 28 + dy,
-                    child: IgnorePointer(
-                      ignoring: !_open,
-                      child: Opacity(
-                        opacity: raw.clamp(0.0, 1.0),
-                        child: Transform.scale(
-                          scale: 0.5 + 0.5 * e,
-                          alignment: Alignment.centerRight,
-                          origin: const Offset(-28, 0),
-                          child: child,
-                        ),
-                      ),
-                    ),
-                  );
-                },
-                child: _MenuItem(item: items[i], onTap: () => _pick(items[i])),
-              ),
-          Positioned(
-            right: right,
-            bottom: bottom,
-            child: AnimatedBuilder(
-              animation: _c,
-              builder: (context, child) {
-                // Anticipation: dips to 90 % in the first fifth, then springs back past 100 %.
-                final v = _c.value;
-                final s = v < 0.2
-                    ? 1 - 0.1 * Curves.easeOut.transform(v / 0.2)
-                    : 0.9 + 0.1 * Motion.settle.transform((v - 0.2) / 0.8);
-                return Transform.scale(scale: _open ? s : 1, child: child);
-              },
-              child: Squishy(
-                onTap: _toggle,
-                feel: PressFeel.bold,
-                hitSlop: 10,
-                semanticLabel: _open ? 'Close menu' : 'Log food',
-                child: Container(
-                  width: fab,
-                  height: fab,
-                  decoration: BoxDecoration(
-                    // Flat ink disc: the one solid shape on screen, no shine.
-                    shape: BoxShape.circle,
-                    color: t.accent,
-                  ),
-                  child: Center(
-                    child: BlurSwitcher(
-                      child: FIcon(
-                        _open ? Symbols.close : Symbols.add,
-                        key: ValueKey(_open),
-                        size: 30,
-                        color: t.onAccent,
-                        weight: FontWeight.w700,
-                      ),
-                    ),
-                  ),
-                ),
-              ),
-            ),
-          ),
-        ],
-      ),
-    );
+/// Every way to log food, opened from a meal's Add. Whatever is picked lands in that meal:
+/// search, barcode and photo log at the meal's time, manual entry starts with the meal set.
+/// Replaces the old floating button, so there's one place to add and it already knows the meal.
+Future<void> showMealAddSheet(BuildContext context, {required DateTime day, required MealType meal}) async {
+  HapticFeedback.selectionClick();
+  final choice = await showModalBottomSheet<String>(
+    context: context,
+    useSafeArea: true,
+    constraints: const BoxConstraints(maxWidth: 520),
+    builder: (_) => _MealAddSheet(meal: meal),
+  );
+  if (choice == null || !context.mounted) return;
+  final at = mealTime(day, meal);
+  switch (choice) {
+    case 'search':
+      AppScope.read(context).requestFoodSearch(day, at);
+    case 'barcode':
+      PlatformCaps.hasCamera
+          ? await openBarcodeScanner(context, day: day, at: at)
+          : await openBarcodeEntry(context, day: day, at: at);
+    case 'photo':
+      await openSnapMeal(context, day: day, at: at);
+    case 'voice':
+      await openVoiceEntry(context, day: day);
+    case 'manual':
+      await openManualEntry(context, day: day, meal: meal);
   }
 }
 
-class _MenuItem extends StatelessWidget {
-  const _MenuItem({required this.item, required this.onTap});
-  final _Item item;
-  final VoidCallback onTap;
+class _MealAddSheet extends StatelessWidget {
+  const _MealAddSheet({required this.meal});
+  final MealType meal;
 
   @override
   Widget build(BuildContext context) {
     final t = FT.of(context);
     final tt = Theme.of(context).textTheme;
-    // Label and circle form one row, so the whole thing is the hit target (Fitts's law).
-    return Squishy(
-      onTap: onTap,
-      feel: PressFeel.normal,
-      hitSlop: 8,
-      semanticLabel: item.label,
-      child: Row(
+    Widget option(String value, IconData icon, String label) => FRow(
+      leading: FIcon(icon, color: t.fg, weight: FontWeight.w500),
+      label: label,
+      onTap: () => Navigator.pop(context, value),
+    );
+    return Padding(
+      padding: const EdgeInsets.fromLTRB(S.lg, S.lg, S.lg, S.xl),
+      child: Column(
         mainAxisSize: MainAxisSize.min,
+        crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
-          Container(
-            padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 7),
-            decoration: BoxDecoration(
-              color: t.raised,
-              borderRadius: BorderRadius.circular(8),
-              border: Border.all(color: t.border),
-            ),
-            child: Text(item.label, style: tt.labelLarge, maxLines: 1, softWrap: false),
-          ),
-          const SizedBox(width: S.sm),
-          Container(
-            width: 56,
-            height: 56,
-            decoration: BoxDecoration(
-              color: t.raised,
-              shape: BoxShape.circle,
-              border: Border.all(color: t.border),
-            ),
-            child: Center(
-              child: FIcon(item.icon, size: 24, color: t.fg, weight: FontWeight.w600),
-            ),
+          Text('Add to ${meal.title.toLowerCase()}', style: tt.headlineSmall),
+          const SizedBox(height: S.lg),
+          FGroup(
+            children: [
+              option('search', Symbols.search, 'Search foods'),
+              option(
+                'barcode',
+                PlatformCaps.hasCamera ? Symbols.barcode_scanner : Symbols.keyboard,
+                PlatformCaps.hasCamera ? 'Scan barcode' : 'Enter barcode',
+              ),
+              option('photo', Symbols.photo_camera, PlatformCaps.hasCamera ? 'Snap meal' : 'Photo estimate'),
+              option('voice', Symbols.mic, 'Voice entry'),
+              option('manual', Symbols.edit_note, 'Manual entry'),
+            ],
           ),
         ],
       ),

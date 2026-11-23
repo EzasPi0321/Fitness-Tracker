@@ -21,7 +21,6 @@ import '../../widgets/sleep_card.dart';
 import '../../widgets/steps_card.dart';
 import '../../widgets/update_banner.dart';
 import '../../widgets/water_card.dart';
-import '../log/log_flows.dart';
 import 'add_menu.dart';
 import 'edit_entry_sheet.dart';
 
@@ -146,7 +145,7 @@ class _TodayScreenState extends State<TodayScreen> {
               collapsed: _collapsed.contains(meal),
               onToggle: () =>
                   setState(() => _collapsed.contains(meal) ? _collapsed.remove(meal) : _collapsed.add(meal)),
-              onAdd: () => openManualEntry(context, day: _day, meal: meal),
+              onAdd: () => showMealAddSheet(context, day: _day, meal: meal),
             ),
           ),
         ],
@@ -291,7 +290,7 @@ class _TodayScreenState extends State<TodayScreen> {
                                     child: GymCard(day: _day),
                                   ),
                                 ],
-                                const SizedBox(height: 120), // room so the add button never covers a row
+                                const SizedBox(height: S.xxl),
                               ],
                             ),
                           ),
@@ -302,7 +301,6 @@ class _TodayScreenState extends State<TodayScreen> {
                 ],
               ),
             ),
-            AddMenu(day: _day),
           ],
         ),
       ),
@@ -602,25 +600,27 @@ class _MealCard extends StatelessWidget {
                 : Column(
                     crossAxisAlignment: CrossAxisAlignment.stretch,
                     children: [
-                      if (entries.isEmpty)
-                        Squishy(
-                          onTap: onAdd,
-                          feel: PressFeel.subtle,
-                          hitSlop: 0,
-                          child: Padding(
-                            padding: const EdgeInsets.symmetric(horizontal: S.lg, vertical: 14),
-                            child: Row(
-                              children: [
+                      for (final e in entries) _EntryRow(entry: e),
+                      // Every meal ends in Add: it opens all the ways to log, already set to this meal.
+                      Squishy(
+                        onTap: onAdd,
+                        feel: PressFeel.subtle,
+                        hitSlop: 0,
+                        semanticLabel: 'Add to ${meal.title}',
+                        child: Padding(
+                          padding: EdgeInsets.symmetric(horizontal: S.lg, vertical: entries.isEmpty ? 14 : 12),
+                          child: Row(
+                            children: [
+                              if (entries.isEmpty)
                                 Text('Nothing logged yet', style: tt.bodyMedium!.copyWith(color: t.muted)),
-                                const Spacer(),
-                                FIcon(Symbols.add, size: 18, color: t.fg, weight: FontWeight.w600),
-                                const SizedBox(width: 4),
-                                Text('Add', style: tt.labelLarge!.copyWith(color: t.fg)),
-                              ],
-                            ),
+                              const Spacer(),
+                              FIcon(Symbols.add, size: 18, color: t.fg, weight: FontWeight.w600),
+                              const SizedBox(width: 4),
+                              Text('Add', style: tt.labelLarge!.copyWith(color: t.fg)),
+                            ],
                           ),
                         ),
-                      for (final e in entries) _EntryRow(entry: e),
+                      ),
                     ],
                   ),
           ),

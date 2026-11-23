@@ -88,6 +88,35 @@ class GymYear {
     return best;
   }
 
+  /// Weeks in a row with a session, counting back from this week. A week not yet trained
+  /// doesn't break it until it's over, so Monday morning still shows last week's streak.
+  /// Zero for any year but the current one.
+  int currentWeekStreak({DateTime? now}) {
+    final n = now ?? DateTime.now();
+    if (n.year != year) return 0;
+    final weeks = activeWeeks;
+    var w = weekStart(n);
+    if (!weeks.contains(w)) w = addDays(w, -7);
+    var run = 0;
+    while (weeks.contains(w)) {
+      run++;
+      w = addDays(w, -7);
+    }
+    return run;
+  }
+
+  /// Weeks of the year so far (all of it for a past year), at least one.
+  double weeksElapsed({DateTime? now}) {
+    final n = now ?? DateTime.now();
+    final start = DateTime(year, 1, 1);
+    final end = n.year == year ? startOfDay(n) : DateTime(year, 12, 31);
+    final days = end.difference(start).inHours / 24 + 1;
+    return (days / 7).clamp(1, 53).toDouble();
+  }
+
+  /// Average sessions a week over the year so far.
+  double perWeek({DateTime? now}) => total / weeksElapsed(now: now);
+
   TrainingType? get mostTrained {
     TrainingType? top;
     for (final e in byType.entries) {

@@ -42,6 +42,33 @@ class _FoodLogScreenState extends State<FoodLogScreen> {
   DateTime? _pendingAt;
 
   final _scroll = SmoothScrollController();
+  ValueNotifier<({DateTime day, DateTime at})?>? _searchRequest;
+
+  @override
+  void didChangeDependencies() {
+    super.didChangeDependencies();
+    final r = AppScope.read(context).foodSearchRequest;
+    if (r != _searchRequest) {
+      _searchRequest?.removeListener(_onSearchRequest);
+      _searchRequest = r..addListener(_onSearchRequest);
+    }
+  }
+
+  /// Search asked for from a meal on Today: open it on that day, logging at the meal's time.
+  /// Focus and clear after the frame, once the shell has switched to this tab.
+  void _onSearchRequest() {
+    final req = _searchRequest?.value;
+    if (req == null) return;
+    setState(() {
+      _day = req.day;
+      _pendingAt = req.at;
+    });
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (!mounted) return;
+      _searchFocus.requestFocus();
+      _searchRequest?.value = null;
+    });
+  }
 
   @override
   void initState() {
@@ -52,6 +79,7 @@ class _FoodLogScreenState extends State<FoodLogScreen> {
 
   @override
   void dispose() {
+    _searchRequest?.removeListener(_onSearchRequest);
     _search.dispose();
     _searchFocus.dispose();
     _scroll.dispose();
