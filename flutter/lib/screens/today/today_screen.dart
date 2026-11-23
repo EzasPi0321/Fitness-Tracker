@@ -478,17 +478,6 @@ class _SummaryCard extends StatelessWidget {
           ].join(' · '),
           style: tt.bodySmall!.copyWith(fontFeatures: tabular),
         ),
-        if (foodScore != null) ...[
-          const SizedBox(height: S.sm),
-          Wrap(
-            spacing: S.sm,
-            crossAxisAlignment: WrapCrossAlignment.center,
-            children: [
-              Text('Food score', style: tt.bodySmall),
-              ScoreBadge(foodScore!, size: 13, label: ScoreBand.of(foodScore!).label),
-            ],
-          ),
-        ],
       ],
     );
 
@@ -504,9 +493,11 @@ class _SummaryCard extends StatelessWidget {
                 consumed: consumed.calories,
                 budget: budget,
                 pulse: pulse,
-                size: narrow ? 84 : 96,
+                size: narrow ? 108 : 116,
                 stroke: 8,
                 showCenter: false,
+                // The day's food score sits inside the ring: how well, beside how much.
+                center: foodScore == null ? null : _DayScore(score: foodScore!),
               ),
             ],
           ),
@@ -716,6 +707,39 @@ class _EntryRow extends StatelessWidget {
         showToast(context, 'Deleted ${entry.name}', actionLabel: 'Undo', onAction: () => state.restoreEntry(entry));
       },
       child: Semantics(hint: 'Double-tap to edit, swipe left to delete', child: row),
+    );
+  }
+}
+
+/// The day's food score, inside the calorie ring: the number in its band's colour, and its name.
+class _DayScore extends StatelessWidget {
+  const _DayScore({required this.score});
+  final int score;
+
+  @override
+  Widget build(BuildContext context) {
+    final t = FT.of(context);
+    final tt = Theme.of(context).textTheme;
+    final band = ScoreBand.of(score);
+    return Semantics(
+      label: 'Food score today',
+      value: '$score out of 100, ${band.label}',
+      excludeSemantics: true,
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          BlurSwitcher(
+            child: Text(
+              '$score',
+              key: ValueKey(score),
+              style: tt.headlineSmall!.copyWith(color: scoreColor(t, score), fontFeatures: tabular, height: 1.0),
+            ),
+          ),
+          const SizedBox(height: 2),
+          // Named, so the number inside a calorie ring isn't read as calories.
+          Text('Food score', style: tt.labelSmall),
+        ],
+      ),
     );
   }
 }
