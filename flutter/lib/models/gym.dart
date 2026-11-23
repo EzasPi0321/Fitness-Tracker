@@ -117,9 +117,6 @@ class GymYear {
   /// Average sessions a week over the year so far.
   double perWeek({DateTime? now}) => total / weeksElapsed(now: now);
 
-  /// Total minutes, from the sessions that recorded a length.
-  int get minutes => sessions.fold(0, (a, s) => a + (s.minutes ?? 0));
-
   TrainingType? get mostTrained {
     TrainingType? top;
     for (final e in byType.entries) {

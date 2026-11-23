@@ -1325,13 +1325,7 @@ class _GymYearCardState extends State<_GymYearCard> {
                 Expanded(
                   child: _Tile('Longest streak', '${y.bestWeekStreak}', suffix: _unit(y.bestWeekStreak, 'week')),
                 ),
-              ],
-            ),
-            const SizedBox(height: S.lg),
-            Row(
-              children: [
                 Expanded(child: _perWeekTile(y)),
-                Expanded(child: _timeTile(y)),
               ],
             ),
             const SizedBox(height: S.xl),
@@ -1359,16 +1353,6 @@ Widget _perWeekTile(GymYear y) {
   final v = y.perWeek();
   final text = v >= 10 ? v.round().toString() : v.toStringAsFixed(1);
   return _Tile('Per week', text, suffix: _unit(double.parse(text), 'session'));
-}
-
-/// Time trained when sessions recorded a length; otherwise the most trained type.
-Widget _timeTile(GymYear y) {
-  final m = y.minutes;
-  if (m == 0) return _Tile('Most trained', y.mostTrained?.label ?? '–');
-  if (m < 60) return _Tile('Time trained', '$m', suffix: ' min');
-  final h = m / 60;
-  final text = h >= 10 ? h.round().toString() : h.toStringAsFixed(1);
-  return _Tile('Time trained', text, suffix: ' h');
 }
 
 /// One square per day, a column per week (Monday on top), like a training diary's year page.

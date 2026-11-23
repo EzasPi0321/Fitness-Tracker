@@ -1005,7 +1005,6 @@ Carbohydrate 12.0g 4.8g
       expect(y.currentWeekStreak(now: DateTime(2026, 3, 23)), 3); // new week, not trained yet
       expect(y.currentWeekStreak(now: DateTime(2026, 3, 30)), 0); // a whole week missed
       expect(y.currentWeekStreak(now: DateTime(2027, 1, 4)), 0); // another year
-      expect(y.minutes, 180);
       expect(y.weeksElapsed(now: DateTime(2026, 1, 14)), 2);
       expect(y.perWeek(now: DateTime(2026, 1, 14)), 2);
       expect(y.weeksElapsed(now: DateTime(2027, 6, 1)), closeTo(52.1, 0.1)); // a past year counts whole
