@@ -237,8 +237,11 @@ class _FoodLogScreenState extends State<FoodLogScreen> {
               ],
             ),
           ),
+          // Keyed layers: the results panel comes and goes between the scrim and the search bar,
+          // and without keys Flutter would rebuild the bar in its place, dropping focus and the keyboard.
           if (searching)
             Positioned.fill(
+              key: const ValueKey('scrim'),
               child: GestureDetector(
                 onTap: _closeSearch,
                 child: ColoredBox(color: Colors.black.withValues(alpha: t.dark ? 0.6 : 0.3)),
@@ -247,6 +250,7 @@ class _FoodLogScreenState extends State<FoodLogScreen> {
           // Results only once something's typed: an empty search shows nothing over the log.
           if (_search.text.trim().isNotEmpty)
             Positioned(
+              key: const ValueKey('results'),
               left: gutter,
               right: gutter,
               top: MediaQuery.paddingOf(context).top + S.lg,
@@ -267,6 +271,7 @@ class _FoodLogScreenState extends State<FoodLogScreen> {
               ),
             ),
           Positioned(
+            key: const ValueKey('searchBar'),
             left: 0,
             right: 0,
             bottom: 0,
