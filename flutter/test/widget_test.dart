@@ -123,6 +123,25 @@ void main() {
     expect(find.textContaining('Logged Granola'), findsOneWidget);
   }, variant: desktop);
 
+  testWidgets('typing in Food log search keeps the field focused', (tester) async {
+    final s = await _state(sample: true);
+    await _pump(tester, s, const Size(400, 860));
+    await tester.tap(find.text('Food log'));
+    await tester.pumpAndSettle();
+    final field = find.byType(TextField).last;
+    await tester.tap(field);
+    await tester.pumpAndSettle();
+    await tester.enterText(field, 'd');
+    await tester.pumpAndSettle();
+    expect(find.text('Recently added').evaluate().isNotEmpty || find.byType(TextField).evaluate().isNotEmpty, isTrue);
+    expect(tester.testTextInput.hasAnyClients, isTrue);
+    final editable = tester.state<EditableTextState>(find.byType(EditableText).last);
+    expect(editable.widget.focusNode.hasFocus, isTrue);
+    await tester.enterText(find.byType(TextField).last, 'du');
+    await tester.pumpAndSettle();
+    expect(tester.state<EditableTextState>(find.byType(EditableText).last).widget.focusNode.hasFocus, isTrue);
+  }, variant: desktop);
+
   testWidgets('Search foods from a meal opens the Food log search', (tester) async {
     final s = await _state(sample: true);
     await _pump(tester, s, const Size(400, 860));
