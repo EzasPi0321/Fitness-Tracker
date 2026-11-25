@@ -349,26 +349,12 @@ class StatusPill extends StatelessWidget {
   }
 }
 
-/// Lifts toasts raised from inside [child] clear of something floating at the bottom of the
-/// screen, such as Today's add button, so a toast never covers it.
-class ToastInset extends InheritedWidget {
-  const ToastInset({super.key, required this.bottom, required super.child});
-  final double bottom;
-
-  static double of(BuildContext context) => context.dependOnInheritedWidgetOfExactType<ToastInset>()?.bottom ?? 0;
-
-  @override
-  bool updateShouldNotify(ToastInset old) => old.bottom != bottom;
-}
-
 void showToast(BuildContext context, String text, {String? actionLabel, VoidCallback? onAction}) {
   final m = ScaffoldMessenger.of(context);
-  final inset = ToastInset.of(context);
   m.hideCurrentSnackBar();
   m.showSnackBar(
     SnackBar(
       content: Text(text),
-      margin: inset > 0 ? EdgeInsets.fromLTRB(S.lg, 0, S.lg, inset) : null,
       // Gone on its own: 2.5 s to read, 3 s when there's an Undo to reach for. Flutter keeps
       // snack bars with an action open until dismissed unless told otherwise.
       duration: Duration(milliseconds: actionLabel == null ? 2500 : 3000),

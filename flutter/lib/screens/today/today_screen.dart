@@ -173,136 +173,132 @@ class _TodayScreenState extends State<TodayScreen> {
     );
 
     return Scaffold(
-      // Toasts float above the add button (20 margin + 64 button + a gap), never over it.
-      body: ToastInset(
-        bottom: 20 + 64 + S.md + MediaQuery.paddingOf(context).bottom,
-        child: Stack(
-          children: [
-            RefreshIndicator(
-              // Pull down to read steps and workouts again.
-              onRefresh: _loadHealth,
-              child: CustomScrollView(
-                controller: _scroll,
-                physics: const AlwaysScrollableScrollPhysics(),
-                slivers: [
-                  SliverSafeArea(
-                    bottom: false,
-                    sliver: SliverPadding(
-                      padding: EdgeInsets.fromLTRB(_gutter(width), S.lg, _gutter(width), 0),
-                      sliver: SliverToBoxAdapter(
-                        child: Center(
-                          child: ConstrainedBox(
-                            constraints: const BoxConstraints(maxWidth: 1100),
-                            child: Column(
-                              crossAxisAlignment: CrossAxisAlignment.stretch,
-                              children: [
-                                const UpdateBanner(),
-                                if (state.isSample) const _SampleBanner(),
-                                Row(
-                                  children: [
-                                    Expanded(
-                                      child: BlurSwitcher(
-                                        child: Align(
-                                          key: ValueKey(_day),
-                                          alignment: Alignment.centerLeft,
-                                          child: Column(
-                                            crossAxisAlignment: CrossAxisAlignment.start,
-                                            children: [
-                                              if (isToday)
-                                                Text(
-                                                  nameAndDate(DateTime.now(), state.profile?.firstName ?? ''),
-                                                  style: tt.titleMedium!.copyWith(color: t.muted),
-                                                ),
-                                              Text(dayTitle(_day), style: tt.headlineMedium),
-                                            ],
-                                          ),
-                                        ),
-                                      ),
-                                    ),
-                                    AnimatedOpacity(
-                                      opacity: isToday ? 0 : 1,
-                                      duration: Motion.of(context, Motion.fast),
-                                      child: IgnorePointer(
-                                        ignoring: isToday,
-                                        child: TextButton.icon(
-                                          onPressed: () => _select(DateTime.now()),
-                                          icon: const FIcon(Symbols.history, size: 18, weight: FontWeight.w600),
-                                          label: const Text('Back to today'),
-                                        ),
-                                      ),
-                                    ),
-                                  ],
-                                ),
-                                const SizedBox(height: S.md),
-                                DayCarousel(selected: _day, onSelect: _select),
-                                const SizedBox(height: S.lg),
-                                if (wide)
-                                  Row(
-                                    crossAxisAlignment: CrossAxisAlignment.start,
-                                    children: [
-                                      SizedBox(
-                                        width: 380,
+      body: Stack(
+        children: [
+          RefreshIndicator(
+            // Pull down to read steps and workouts again.
+            onRefresh: _loadHealth,
+            child: CustomScrollView(
+              controller: _scroll,
+              physics: const AlwaysScrollableScrollPhysics(),
+              slivers: [
+                SliverSafeArea(
+                  bottom: false,
+                  sliver: SliverPadding(
+                    padding: EdgeInsets.fromLTRB(_gutter(width), S.lg, _gutter(width), 0),
+                    sliver: SliverToBoxAdapter(
+                      child: Center(
+                        child: ConstrainedBox(
+                          constraints: const BoxConstraints(maxWidth: 1100),
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.stretch,
+                            children: [
+                              const UpdateBanner(),
+                              if (state.isSample) const _SampleBanner(),
+                              Row(
+                                children: [
+                                  Expanded(
+                                    child: BlurSwitcher(
+                                      child: Align(
+                                        key: ValueKey(_day),
+                                        alignment: Alignment.centerLeft,
                                         child: Column(
+                                          crossAxisAlignment: CrossAxisAlignment.start,
                                           children: [
-                                            Rise(child: summary),
-                                            const SizedBox(height: S.lg),
-                                            Rise(
-                                              delay: const Duration(milliseconds: 40),
-                                              child: WaterCard(day: _day),
-                                            ),
-                                            if (showSteps) ...[
-                                              const SizedBox(height: S.lg),
-                                              Rise(delay: const Duration(milliseconds: 60), child: stepsCard),
-                                            ],
-                                            const SizedBox(height: S.lg),
-                                            Rise(delay: const Duration(milliseconds: 80), child: sleepCard),
-                                            const SizedBox(height: S.lg),
-                                            Rise(
-                                              delay: const Duration(milliseconds: 100),
-                                              child: GymCard(day: _day),
-                                            ),
+                                            if (isToday)
+                                              Text(
+                                                nameAndDate(DateTime.now(), state.profile?.firstName ?? ''),
+                                                style: tt.titleMedium!.copyWith(color: t.muted),
+                                              ),
+                                            Text(dayTitle(_day), style: tt.headlineMedium),
                                           ],
                                         ),
                                       ),
-                                      const SizedBox(width: S.xl),
-                                      Expanded(child: meals),
-                                    ],
-                                  )
-                                else ...[
-                                  Rise(child: summary),
-                                  const SizedBox(height: S.lg),
-                                  Rise(
-                                    delay: const Duration(milliseconds: 40),
-                                    child: WaterCard(day: _day),
+                                    ),
                                   ),
-                                  // Meals come before the other trackers: they're what's logged most.
-                                  const SizedBox(height: S.xl),
-                                  meals,
-                                  if (showSteps) ...[
-                                    const SizedBox(height: S.xl),
-                                    Rise(delay: const Duration(milliseconds: 60), child: stepsCard),
-                                  ],
-                                  SizedBox(height: showSteps ? S.lg : S.xl),
-                                  Rise(delay: const Duration(milliseconds: 80), child: sleepCard),
-                                  const SizedBox(height: S.lg),
-                                  Rise(
-                                    delay: const Duration(milliseconds: 100),
-                                    child: GymCard(day: _day),
+                                  AnimatedOpacity(
+                                    opacity: isToday ? 0 : 1,
+                                    duration: Motion.of(context, Motion.fast),
+                                    child: IgnorePointer(
+                                      ignoring: isToday,
+                                      child: TextButton.icon(
+                                        onPressed: () => _select(DateTime.now()),
+                                        icon: const FIcon(Symbols.history, size: 18, weight: FontWeight.w600),
+                                        label: const Text('Back to today'),
+                                      ),
+                                    ),
                                   ),
                                 ],
-                                const SizedBox(height: S.xxl),
+                              ),
+                              const SizedBox(height: S.md),
+                              DayCarousel(selected: _day, onSelect: _select),
+                              const SizedBox(height: S.lg),
+                              if (wide)
+                                Row(
+                                  crossAxisAlignment: CrossAxisAlignment.start,
+                                  children: [
+                                    SizedBox(
+                                      width: 380,
+                                      child: Column(
+                                        children: [
+                                          Rise(child: summary),
+                                          const SizedBox(height: S.lg),
+                                          Rise(
+                                            delay: const Duration(milliseconds: 40),
+                                            child: WaterCard(day: _day),
+                                          ),
+                                          if (showSteps) ...[
+                                            const SizedBox(height: S.lg),
+                                            Rise(delay: const Duration(milliseconds: 60), child: stepsCard),
+                                          ],
+                                          const SizedBox(height: S.lg),
+                                          Rise(delay: const Duration(milliseconds: 80), child: sleepCard),
+                                          const SizedBox(height: S.lg),
+                                          Rise(
+                                            delay: const Duration(milliseconds: 100),
+                                            child: GymCard(day: _day),
+                                          ),
+                                        ],
+                                      ),
+                                    ),
+                                    const SizedBox(width: S.xl),
+                                    Expanded(child: meals),
+                                  ],
+                                )
+                              else ...[
+                                Rise(child: summary),
+                                const SizedBox(height: S.lg),
+                                Rise(
+                                  delay: const Duration(milliseconds: 40),
+                                  child: WaterCard(day: _day),
+                                ),
+                                // Meals come before the other trackers: they're what's logged most.
+                                const SizedBox(height: S.xl),
+                                meals,
+                                if (showSteps) ...[
+                                  const SizedBox(height: S.xl),
+                                  Rise(delay: const Duration(milliseconds: 60), child: stepsCard),
+                                ],
+                                SizedBox(height: showSteps ? S.lg : S.xl),
+                                Rise(delay: const Duration(milliseconds: 80), child: sleepCard),
+                                const SizedBox(height: S.lg),
+                                Rise(
+                                  delay: const Duration(milliseconds: 100),
+                                  child: GymCard(day: _day),
+                                ),
                               ],
-                            ),
+                              const SizedBox(height: S.xxl),
+                            ],
                           ),
                         ),
                       ),
                     ),
                   ),
-                ],
-              ),
+                ),
+              ],
             ),
-          ],
-        ),
+          ),
+        ],
       ),
     );
   }

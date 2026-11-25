@@ -512,6 +512,22 @@ class AppState extends ChangeNotifier {
   }
 
   /// Removes the most recent drink on [day] (the undo button).
+  /// Takes out one drink, whichever it was. Returns it, so it can be put back.
+  WaterEntry? removeWater(String id) {
+    final i = water.indexWhere((w) => w.id == id);
+    if (i < 0) return null;
+    final removed = water.removeAt(i);
+    _changed();
+    return removed;
+  }
+
+  /// Puts back a drink taken out by mistake, at its original time.
+  void restoreWater(WaterEntry w) {
+    if (water.any((x) => x.id == w.id)) return;
+    water.add(w);
+    _changed();
+  }
+
   WaterEntry? undoWater(DateTime day) {
     final list = waterOn(day);
     if (list.isEmpty) return null;
