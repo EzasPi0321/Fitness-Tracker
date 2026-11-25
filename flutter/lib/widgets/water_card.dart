@@ -17,12 +17,6 @@ class WaterCard extends StatelessWidget {
   const WaterCard({super.key, required this.day});
   final DateTime day;
 
-  /// Takes back the latest drink and says what was removed.
-  void _undo(BuildContext context, bool metric) {
-    final removed = AppScope.read(context).undoWater(day);
-    if (removed != null) showToast(context, 'Removed ${Volume.format(removed.ml, metric: metric)} of water');
-  }
-
   /// Adds water, with Undo in the toast: a mistaken tap is fixed where the eye already is.
   void _add(BuildContext context, double ml, bool metric) {
     AppScope.read(context).addWater(ml, logTimestamp(day));
@@ -36,47 +30,15 @@ class WaterCard extends StatelessWidget {
     );
   }
 
-  /// Another amount, and the place to take back an earlier drink once the toast has gone.
-  Future<void> _custom(BuildContext context, bool metric, {required bool hasAny}) async {
-    double? value;
-    final ok = await showDialog<bool>(
+  /// The pencil: another amount, and today's drinks, each one removable.
+  void _custom(BuildContext context, bool metric) {
+    showModalBottomSheet<void>(
       context: context,
-      builder: (c) => AlertDialog(
-        title: const Text('Add water'),
-        content: Column(
-          mainAxisSize: MainAxisSize.min,
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            NumberInput(
-              value: null,
-              unit: Volume.unit(metric: metric),
-              hint: metric ? '330' : '12',
-              maxDigits: 0,
-              width: 200,
-              onChanged: (v) => value = v,
-            ),
-            if (hasAny) ...[
-              const SizedBox(height: S.md),
-              TextButton.icon(
-                onPressed: () {
-                  Navigator.pop(c, false);
-                  _undo(context, metric);
-                },
-                icon: const FIcon(Symbols.undo, size: 20),
-                label: const Text('Remove last drink'),
-              ),
-            ],
-          ],
-        ),
-        actions: [
-          TextButton(onPressed: () => Navigator.pop(c, false), child: const Text('Cancel')),
-          FilledButton(onPressed: () => Navigator.pop(c, true), child: const Text('Add')),
-        ],
-      ),
+      isScrollControlled: true,
+      useSafeArea: true,
+      constraints: const BoxConstraints(maxWidth: 560),
+      builder: (_) => _WaterSheet(day: day, metric: metric, onAdd: (ml) => _add(context, ml, metric)),
     );
-    if (ok == true && value != null && value! > 0 && context.mounted) {
-      _add(context, Volume.fromDisplay(value!, metric: metric), metric);
-    }
   }
 
   @override
@@ -88,7 +50,6 @@ class WaterCard extends StatelessWidget {
     final total = state.waterTotalOn(day);
     final goal = state.waterGoal;
     final frac = goal > 0 ? total / goal : 0.0;
-    final hasAny = state.waterOn(day).isNotEmpty;
     final water = t.bodyO;
 
     // Sized to their labels, not stretched: the row stays clear of the add button's corner.
@@ -183,8 +144,8 @@ class WaterCard extends StatelessWidget {
                 style: IconButton.styleFrom(
                   shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(S.inner(S.radiusCard, S.lg) + 6)),
                 ),
-                tooltip: 'Other amount or remove',
-                onPressed: () => _custom(context, metric, hasAny: hasAny),
+                tooltip: 'Other amount, or remove a drink',
+                onPressed: () => _custom(context, metric),
                 icon: FIcon(Symbols.edit, size: 20, weight: FontWeight.w500),
               ),
             ],
@@ -365,4 +326,98 @@ class _GlassPainter extends CustomPainter {
   @override
   bool shouldRepaint(_GlassPainter o) =>
       o.fill != fill || o.drop != drop || o.splash != splash || o.wave != wave || o.phase != phase || o.t != t;
+}
+
+/// Another amount, and the day's drinks with a remove button each.
+class _WaterSheet extends StatefulWidget {
+  const _WaterSheet({required this.day, required this.metric, required this.onAdd});
+  final DateTime day;
+  final bool metric;
+  final ValueChanged<double> onAdd;
+
+  @override
+  State<_WaterSheet> createState() => _WaterSheetState();
+}
+
+class _WaterSheetState extends State<_WaterSheet> {
+  double? _amount;
+
+  void _submit() {
+    final v = _amount;
+    if (v == null || v <= 0) return;
+    Navigator.pop(context);
+    widget.onAdd(Volume.fromDisplay(v, metric: widget.metric));
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final state = AppScope.of(context);
+    final t = FT.of(context);
+    final tt = Theme.of(context).textTheme;
+    final drinks = state.waterOn(widget.day).reversed.toList(); // newest first
+    final metric = widget.metric;
+    return Padding(
+      padding: EdgeInsets.only(bottom: MediaQuery.viewInsetsOf(context).bottom),
+      child: SingleChildScrollView(
+        padding: const EdgeInsets.fromLTRB(S.lg, 0, S.lg, S.xl),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: [
+            Text('Water', style: tt.headlineSmall),
+            const SizedBox(height: S.lg),
+            FGroup(
+              label: 'Add an amount',
+              children: [
+                FRow(
+                  label: Volume.unit(metric: metric) == 'ml' ? 'Millilitres' : 'Fluid ounces',
+                  trailing: Row(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      NumberInput(
+                        value: null,
+                        unit: Volume.unit(metric: metric),
+                        hint: '',
+                        maxDigits: 0,
+                        width: 120,
+                        onChanged: (v) => setState(() => _amount = v),
+                      ),
+                      const SizedBox(width: S.sm),
+                      FilledButton(onPressed: (_amount ?? 0) > 0 ? _submit : null, child: const Text('Add')),
+                    ],
+                  ),
+                ),
+              ],
+            ),
+            if (drinks.isNotEmpty) ...[
+              const SizedBox(height: S.xl),
+              FGroup(
+                label: sameDay(widget.day, DateTime.now()) ? 'Today’s drinks' : 'Drinks this day',
+                children: [
+                  for (final w in drinks)
+                    FRow(
+                      label: Volume.format(w.ml, metric: metric),
+                      sub: MaterialLocalizations.of(context).formatTimeOfDay(TimeOfDay.fromDateTime(w.at)),
+                      trailing: IconButton(
+                        tooltip: 'Remove ${Volume.format(w.ml, metric: metric)}',
+                        onPressed: () {
+                          final removed = state.removeWater(w.id);
+                          if (removed == null) return;
+                          showToast(
+                            context,
+                            'Removed ${Volume.format(removed.ml, metric: metric)} of water',
+                            actionLabel: 'Undo',
+                            onAction: () => state.restoreWater(removed),
+                          );
+                        },
+                        icon: FIcon(Symbols.remove_circle, size: 22, color: t.muted),
+                      ),
+                    ),
+                ],
+              ),
+            ],
+          ],
+        ),
+      ),
+    );
+  }
 }
