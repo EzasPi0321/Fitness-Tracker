@@ -1319,7 +1319,11 @@ class _GymYearCardState extends State<_GymYearCard> {
               children: [
                 Expanded(
                   child: _year == thisYear
-                      ? _Tile('Current streak', '${y.currentWeekStreak()}', suffix: _unit(y.currentWeekStreak(), 'week'))
+                      ? _Tile(
+                          'Current streak',
+                          '${y.currentWeekStreak()}',
+                          suffix: _unit(y.currentWeekStreak(), 'week'),
+                        )
                       : _Tile('Active weeks', '${y.activeWeeks.length}', suffix: _unit(y.activeWeeks.length, 'week')),
                 ),
                 Expanded(child: _perWeekTile(y)),
